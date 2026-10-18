@@ -25,6 +25,8 @@
 
 #include "frame_pacing.h"
 #include "frame_timing.h"
+#include "glyph_overlay.h"
+#include "physics_telemetry.h"
 #include "settings.h"
 
 REX_EXTERN(__imp__sub_826A7698);
@@ -209,6 +211,7 @@ REX_HOOK_RAW(sub_826A7698) {
   if (HighFrameRate(rate)) {
     SelectVariableStep(base, rate);
   }
+  crackdown::UpdateButtonGlyphs(base);
   __imp__sub_826A7698(ctx, base);
 }
 
@@ -216,7 +219,9 @@ REX_HOOK_RAW(sub_826A7698) {
 // on an on-time frame at every rate, so this is a no-op multiply unless a frame ran long or short of its target.
 REX_HOOK_RAW(sub_826A6B50) {
   ctx.f1.f64 = double(float(ctx.f1.f64 * g_step.original_steps));
+  const double step_seconds = ctx.f1.f64;
   __imp__sub_826A6B50(ctx, base);
+  crackdown::RecordPhysicsStep(base, step_seconds);
 }
 
 // The frame delta getter. With the fixed step on (30), the original always returns timescale/30, the same value

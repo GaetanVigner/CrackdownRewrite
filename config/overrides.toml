@@ -26,6 +26,79 @@ name = "crackdown_massive_server_count_guard"
 registers = ["r1"]
 after_instruction = false
 
+# Keeps the 360x256 audio bit-grid reads of sub_82252150 near their table at 0x82D33F98: a NaN angle converts to
+# 0x80000000 and the read faulted at 0x72D32F98 (r11, r10 columns; r27, r29 rows). Spans near the table are untouched.
+[[midasm_hook]]
+address = 0x822541D8
+name = "crackdown_visibility_grid_guard"
+registers = ["r11", "r10", "r27", "r29"]
+after_instruction = false
+
+# The ledge and slope follower sub_822B4D40 divides its snap-down pull by the step's dt; above 30 FPS that velocity runs
+# away on slopes. The pull is scaled so it is divided by the title's 1/30 s step instead (f0 = clamp(h,0,2) * 0.4).
+[[midasm_hook]]
+address = 0x822B5634
+name = "crackdown_ledge_snap_down"
+registers = ["f0"]
+after_instruction = false
+
+# The character's vertical visual smoothing in sub_822A2C90 decays its blend (f13, before `fmuls f0,f0,f13`) and moves a
+# fraction of the gap (f13, after `fmuls f13,f13,f0`) once per step; both become per-second above 30 FPS.
+[[midasm_hook]]
+address = 0x822A2DB8
+name = "crackdown_ground_snap_decay"
+registers = ["f13"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822A2E28
+name = "crackdown_ground_snap_lerp"
+registers = ["f13"]
+after_instruction = true
+
+# The first gravity increment after a grounded step (f13 = accumulator +532 == 0) is the 30 FPS one, so settling onto
+# the floor and sliding off steep faces keep their 30 FPS speed (f0 = gravity * dt after the multiply).
+[[midasm_hook]]
+address = 0x822AA8F4
+name = "crackdown_first_gravity_step"
+registers = ["f0", "f13"]
+after_instruction = true
+
+# Windows counted in frame-counter ticks (one per update) keep their 30 FPS length in real time: the hit-reaction merge
+# window (r11 = counter + 10) and a ragdoll threshold (r10 = counter + 15).
+[[midasm_hook]]
+address = 0x822E191C
+name = "crackdown_hit_merge_window"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x822BA48C
+name = "crackdown_ragdoll_tick_window"
+registers = ["r10"]
+after_instruction = true
+
+# After a ragdoll the head look-at target and the audio listener built from the head data can go NaN; a non-finite
+# listener (r3 matrix, r4 vector) is replaced by the last finite one, a non-finite target (r31 + 0x13B0) by the
+# character's position.
+[[midasm_hook]]
+address = 0x82252134
+name = "crackdown_audio_listener_guard"
+registers = ["r3", "r4"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822A026C
+name = "crackdown_look_target_guard"
+registers = ["r31"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822A2C50
+name = "crackdown_look_target_guard"
+registers = ["r31"]
+after_instruction = false
+
 # Sanitizes the mixed frame before XAudioSubmitRenderDriverFrame in sub_82A4BEF8; r4 is the frame address.
 [[midasm_hook]]
 address = 0x82A4BF40

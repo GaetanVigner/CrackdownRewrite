@@ -28,6 +28,9 @@ Crackdown Recompiled is a native PC recompilation of Crackdown for Xbox 360, wit
 - **Graphics card selection** (Windows): Automatic (recommended) or a specific compatible GPU.
 
 ### Graphics fixes
+- **Modern button prompts**: the HUD's old Xbox 360 button glyphs are replaced by sharp modern ones, and the HUD text is
+  redrawn from the system's Arial (the game's own typeface) at twice the original atlas resolution. With keyboard and
+  mouse in use, prompts show your bound keys and switch back to the controller glyphs as soon as a pad is used.
 - **Corrected exposure and brightness**: scenes where the exposure stayed stale or wrong now adapt properly, without the frame rate cost of a full readback.
 
 ### Performance
@@ -44,6 +47,8 @@ Crackdown Recompiled is a native PC recompilation of Crackdown for Xbox 360, wit
 - **Offline achievements** with the original icons and Gamerscore: an **Achievements** page in the launcher and an in-game overlay on **F7**, usable with keyboard or controller.
 - **Cheats**: 7 optional cheats set on the launcher's **Cheats** page, and changed for the session with the in-game menu on **F10**.
 - **Save-load fix**: the crash that could happen after Loading Saved Game is fixed.
+- **High frame rate physics fixes**: no more launches on slopes or off ledges and fewer characters stuck in walls above
+  30 FPS; a crash in the audio engine after physics glitches is fixed.
 - **Language selector** with ten launcher choices: English, French, German, Italian, Spanish (Spain), Spanish (Latin America), Czech, Polish, Hungarian and Japanese.
 - **Skip intro**: starts directly at the title screen.
 - **Frame rate and render resolution in the window title**, and an **FPS counter** in the corner (toggled with **F2**).
@@ -146,7 +151,7 @@ Optional gameplay modifiers, all off by default. They start with the values save
 - **Vehicle Speed**: Off, 2x, 4x or 6x
 
 ### Controls
-- Xbox controllers work without setup
+- Xbox and XInput controllers work without setup; any connected pad can press Start
 - **Keyboard and Mouse**: enabled or disabled (off by default). **W A S D** move, the mouse turns the camera and aims, the **left mouse button** fires and the **right mouse button** locks on. It works together with any connected Xbox controller.
 - **Mouse sensitivity**: 0.25x to 3.00x (default 1.00x).
 - The complete key list is on the Controls page. Plain arrow keys also turn the camera, and menus use **W A S D** or **Shift + arrow** keys.

@@ -28,9 +28,12 @@
 #include "frame_counter.h"
 #include "frame_rate.h"
 #include "game_files.h"
+#include "glyph_overlay.h"
 #include "guest_fault_log.h"
 #include "internal_render_scale.h"
+#include "language_setting.h"
 #include "launcher.h"
+#include "physics_telemetry.h"
 #include "platform.h"
 #include "settings.h"
 #include "skip_intro.h"
@@ -137,7 +140,7 @@ class CrackdownApp : public rex::ReXApp {
     crackdown::ShowLauncher(imgui_drawer(),
                             {defaults.game_data_root, defaults.user_data_root,
                              crackdown::PlayerSettingsPath(defaults.user_data_root), user_data_.outcome},
-                            game_settings_, {}, MakeLauncherCallbacks([this, resume, defaults] { resume(defaults); }));
+                            game_settings_, {}, MakeLauncherCallbacks([resume, defaults] { resume(defaults); }));
     return std::nullopt;
   }
 
@@ -184,6 +187,14 @@ class CrackdownApp : public rex::ReXApp {
     if (runtime()) {
       MountCacheDevice(runtime()->file_system(), user_data_root());
       crackdown::InstallCrashDiagnostics(runtime()->virtual_membase());
+      crackdown::InstallGlyphOverlay(runtime()->file_system(), game_data_root(), user_data_root(),
+                                     crackdown::LanguageFor(REXCVAR_GET(crackdown_language)).key);
+      // Crackdown has no local split screen and reads keystrokes as XUSER_INDEX_ANY, which the runtime answers from
+      // user 0 only. With the default one-pad-per-user slots, a second pad, or a pad left alone after the first was
+      // unplugged, never reaches user 0 and cannot press Start. Every pad drives user 0 instead.
+      if (auto* input = static_cast<rex::input::InputSystem*>(runtime()->input_system())) {
+        input->SetDeviceAssignment(std::make_unique<rex::input::SharedAssignment>());
+      }
     }
     if (window()) {
       AttachWindowHost(
@@ -203,6 +214,7 @@ class CrackdownApp : public rex::ReXApp {
     if (window()) {
       cheat_menu_key_ = std::make_unique<crackdown::CheatMenuKey>(
           window(), [this] { app_context().CallInUIThreadDeferred([this] { ToggleCheatMenu(); }); });
+      telemetry_key_ = std::make_unique<crackdown::TelemetryKey>(window());
     }
   }
 
@@ -215,6 +227,7 @@ class CrackdownApp : public rex::ReXApp {
     }
     CloseAchievements();
     cheat_menu_key_.reset();
+    telemetry_key_.reset();
     CloseCheatMenu();
     DetachWindowHost();
     crackdown::DetachFrameRate();
@@ -346,6 +359,7 @@ class CrackdownApp : public rex::ReXApp {
   std::unique_ptr<crackdown::AchievementsOverlay> achievements_;
   std::unique_ptr<crackdown::CheatMenuOverlay> cheat_menu_;
   std::unique_ptr<crackdown::CheatMenuKey> cheat_menu_key_;
+  std::unique_ptr<crackdown::TelemetryKey> telemetry_key_;
   bool show_launcher_ = false;
   bool show_launcher_after_runtime_ = false;
   bool launcher_open_ = false;

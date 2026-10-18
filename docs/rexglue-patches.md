@@ -5,8 +5,8 @@ result is installed over the stock files in `tools/rexglue`. The game compiles a
 must not move virtual functions or data members of classes the generated game code uses.
 
 `NNNN-name.patch` applies on both platforms, `NNNN-name.windows.patch` only on Windows and `NNNN-name.linux.patch` only on
-Linux. Numbers are unique and patches apply in name order; gaps are fine. 45 patches are common, 16 are Windows only and
-13 are Linux only, so 61 apply on Windows and 58 on Linux. Patches 0005 and 0052 change the code generator and are the
+Linux. Numbers are unique and patches apply in name order; gaps are fine. 50 patches are common, 19 are Windows only and
+13 are Linux only, so 69 apply on Windows and 63 on Linux. Patches 0005 and 0052 change the code generator and are the
 reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the runtime and the GPU plugin.
 
 | # | Platform | Purpose |
@@ -75,6 +75,14 @@ reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the run
 | 0081 | windows | `d3d12_async_submission`: a "D3D12 Submission" thread replays, executes and signals the recorded submissions in order, and a swap waits for it to drain; `d3d12_async_submission_draws` (2000) also ends a submission between draws outside occlusion queries |
 | 0082 | windows | D3D12 half of 0080: draws without transfers or clears skip the transfer pass, and sampler parameters are recomputed only when the shader, a fetch constant or `anisotropic_override` changed |
 | 0083 | windows | `gpu_host_threads_avoid_cpu0`: the command processor and submission threads run on the process's CPUs except 0 and 1 when it has at least 8 in one processor group |
+| 0084 | all | `XamLoaderLaunchTitle` keeps the launch path in an owning `std::string`; a relative XEX name was joined into a temporary that a `std::string_view` outlived (`-Wdangling-assignment-gsl`) |
+| 0085 | all | `RtlCompareStringN` compares up to the shorter of the real lengths (0xFFFF = `strlen`), then orders by length like `RtlCompareString`; it used the raw length arguments and called "abc" and "abcd" equal. Crackdown does not import it |
+| 0086 | windows | D3D12 texture load: `host_slice_size_base` starts at 0 (a `-Wuninitialized` false positive; every read follows a write) |
+| 0087 | all | draw extent estimate: a negative scissor edge no longer counts as the 8192 "no scissor" case (signed/unsigned comparison); non-negative scissors are unchanged |
+| 0088 | windows | D3D12 render target cache: the direct resolve success/fallback counters that 0034 left unused are removed (the class is private to the GPU plugin) |
+| 0089 | all | warning cleanup without behaviour change: `void*` casts for the deliberate `memcpy`/`memset` of texture keys, initializer lists in declaration order, unsigned `-1` sentinels spelled in their type, no pessimizing `std::move`, `= {}` for `X_SLIST_HEADER`, unused header parameter names; `MakePacketType0` sets its one-register bit (the only caller passes false) |
+| 0090 | windows | Windows half of 0089 and 0091: full `D3D12_HEAP_PROPERTIES` initializers, a missing `override`, explicit `GetProcAddress` casts, unused capture and locals |
+| 0091 | all | unused locals removed when their initializer has no side effect, otherwise `[[maybe_unused]]` |
 
 Patches 0054 to 0058 and 0078 to 0083 and the hooks in `src/audio_guest_sync.cpp` are adapted from Unowa001/crackdown-recomp
 (BSD 3-Clause, notice in [THIRD-PARTY-LICENSES.txt](../packaging/licenses/THIRD-PARTY-LICENSES.txt)).
@@ -90,3 +98,29 @@ return (`crackdown_audio_barrier_escape`). The `crackdown_variable_step_frame_ms
 frame-time sites the host-paced frame time above 60 FPS. `crackdown_audio_wave_timeout_tick` at `0x8225B254` advances a
 wave's safety timeout at 30 Hz at any frame rate, so speech is not stopped early above 30 FPS.
 `crackdown_audio_pcm_firewall` sanitizes the mixed audio frame before it is submitted.
+
+### High frame rate fixes (`src/character_step_fixes.cpp`)
+
+The character controller was tuned for the shipped 1/30 s step. Each hook is a no-op at 30 FPS (the update is exactly
+one 1/30 s step) and turns a per-step term into a per-second one above it:
+
+- `crackdown_ledge_snap_down` (`0x822B5634`, `sub_822B4D40`): the ledge and slope follower divides its snap-down pull
+  by the step's dt; above 30 FPS that vertical velocity, projected along the slope by the Havok proxy, ran away about
+  1.64x per step at 120 FPS (the launches on slopes and off ledges). The pull is divided by the 1/30 s step instead.
+- `crackdown_first_gravity_step` (`0x822AA8F4`, `sub_822A9E78`): a grounded step resets the vertical speed accumulator,
+  so settling onto the floor and sliding off steep faces ran at g * dt, four times slower at 120 FPS, and the character
+  stayed in the contact zone where the ledge follower stops horizontal motion. The first increment is the 30 FPS one.
+- `crackdown_ground_snap_decay` / `crackdown_ground_snap_lerp` (`0x822A2DB8`, `0x822A2E28`, `sub_822A2C90`): the
+  vertical visual smoothing applies its decay and lerp per second.
+- `crackdown_hit_merge_window` / `crackdown_ragdoll_tick_window` (`0x822E191C`, `0x822BA48C`): windows counted in
+  frame-counter ticks (one per update) keep their 30 FPS length in real time.
+
+### Guards (`src/visibility_grid_guard.cpp`, `src/nan_guards.cpp`)
+
+- `crackdown_visibility_grid_guard` (`0x822541D8`, AudioCore `sub_82252150`): a NaN listener angle converted by `fctiwz`
+  made the audio occlusion grid read 256 MB below its table (`Unhandled guest access violation ... 0x72D32F98`).
+  Spans that would leave the table are clamped; the title's own reads near it are untouched.
+- `sub_824FD840` wrapper: the player's aim point (from the camera ray or a locked target's bone) is kept finite; a
+  target whose body went NaN (a ragdoll that blew up) no longer feeds NaN into the look-at target, head and listener.
+- `crackdown_look_target_guard` (`0x822A026C`, `0x822A2C50`) and `crackdown_audio_listener_guard` (`0x82252134`) repair
+  a non-finite x, y or z (the w lanes hold garbage in the shipped game and are left alone).

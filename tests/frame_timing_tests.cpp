@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cmath>
 #include <cstdint>
 
@@ -107,24 +108,73 @@ void TestPacerOnTime() {
   }
 }
 
-// Late frames: a little late keeps the grid; more than a period restarts it and steps the measured time.
+// A late frame restarts the grid at once and steps more than a period, but less than the raw interval.
 void TestPacerLate() {
   FramePacer pacer;
   int64_t now = kSecond;
   pacer.Next(120, now);
   const int64_t period = kSecond / 120;
-  FramePacer::Frame frame = pacer.Next(120, now + period + period / 2);
-  CHECK(frame.release_ns == now + period);
-  CHECK(frame.step.seconds == 1.0 / 120);
-  const int64_t late = now + 2 * period + 3 * period;
-  frame = pacer.Next(120, late);
+  const int64_t late = now + period + period / 2;
+  FramePacer::Frame frame = pacer.Next(120, late);
   CHECK(frame.release_ns == late);
-  CHECK(std::fabs(frame.step.seconds - double(late - (now + period)) * 1e-9) < 1e-12);
+  CHECK(frame.step.seconds > 1.0 / 120 && frame.step.seconds < 1.5 / 120);
+  // The next slot is one period after the late frame.
   frame = pacer.Next(120, late + 1000);
   CHECK(frame.release_ns == late + period);
-  // A stall is capped at the title's own 1/30 s step.
+  // A stall is capped at the title's own 1/30 s step and is not owed back.
   frame = pacer.Next(120, late + 10 * kSecond);
-  CHECK(frame.step.seconds == kMaxMeasuredFrameSeconds);
+  CHECK(frame.step.seconds <= kMaxMeasuredFrameSeconds);
+  int64_t t = frame.release_ns;
+  double game = 0.0;
+  for (int i = 0; i < 120; ++i) {
+    frame = pacer.Next(120, t + 1'000'000);
+    t = frame.release_ns;
+    game += frame.step.seconds;
+  }
+  // One second of on-time frames after the stall: about one second of game time, nothing near the stall's 10 s.
+  CHECK(game > 0.95 && game < 1.0 + kMaxMeasuredFrameSeconds);
+  CHECK(std::fabs(frame.step.seconds - 1.0 / 120) < 1e-4);
+}
+
+// The case behind the launches on slopes: the GPU cannot hold 120, so every frame is late by a varying amount. The
+// steps follow the real frame time smoothly instead of alternating short fixed steps with long catch-up steps, and
+// game time keeps up with real time.
+void TestPacerCannotKeepUp() {
+  FramePacer pacer;
+  int64_t now = kSecond;
+  FramePacer::Frame frame = pacer.Next(120, now);
+  const int64_t start = now;
+  double game = 0.0;
+  double previous = 0.0;
+  double largest_jump = 0.0;
+  for (int i = 0; i < 600; ++i) {
+    const int64_t work = (i % 3 == 0 ? 14'000'000 : 9'500'000);  // 9.5 ms, 9.5 ms, 14 ms: about 91 FPS
+    now = frame.release_ns + work;
+    frame = pacer.Next(120, now);
+    game += frame.step.seconds;
+    if (i > 30) {
+      largest_jump = std::max(largest_jump, frame.step.seconds / previous);
+      CHECK(frame.step.seconds > 0.008 && frame.step.seconds < 0.013);
+    }
+    previous = frame.step.seconds;
+  }
+  // No step is more than a third longer than the one before it (the old pacer alternated 8.3 ms and 17+ ms).
+  CHECK(largest_jump < 1.34);
+  const double real = double(frame.release_ns - start) * 1e-9;
+  CHECK(std::fabs(game - real) < 2 * kMaxMeasuredFrameSeconds);
+}
+
+// The smoother alone: exact on a steady interval, follows a new steady interval, never above 1/30 s.
+void TestStepSmoother() {
+  StepSmoother smoother;
+  smoother.Reset(1.0 / 120);
+  for (int i = 0; i < 10; ++i) CHECK(smoother.Take(1.0 / 120) == 1.0 / 120);
+  CHECK(smoother.owed() == 0.0);
+  double step = 0.0;
+  for (int i = 0; i < 60; ++i) step = smoother.Take(0.012);
+  CHECK(std::fabs(step - 0.012) < 1e-6);
+  CHECK(smoother.Take(5.0) <= kMaxMeasuredFrameSeconds);
+  CHECK(smoother.owed() <= kMaxMeasuredFrameSeconds);
 }
 
 void TestPacerUnlimited() {
@@ -154,6 +204,8 @@ int main() {
   TestLogicalTicks();
   TestPacerOnTime();
   TestPacerLate();
+  TestPacerCannotKeepUp();
+  TestStepSmoother();
   TestPacerUnlimited();
   return check::Finish("frame_timing_tests");
 }

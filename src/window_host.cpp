@@ -52,7 +52,8 @@ bool IsDecorated(HWND hwnd) {
 // Centers a window of the given outer size on the work area of the monitor it is on now (supports a monitor at
 // negative coordinates, since it only ever adds a non-negative offset to work.left/top).
 RECT CenterOnCurrentMonitor(HWND hwnd, int width, int height) {
-  MONITORINFO monitor{sizeof(monitor)};
+  MONITORINFO monitor{};
+  monitor.cbSize = sizeof(monitor);
   GetMonitorInfoW(MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), &monitor);
   const RECT& work = monitor.rcWork;
   width = (std::min)(width, int(work.right - work.left));

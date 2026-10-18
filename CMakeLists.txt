@@ -58,15 +58,19 @@ set(CRACKDOWN_SOURCES
     src/audio_pcm_firewall.cpp
     src/audio_wave_timeout.cpp
     src/cache_device.cpp
+    src/character_step_fixes.cpp
     src/cheat_hooks.cpp
     src/cheat_menu_input.cpp
     src/cheat_menu_overlay.cpp
     src/cheats.cpp
     src/crt_native.cpp
+    src/font_atlas.cpp
+    src/font_rerender.cpp
     src/frame_counter.cpp
     src/frame_pacing.cpp
     src/frame_rate.cpp
     src/game_files.cpp
+    src/glyph_overlay.cpp
     src/gpu_fence_wait.cpp
     src/graphics_adapters.cpp
     src/guest_fault_log.cpp
@@ -74,12 +78,15 @@ set(CRACKDOWN_SOURCES
     src/launcher_achievements.cpp
     src/launcher_achievements_page.cpp
     src/massive_server_guard.cpp
+    src/nan_guards.cpp
+    src/physics_telemetry.cpp
     src/platform.cpp
     src/settings.cpp
     src/settings_file.cpp
     src/title_compat.cpp
     src/title_language.cpp
     src/user_data.cpp
+    src/visibility_grid_guard.cpp
     src/window_host.cpp
     src/xdvdfs.cpp
     src/skip_intro.cpp
@@ -113,6 +120,16 @@ target_link_libraries(crackdown PRIVATE trg::launcher)
 target_compile_definitions(crackdown PRIVATE
     CRACKDOWN_PORT_VERSION="${PROJECT_VERSION}"
     CRACKDOWN_TRG_VERSION="${CRACKDOWN_TRG_VERSION}")
+# Warnings for the project's own sources only: not the generated code (crackdown_recomp), the SDK headers (system
+# includes) or the SDK's rex_app.cpp and windowed_app_main_sdl.cpp that rexglue_setup_target adds to this target.
+# Only checks src/ passes cleanly are on; -Wunused-lambda-capture (crackdown_app.h) and -Wmissing-field-initializers
+# (MONITORINFO{sizeof} in platform.cpp, window_host.cpp) stay off until those are fixed.
+set(CRACKDOWN_WARNINGS -Wall -Wextra
+    -Wshadow-all -Wimplicit-fallthrough -Wnull-dereference -Wformat=2 -Wundef -Wcast-qual -Wextra-semi
+    -Wunreachable-code-aggressive -Wconditional-uninitialized -Wloop-analysis -Wrange-loop-analysis -Wcomma
+    -Wunused-member-function -Wunused-template -Wdeprecated -Wsuggest-override -Wnewline-eof)
+set_property(SOURCE ${CRACKDOWN_SOURCES} APPEND PROPERTY COMPILE_OPTIONS
+    "$<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:${CRACKDOWN_WARNINGS}>")
 
 if(WIN32)
     target_link_libraries(crackdown PRIVATE shcore synchronization dxgi)
@@ -190,6 +207,16 @@ add_custom_command(TARGET crackdown POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
         "${CMAKE_CURRENT_SOURCE_DIR}/config/crackdown.toml"
         "$<TARGET_FILE_DIR:crackdown>"
+    VERBATIM
+)
+
+# The button glyph sheet the font overlay reads from <exe dir>/glyphs (src/glyph_overlay.cpp).
+add_custom_command(TARGET crackdown POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:crackdown>/glyphs"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/glyphs/button_glyphs.dds"
+        "${CMAKE_CURRENT_SOURCE_DIR}/packaging/glyphs/button_glyphs.toml"
+        "$<TARGET_FILE_DIR:crackdown>/glyphs"
     VERBATIM
 )
 
