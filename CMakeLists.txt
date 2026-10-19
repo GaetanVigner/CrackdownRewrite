@@ -74,6 +74,7 @@ set(CRACKDOWN_SOURCES
     src/gpu_fence_wait.cpp
     src/graphics_adapters.cpp
     src/guest_fault_log.cpp
+    src/hang_watchdog.cpp
     src/launcher.cpp
     src/launcher_achievements.cpp
     src/launcher_achievements_page.cpp
@@ -132,7 +133,7 @@ set_property(SOURCE ${CRACKDOWN_SOURCES} APPEND PROPERTY COMPILE_OPTIONS
     "$<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:${CRACKDOWN_WARNINGS}>")
 
 if(WIN32)
-    target_link_libraries(crackdown PRIVATE shcore synchronization dxgi)
+    target_link_libraries(crackdown PRIVATE shcore synchronization dxgi dbghelp)
     # The SDK stages its DLLs only when the program links, so a rebuilt runtime or GPU plugin has to make it link
     # again; the check and staging targets below and tools/build.ps1 also verify the staged copies.
     foreach(_sdk_dll rexruntime rexruntimed rexruntimerd rexgpu-xenos rexgpu-xenosd rexgpu-xenosrd)

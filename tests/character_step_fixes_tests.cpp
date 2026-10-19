@@ -70,6 +70,22 @@ void TestFirstGravityStep() {
   CHECK(ScaleFirstGravityStep(2 * g30, 0.0f, 2.0) == 2 * g30);
 }
 
+void TestRagdollPoseDt() {
+  // 30 FPS, or a first start: untouched.
+  CHECK(ScaleRagdollPoseDt(1.0 / 30.0, true, 1.0) == 1.0 / 30.0);
+  CHECK(ScaleRagdollPoseDt(1.0 / 120.0, false, 0.25) == 1.0 / 120.0);
+  // A restart at 120 FPS differences over the 30 FPS step.
+  CHECK(ScaleRagdollPoseDt(1.0 / 120.0, true, 0.25) == (1.0 / 120.0) / 0.25);
+}
+
+void TestCameraLiftDivisor() {
+  CHECK(GuardCameraLiftDivisor(0.5f) == 0.5f);
+  CHECK(GuardCameraLiftDivisor(-0.2f) == -0.2f);
+  CHECK(GuardCameraLiftDivisor(0.0f) == kMinCameraLift);
+  CHECK(GuardCameraLiftDivisor(-0.0f) == -kMinCameraLift);
+  CHECK(GuardCameraLiftDivisor(1e-6f) == kMinCameraLift);
+}
+
 }  // namespace
 
 int main() {
@@ -78,5 +94,7 @@ int main() {
   TestGroundSnapLerp();
   TestTickWindows();
   TestFirstGravityStep();
+  TestRagdollPoseDt();
+  TestCameraLiftDivisor();
   return check::Finish("character_step_fixes_tests");
 }

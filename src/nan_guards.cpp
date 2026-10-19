@@ -8,6 +8,8 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <string>
+#include <vector>
 
 #include <rex/hook.h>
 #include <rex/logging.h>
@@ -25,6 +27,7 @@ using crackdown::guest::StoreFloat;
 constexpr uint32_t kLookTargetOffset = 0x13B0;
 constexpr uint32_t kPositionOffset = 0x140;
 constexpr int64_t kLogGapMs = 2000;
+constexpr int64_t kDumpGapMs = 20000;
 
 uint8_t* GuestBase() {
   return rex::system::kernel_state()->memory()->virtual_membase();
@@ -50,7 +53,7 @@ struct RepairLog {
   const char* what;
   std::atomic<int64_t> last_ms{0};
   std::atomic<uint32_t> pending{0};
-  std::atomic<bool> dumped{false};
+  std::atomic<int64_t> last_dump_ms{-kDumpGapMs};
 
   void Note() {
     const uint32_t count = pending.fetch_add(1, std::memory_order_relaxed) + 1;
@@ -60,8 +63,9 @@ struct RepairLog {
       pending.store(0, std::memory_order_relaxed);
       REXLOG_WARN("[NAN_GUARD] {} was not finite ({} repair(s) since the last line)", what, count);
     }
-    // The first repair of a kind keeps the seconds before it, which hold whatever produced the NaN.
-    if (!dumped.exchange(true)) {
+    // A repair keeps the seconds before it, which hold whatever produced the NaN; one dump per kDumpGapMs per kind.
+    int64_t dumped = last_dump_ms.load(std::memory_order_relaxed);
+    if (now - dumped >= kDumpGapMs && last_dump_ms.compare_exchange_strong(dumped, now)) {
       crackdown::RequestTelemetryDump();
     }
   }
@@ -70,6 +74,7 @@ struct RepairLog {
 RepairLog g_listener_log{"The audio listener"};
 RepairLog g_target_log{"The character's look-at target"};
 RepairLog g_aim_log{"The player's aim point"};
+RepairLog g_camera_log{"The camera"};
 
 // Only the audio thread builds the listener: the four xyz rows of its matrix and its velocity.
 float g_listener_matrix[4][3];
@@ -172,4 +177,48 @@ REX_HOOK_RAW(sub_824FD840) {
       StoreFloat(base, field + 4 * lane, std::isfinite(position) ? position : 0.0f);
     }
   }
+}
+
+REX_EXTERN(__imp__sub_82287130);
+
+// The camera's per-frame update (r3 = camera). After a landing against a wall at high frame rates its state went NaN
+// and stayed NaN: the audio listener and the aim ray are built from it, and the stick, turned by the camera's
+// orientation into a walking direction, became unusable (the player "stuck"). A camera that comes out of its update
+// with a non-finite basis or position is put back to its state before the update.
+REX_HOOK_RAW(sub_82287130) {
+  // The basis rows and position, then the target-derived points the listener uses.
+  struct CameraField {
+    uint32_t offset;
+    const char* name;
+  };
+  constexpr CameraField kFields[] = {{272, "basis x"},       {288, "basis y"},       {304, "basis z"},
+                                     {320, "position"},      {6336, "velocity"},     {6352, "target"},
+                                     {6368, "previous target"}, {6384, "listener point"}};
+  // Through the target matrix (+6640) and the follow state up to +7140, which the update also writes.
+  constexpr uint32_t kCameraBytes = 7152;
+  static std::atomic_flag logged_fields;
+  thread_local std::vector<uint8_t> saved(kCameraBytes);
+  const uint32_t camera = ctx.r3.u32;
+  const bool plausible = crackdown::guest::Plausible(camera);
+  if (plausible) {
+    std::memcpy(saved.data(), rex::memory::GuestPtr<const uint8_t*>(base, camera), kCameraBytes);
+  }
+  __imp__sub_82287130(ctx, base);
+  if (!plausible) {
+    return;
+  }
+  std::string broken;
+  for (const CameraField& field : kFields) {
+    if (!XyzFinite(base, camera + field.offset)) {
+      broken += broken.empty() ? field.name : std::string(", ") + field.name;
+    }
+  }
+  if (broken.empty()) {
+    return;
+  }
+  g_camera_log.Note();
+  if (!logged_fields.test_and_set()) {
+    REXLOG_WARN("[NAN_GUARD] camera fields not finite after its update: {}", broken);
+  }
+  std::memcpy(rex::memory::GuestPtr<uint8_t*>(base, camera), saved.data(), kCameraBytes);
 }

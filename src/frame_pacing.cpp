@@ -26,6 +26,7 @@
 #include "frame_pacing.h"
 #include "frame_timing.h"
 #include "glyph_overlay.h"
+#include "hang_watchdog.h"
 #include "physics_telemetry.h"
 #include "settings.h"
 
@@ -212,6 +213,7 @@ REX_HOOK_RAW(sub_826A7698) {
     SelectVariableStep(base, rate);
   }
   crackdown::UpdateButtonGlyphs(base);
+  crackdown::NoteGuestFrame();
   __imp__sub_826A7698(ctx, base);
 }
 

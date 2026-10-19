@@ -114,6 +114,10 @@ one 1/30 s step) and turns a per-step term into a per-second one above it:
   vertical visual smoothing applies its decay and lerp per second.
 - `crackdown_hit_merge_window` / `crackdown_ragdoll_tick_window` (`0x822E191C`, `0x822BA48C`): windows counted in
   frame-counter ticks (one per update) keep their 30 FPS length in real time.
+- `crackdown_ragdoll_pose_dt` (`0x822BA2E8`, `sub_822BA0F8` start ragdoll): body start velocities are (pose - previous
+  pose) / dt, and the previous pose stops updating while ragdolled. A ragdoll started again on a character already
+  ragdolled (a second hit) differences a stale pair over one 1/120 s step: 160-270 m/s, through floors. That case
+  uses the 30 FPS step, the shipped speeds; a first start keeps the real dt.
 
 ### Guards (`src/visibility_grid_guard.cpp`, `src/nan_guards.cpp`)
 
@@ -124,3 +128,12 @@ one 1/30 s step) and turns a per-step term into a per-second one above it:
   target whose body went NaN (a ragdoll that blew up) no longer feeds NaN into the look-at target, head and listener.
 - `crackdown_look_target_guard` (`0x822A026C`, `0x822A2C50`) and `crackdown_audio_listener_guard` (`0x82252134`) repair
   a non-finite x, y or z (the w lanes hold garbage in the shipped game and are left alone).
+- `sub_82287130` wrapper (camera update): a camera that comes out with a non-finite basis, position or listener point
+  (seen on the step a ragdoll starts) is put back to its state before the update; a NaN camera made the stick useless.
+- `crackdown_camera_lift_divisor` (`0x8228FDDC`, `sub_8228F990`): the above-water push divides by the camera forward
+  axis's y; a level camera no longer makes it infinite.
+
+### Hang watchdog (`src/hang_watchdog.cpp`)
+
+When the window stops answering messages for 5 s, or the title produces no frame for 10 s while in the foreground,
+every thread's call stack (symbolized from the PDB) is written to `logs/hang_<n>.txt`.

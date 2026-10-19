@@ -30,6 +30,7 @@
 #include "game_files.h"
 #include "glyph_overlay.h"
 #include "guest_fault_log.h"
+#include "hang_watchdog.h"
 #include "internal_render_scale.h"
 #include "language_setting.h"
 #include "launcher.h"
@@ -203,6 +204,7 @@ class CrackdownApp : public rex::ReXApp {
           [this] { ToggleWindowMode(); });
       crackdown::AttachFrameRate(window(), app_context());
       crackdown::CheckWindowDisplay(window()->GetNativeWindowHandle(), REXCVAR_GET(monitor));
+      crackdown::StartHangWatchdog(window()->GetNativeWindowHandle());
     }
     if (imgui_drawer()) {
       crackdown::CreateFrameCounter(imgui_drawer());

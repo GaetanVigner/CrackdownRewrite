@@ -56,4 +56,23 @@ constexpr float ScaleFirstGravityStep(float gravity_step, float accumulated, dou
   return accumulated == 0.0f && steps > 0.0 && steps < 1.0 ? gravity_step / float(steps) : gravity_step;
 }
 
+// sub_822CC000 gives each ragdoll body (pose now - previous pose) / dt as its starting velocity. The character only
+// shifts its pose into "previous" while it is not ragdolled, so a ragdoll started again on a character already
+// ragdolled (a second hit or explosion) differences a stale pair: a gap of many steps divided by one step's dt, 4x
+// larger at 120 FPS than at 30 (160-270 m/s observed, enough to pass through floors). For that case dt becomes the
+// 30 FPS step, which gives the speeds the shipped game gives; a first start, with a fresh pair, keeps the real dt.
+constexpr double ScaleRagdollPoseDt(double dt, bool already_ragdolled, double steps) {
+  return already_ragdolled && steps > 0.0 && steps < 1.0 ? dt / steps : dt;
+}
+
+// sub_8228F990 keeps the camera above water by moving it along its forward axis by depth / forward.y. A level camera
+// (forward.y 0) made that infinite and the camera NaN, at any frame rate. The divisor keeps at least kMinCameraLift.
+inline constexpr float kMinCameraLift = 1e-3f;
+inline float GuardCameraLiftDivisor(float forward_y) {
+  if (std::fabs(forward_y) >= kMinCameraLift) {
+    return forward_y;
+  }
+  return std::signbit(forward_y) ? -kMinCameraLift : kMinCameraLift;
+}
+
 }  // namespace crackdown
