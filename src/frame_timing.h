@@ -169,6 +169,19 @@ class StepSmoother {
   double owed_ = 0.0;
 };
 
+// A frame's whole milliseconds for the title's integer frame-time sites, carrying the fraction like TakeWhole but
+// never 0: the camera divides by its time step, so a frame shorter than a millisecond takes one and the next frames
+// pay it back, keeping the total exact.
+constexpr uint32_t TakeFrameMs(double& total_ms) {
+  if (total_ms < 1.0) {
+    total_ms -= 1.0;
+    return 1;
+  }
+  const uint32_t whole = uint32_t(total_ms);
+  total_ms -= whole;
+  return whole;
+}
+
 // Host pacing for HostPacedFrameRate rates. A fixed rate releases frames on a grid of its period, so sleep overshoot
 // never accumulates, and an on-time frame steps exactly one period. A frame that starts after its slot restarts the
 // grid at once (no backlog of slots behind it), and its step comes from StepSmoother. Unlimited never waits and steps

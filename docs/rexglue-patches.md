@@ -138,3 +138,12 @@ one 1/30 s step) and turns a per-step term into a per-second one above it:
 
 When the window stops answering messages for 5 s, or the title produces no frame for 10 s while in the foreground,
 every thread's call stack (symbolized from the PDB) is written to `logs/hang_<n>.txt`.
+
+### Frame timer (`src/frame_pacing.cpp`)
+
+The title's frame timer (`sub_823263D8`, hooked in `src/frame_pacing.cpp`) keeps the fixed step's 30 ms minimum frame,
+so with the fixed step off it publishes 0 ms at `0x82D99128` on almost every other 60 FPS frame. The camera's time step
+(`sub_82287130`, `+0x1974`) follows it, and a camera mode change on such a frame (`sub_8228BAB8`, when the player is
+knocked down or ragdolled) divides by it. The infinite result turns into NaN in the camera, the player and the sound
+listener, and the 3D sound pass (`sub_82252150`) then read far outside its occlusion map: the explosion and ragdoll
+crash at guest `0x72D32F98`. With the fixed step off the hook publishes the port's own frame time instead, never 0.
