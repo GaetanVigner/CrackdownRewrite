@@ -1,0 +1,144 @@
+# Builds and tests crackdown-bundler (tools/bundler) on Windows and Linux.
+# No game data is ever downloaded, used or stored here: the tests build a synthetic disc image and fake releases.
+name: Bundler
+
+on:
+  push:
+    branches: ['**']
+    tags: ['v*', 'bundler-v*']
+    paths:
+      - tools/bundler/**
+      - src/game_files.*
+      - src/game_manifest.h
+      - src/xdvdfs.*
+      - src/sha256.h
+      - cmake/game_files_library.cmake
+      - tests/fake_disc.h
+      - .github/workflows/bundler.yml
+  pull_request:
+    paths:
+      - tools/bundler/**
+      - src/game_files.*
+      - src/game_manifest.h
+      - src/xdvdfs.*
+      - src/sha256.h
+      - cmake/game_files_library.cmake
+      - tests/fake_disc.h
+      - .github/workflows/bundler.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: windows-x64
+            os: windows-2022
+            binary: crackdown-bundler.exe
+          - name: linux-x64
+            # The oldest supported runner: the binary then runs on older glibc (SteamOS included).
+            os: ubuntu-22.04
+            binary: crackdown-bundler
+    runs-on: ${{ matrix.os }}
+    name: ${{ matrix.name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Visual Studio environment
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Configure (Windows, clang++)
+        if: runner.os == 'Windows'
+        run: cmake -S tools/bundler -B out/bundler -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++
+
+      - name: Install tools (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ninja-build g++-12 squashfs-tools squashfuse
+
+      - name: Configure (Linux, g++ 12)
+        if: runner.os == 'Linux'
+        run: cmake -S tools/bundler -B out/bundler -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=gcc-12 -DCMAKE_CXX_COMPILER=g++-12
+
+      - name: Build
+        run: cmake --build out/bundler
+
+      - name: Unit tests (synthetic disc image, fake releases)
+        run: ctest --test-dir out/bundler --output-on-failure
+
+      - name: SquashFS against squashfs-tools and squashfuse
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          tests=out/bundler/crackdown_bundler_tests
+          work="$RUNNER_TEMP/sqfs"
+          mkdir -p "$work/fixture/a/b" "$work/fixture/emptydir" "$work/fixture/many"
+          head -c 1000000 /dev/urandom > "$work/fixture/big.bin"
+          head -c 131072 /dev/urandom > "$work/fixture/a/block.bin"
+          echo hello > "$work/fixture/a/b/c.txt"
+          : > "$work/fixture/empty"
+          for i in $(seq 1 600); do echo "$i" > "$work/fixture/many/file$i"; done
+          # The writer: squashfs-tools and squashfuse (what the AppImage runtime mounts with) must read it.
+          "$tests" --write-image "$work/fixture" "$work/written.sqfs"
+          unsquashfs -no-progress -d "$work/unpacked" "$work/written.sqfs"
+          diff -r "$work/fixture" "$work/unpacked"
+          mkdir "$work/mnt"
+          squashfuse "$work/written.sqfs" "$work/mnt"
+          diff -r "$work/fixture" "$work/mnt"
+          fusermount -u "$work/mnt"
+          # The reader: images as mksquashfs (and so appimagetool) writes them, with fragments.
+          for comp in gzip zstd; do
+            mksquashfs "$work/fixture" "$work/ref-$comp.sqfs" -comp "$comp" -noappend -all-root -no-progress
+            "$tests" --compare-image "$work/ref-$comp.sqfs" 0 "$work/fixture"
+          done
+
+      - name: Smoke test of the command line
+        shell: bash
+        run: |
+          out/bundler/${{ matrix.binary }} --help
+          set +e
+          out/bundler/${{ matrix.binary }} --iso none --release none --target android --out none
+          test $? -eq 2
+
+      - name: Package
+        shell: bash
+        run: |
+          mkdir -p dist/crackdown-bundler-${{ matrix.name }}
+          cp out/bundler/${{ matrix.binary }} LICENSE docs/bundler.md dist/crackdown-bundler-${{ matrix.name }}/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: crackdown-bundler-${{ matrix.name }}
+          path: dist/crackdown-bundler-${{ matrix.name }}
+          if-no-files-found: error
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+      - name: Archives
+        run: |
+          cd dist
+          chmod +x crackdown-bundler-linux-x64/crackdown-bundler
+          for dir in crackdown-bundler-*; do (cd "$dir" && zip -r "../$dir.zip" .); done
+          sha256sum crackdown-bundler-*.zip > crackdown-bundler.sha256
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/crackdown-bundler-*.zip
+            dist/crackdown-bundler.sha256

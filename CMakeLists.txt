@@ -69,7 +69,6 @@ set(CRACKDOWN_SOURCES
     src/frame_counter.cpp
     src/frame_pacing.cpp
     src/frame_rate.cpp
-    src/game_files.cpp
     src/glyph_overlay.cpp
     src/gpu_fence_wait.cpp
     src/graphics_adapters.cpp
@@ -89,7 +88,6 @@ set(CRACKDOWN_SOURCES
     src/user_data.cpp
     src/visibility_grid_guard.cpp
     src/window_host.cpp
-    src/xdvdfs.cpp
     src/skip_intro.cpp
 )
 
@@ -131,6 +129,15 @@ set(CRACKDOWN_WARNINGS -Wall -Wextra
     -Wunused-member-function -Wunused-template -Wdeprecated -Wsuggest-override -Wnewline-eof)
 set_property(SOURCE ${CRACKDOWN_SOURCES} APPEND PROPERTY COMPILE_OPTIONS
     "$<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:${CRACKDOWN_WARNINGS}>")
+
+# The game-data check and the disc installer, shared with the tests and tools/bundler. Compiled with the same settings
+# as the program's own sources.
+include(cmake/game_files_library.cmake)
+target_link_libraries(crackdown_game_files PRIVATE rex::runtime)
+rexglue_apply_target_settings(crackdown_game_files)
+target_compile_options(crackdown_game_files PRIVATE
+    "$<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:${CRACKDOWN_WARNINGS}>")
+target_link_libraries(crackdown PRIVATE crackdown_game_files)
 
 if(WIN32)
     target_link_libraries(crackdown PRIVATE shcore synchronization dxgi dbghelp)
@@ -199,6 +206,7 @@ function(crackdown_enable_thinlto target)
     endif()
 endfunction()
 crackdown_enable_thinlto(crackdown)
+crackdown_enable_thinlto(crackdown_game_files)
 if(TARGET crackdown_recomp)
     crackdown_enable_thinlto(crackdown_recomp)
 endif()

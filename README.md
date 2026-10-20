@@ -102,6 +102,14 @@ If the system cannot mount AppImages with FUSE, the AppImage unpacks itself into
 
 **No game files are included** in either download.
 
+### One ready-to-play package (optional)
+
+`crackdown-bundler` turns a release and **your own** disc image into one package that starts without the install step:
+a Windows folder or `.zip` with `game` next to `crackdown.exe`, or a Linux / Steam Deck AppImage with the game files
+inside it. It runs entirely on your computer and uploads nothing. The result contains your copyrighted game files and is
+for your personal use only: do not share it. There is no Android build to package. Details in
+[docs/bundler.md](docs/bundler.md).
+
 ## Hotkeys
 
 | Key | Action |
