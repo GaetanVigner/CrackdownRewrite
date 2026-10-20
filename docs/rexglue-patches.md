@@ -5,9 +5,9 @@ result is installed over the stock files in `tools/rexglue`. The game compiles a
 must not move virtual functions or data members of classes the generated game code uses.
 
 `NNNN-name.patch` applies on both platforms, `NNNN-name.windows.patch` only on Windows and `NNNN-name.linux.patch` only on
-Linux. Numbers are unique and patches apply in name order; gaps are fine. 50 patches are common, 19 are Windows only and
-13 are Linux only, so 69 apply on Windows and 63 on Linux. Patches 0005 and 0052 change the code generator and are the
-reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the runtime and the GPU plugin.
+Linux. Numbers are unique and patches apply in name order; gaps are fine. 51 patches are common, 19 are Windows only and
+13 are Linux only, so 70 apply on Windows and 64 on Linux. Patches 0005, 0052 and 0092 change the code generator and are
+the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the runtime and the GPU plugin.
 
 | # | Platform | Purpose |
 |---|----------|---------|
@@ -83,8 +83,9 @@ reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the run
 | 0089 | all | warning cleanup without behaviour change: `void*` casts for the deliberate `memcpy`/`memset` of texture keys, initializer lists in declaration order, unsigned `-1` sentinels spelled in their type, no pessimizing `std::move`, `= {}` for `X_SLIST_HEADER`, unused header parameter names; `MakePacketType0` sets its one-register bit (the only caller passes false) |
 | 0090 | windows | Windows half of 0089 and 0091: full `D3D12_HEAP_PROPERTIES` initializers, a missing `override`, explicit `GetProcAddress` casts, unused capture and locals |
 | 0091 | all | unused locals removed when their initializer has no side effect, otherwise `[[maybe_unused]]` |
+| 0092 | all | codegen: `vmaddfp`/`vnmsubfp` (and the 128 forms) round once like the hardware, and `vmsum3fp128`/`vmsum4fp128` sum in double and round once (Xenia's order) instead of `dpps`; with two roundings a unit length could round above 1.0, and running down slopes and stairs built up speed. The helpers are emitted into the generated `crackdown_pch.h` like 0052's; with `CRACKDOWN_GUEST_FMA` (on by default, `-mfma`) they use FMA3, without it they emulate the single rounding exactly (round to odd) at about twenty times the cost |
 
-Patches 0054 to 0058 and 0078 to 0083 and the hooks in `src/audio_guest_sync.cpp` are adapted from Unowa001/crackdown-recomp
+Patches 0054 to 0058, 0078 to 0083 and 0092 and the hooks in `src/audio_guest_sync.cpp` are adapted from Unowa001/crackdown-recomp
 (BSD 3-Clause, notice in [THIRD-PARTY-LICENSES.txt](../packaging/licenses/THIRD-PARTY-LICENSES.txt)).
 
 The AppImage runtime has its own pin and patch in `patches/appimage-runtime` (see [linux.md](linux.md)).
