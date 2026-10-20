@@ -78,6 +78,12 @@ void TestRagdollPoseDt() {
   CHECK(ScaleRagdollPoseDt(1.0 / 120.0, true, 0.25) == (1.0 / 120.0) / 0.25);
 }
 
+void TestProjectileProbeDt() {
+  CHECK(ScaleProjectileProbeDt(1.0f / 30.0f, 1.0) == 1.0f / 30.0f);
+  CHECK(ScaleProjectileProbeDt(1.0f / 120.0f, 0.25) == (1.0f / 120.0f) / 0.25f);
+  CHECK(ScaleProjectileProbeDt(2.0f / 30.0f, 2.0) == 2.0f / 30.0f);
+}
+
 void TestCameraLiftDivisor() {
   CHECK(GuardCameraLiftDivisor(0.5f) == 0.5f);
   CHECK(GuardCameraLiftDivisor(-0.2f) == -0.2f);
@@ -96,5 +102,6 @@ int main() {
   TestFirstGravityStep();
   TestRagdollPoseDt();
   TestCameraLiftDivisor();
+  TestProjectileProbeDt();
   return check::Finish("character_step_fixes_tests");
 }

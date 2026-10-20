@@ -72,6 +72,14 @@ name = "crackdown_ragdoll_pose_dt"
 registers = ["f1", "r29"]
 after_instruction = false
 
+# Projectiles detect impacts only with a ray of launch velocity * dt (the float at r1+476); it keeps its 30 FPS length
+# so Havok contact does not stop a rocket before the ray reaches the surface.
+[[midasm_hook]]
+address = 0x823672B0
+name = "crackdown_projectile_probe_dt"
+registers = ["r1"]
+after_instruction = false
+
 # The camera's above-water push divides the depth by its forward axis's y (f13); a level camera made it infinite.
 [[midasm_hook]]
 address = 0x8228FDDC

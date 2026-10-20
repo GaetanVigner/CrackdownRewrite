@@ -65,6 +65,15 @@ constexpr double ScaleRagdollPoseDt(double dt, bool already_ragdolled, double st
   return already_ragdolled && steps > 0.0 && steps < 1.0 ? dt / steps : dt;
 }
 
+// Projectiles (rockets, grenade-launcher rounds; update sub_82366DC8) detect impacts only with one ray from their
+// position along their launch velocity * dt, and Havok contacts never detonate them. At 1/120 s the ray reaches a
+// quarter as far ahead, about the rocket's own nose plus contact tolerance: Havok touches the target first, stops or
+// deflects the body, and the ray never reaches the surface (the rocket vanishes without exploding). The ray keeps its
+// 30 FPS length; the hit point is still found along it, on the real surface.
+constexpr float ScaleProjectileProbeDt(float dt, double steps) {
+  return steps > 0.0 && steps < 1.0 ? dt / float(steps) : dt;
+}
+
 // sub_8228F990 keeps the camera above water by moving it along its forward axis by depth / forward.y. A level camera
 // (forward.y 0) made that infinite and the camera NaN, at any frame rate. The divisor keeps at least kMinCameraLift.
 inline constexpr float kMinCameraLift = 1e-3f;

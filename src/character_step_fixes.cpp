@@ -4,6 +4,7 @@
 #include <rex/system/kernel_state.h>
 
 #include "frame_pacing.h"
+#include "guest_memory.h"
 
 // Codegen hook before the `fdivs f0,f0,f20` at 822B5634 in sub_822B4D40 (config/overrides.toml): f0 holds
 // clamp(h, 0, 2) * 0.4 and f20 the step's dt; the quotient, negated, is the snap-down velocity.
@@ -51,6 +52,17 @@ void crackdown_ragdoll_pose_dt(PPCRegister& dt, PPCRegister& character) {
   uint8_t* base = rex::system::kernel_state()->memory()->virtual_membase();
   const bool ragdolled = *rex::memory::GuestPtr<const uint8_t*>(base, character.u32 + kRagdolledOffset) != 0;
   dt.f64 = double(float(crackdown::ScaleRagdollPoseDt(dt.f64, ragdolled, crackdown::OriginalStepsPerUpdate())));
+}
+
+// Codegen hook before `addi r9,r1,476` at 823672B0 in sub_82366DC8 (projectile update): the float at r1+476, stored
+// at 82366DE4 and read only by the impact ray just below, is the step's dt.
+void crackdown_projectile_probe_dt(PPCRegister& stack) {
+  constexpr uint32_t kProbeDtOffset = 476;
+  uint8_t* base = rex::system::kernel_state()->memory()->virtual_membase();
+  const uint32_t slot = stack.u32 + kProbeDtOffset;
+  crackdown::guest::StoreFloat(base, slot,
+                               crackdown::ScaleProjectileProbeDt(crackdown::guest::LoadFloat(base, slot),
+                                                                 crackdown::OriginalStepsPerUpdate()));
 }
 
 // Codegen hook before the `fdivs f0,f0,f13` at 8228FDDC in sub_8228F990: f13 is the camera forward axis's y.
