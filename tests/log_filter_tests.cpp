@@ -738,11 +738,16 @@ void TestWiring() {
   CHECK(Has(platform, "CancelSessionLogHandoff();"));
 
   const std::string closing = FunctionBody(app, "void OnClosing(");
-  CHECK(Has(closing, "crackdown::FinalizeSessionLog();"));
-  CHECK(Has(closing, "rex::FlushLogging();"));
-  CHECK(Has(closing, "std::_Exit(0);"));
+  CHECK(Has(closing, "HardExitFromUIThread();"));
   CHECK(!Has(closing, "TerminateTitle"));
   CHECK(!Has(closing, "StopTitleThreads"));
+
+  const std::string hard_exit = FunctionBody(app, "void HardExitFromUIThread(");
+  CHECK(Has(hard_exit, "crackdown::FinalizeSessionLog();"));
+  CHECK(Has(hard_exit, "rex::FlushLogging();"));
+  CHECK(Has(hard_exit, "std::_Exit(0);"));
+  CHECK(!Has(hard_exit, "TerminateTitle"));
+  CHECK(!Has(hard_exit, "StopTitleThreads"));
 
   const std::string shutdown = FunctionBody(app, "void OnShutdown(");
   CHECK(Has(shutdown, "crackdown::FinalizeSessionLog();"));
