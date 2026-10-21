@@ -25,7 +25,7 @@ Crackdown Recompiled is a native PC recompilation of Crackdown for Xbox 360, wit
 - **Native Aspect Ratio**: 16:9 Original, 16:10, **21:9 Ultrawide**, **32:9 Super Ultrawide**, 4:3 and 5:4. The game renders in the chosen format, so wider formats show more of the scene to the sides. Menus and videos made for 16:9 are not redesigned for every format.
 - **Presentation**: Letterbox keeps the picture's proportions in a window of another shape; Stretch fills the window.
 - **Windowed or Borderless Fullscreen**, with **F11** to switch while playing, and monitor selection.
-- **Graphics card selection** (Windows): Automatic (recommended) or a specific compatible GPU.
+- **Graphics card selection** (Windows): choose which compatible GPU renders the game.
 
 ### Graphics fixes
 - **Modern button prompts**: the HUD's old Xbox 360 button glyphs are replaced by sharp modern ones, and the HUD text is
@@ -132,7 +132,7 @@ The launcher opens before the game. Your choices are saved to `settings.toml` in
 Window size, monitor, VSync and graphics card take effect when you press **PLAY**. If one differs from the launcher's window, the game restarts once in a new window.
 
 ### Graphics
-- **Graphics card** (Windows): Automatic (recommended) or a specific GPU
+- **Graphics card** (Windows): the GPU that renders the game; the first detected one is the default
 - **Render resolution**: Original (1280x720 at 16:9), 2x (recommended for 1440p), 3x or 4x
 - **Internal render resolution**: 100% Native, 75% Performance or 50% Low-end
 - **Anti-aliasing**: Off, FXAA or FXAA Extreme

@@ -43,7 +43,7 @@ REXCVAR_DEFINE_BOOL(crackdown_msaa_compatibility, false, "Crackdown",
                     "Draw the game's 2x MSAA render targets with 4x MSAA, for GPUs or drivers whose native 2x "
                     "MSAA misrenders (sets native_2x_msaa)");
 REXCVAR_DEFINE_STRING(crackdown_graphics_adapter, "auto", "Crackdown",
-                      "Graphics card: auto, or the index d3d12_adapter takes (applied at start)");
+                      "Graphics card: the index d3d12_adapter takes; anything else uses the first adapter (applied at start)");
 REXCVAR_DEFINE_STRING(crackdown_aspect_ratio, "16:9", "Crackdown",
                       "Aspect ratio the game renders in: 16:9, 16:10, 21:9, 32:9, 4:3 or 5:4 (applied at start)");
 REXCVAR_DEFINE_STRING(crackdown_language, "en-US", "Crackdown",
@@ -432,22 +432,21 @@ void ApplyInternalRenderPath() {
 void ApplyGraphicsAdapter() {
 #if defined(_WIN32)
   const std::string setting = REXCVAR_GET(crackdown_graphics_adapter);
-  if (!ParseGraphicsAdapter(setting)) {
-    REXLOG_INFO("Graphics card: Automatic");
-    return;
-  }
   const std::vector<GraphicsAdapter> adapters = ListGraphicsAdapters();
-  const int index = ResolveGraphicsAdapter(setting, adapters);
-  if (index < 0) {
-    REXLOG_WARN("Graphics card {} is not available, using Automatic", setting);
+  const std::optional<int> index = ResolveGraphicsAdapter(setting, adapters);
+  if (!index) {
+    REXLOG_WARN("No usable Direct3D 12 graphics card found");
     return;
   }
-  rex::cvar::SetFlagByName("d3d12_adapter", std::to_string(index));
-  for (const GraphicsAdapter& adapter : adapters) {
-    if (adapter.index == index) {
-      REXLOG_INFO("Graphics card: {} (adapter {})", adapter.name, index);
-    }
+  const auto chosen = std::find_if(adapters.begin(), adapters.end(),
+                                   [&](const GraphicsAdapter& adapter) { return adapter.index == *index; });
+  if (ParseGraphicsAdapter(setting) && ParseGraphicsAdapter(setting) != index) {
+    REXLOG_WARN("Graphics card {} is not available, using {} (adapter {})", setting, chosen->name, *index);
+  } else {
+    REXLOG_INFO("Graphics card: {} (adapter {})", chosen->name, *index);
   }
+  rex::cvar::SetFlagByName("d3d12_adapter", std::to_string(*index));
+  rex::cvar::SetFlagByName("crackdown_graphics_adapter", std::to_string(*index));
 #endif
 }
 
