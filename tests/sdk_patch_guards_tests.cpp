@@ -4,6 +4,7 @@
 #include <string>
 
 #include "check.h"
+#include "main_menu_quit_state.h"
 
 namespace {
 
@@ -207,6 +208,52 @@ void TestMainMenuQuitHookIsWired() {
   CHECK(source.find("QuitConfirmOverlay") == std::string::npos);
   CHECK(!std::filesystem::exists(root / "src/quit_confirm_overlay.cpp"));
   CHECK(!std::filesystem::exists(root / "src/quit_confirm_overlay.h"));
+}
+
+void TestPauseMenuSaveAndQuitStaysGuestOwned() {
+  using crackdown::main_menu_quit::Begin;
+  using crackdown::main_menu_quit::QuitState;
+
+  QuitState pause;
+  CHECK(pause.BeginQuit() == Begin::PassThrough);
+  CHECK(!pause.ShowPopup());
+  CHECK(!pause.Confirming());
+  CHECK(!pause.InMainMenu());
+
+  QuitState menu;
+  menu.EnterMainMenu();
+  CHECK(!menu.ShowPopup());
+  CHECK(menu.BeginQuit() == Begin::Started);
+  CHECK(menu.BeginQuit() == Begin::Busy);
+  CHECK(menu.ShowPopup());
+  CHECK(menu.Confirming());
+  menu.EndQuit();
+  CHECK(!menu.Confirming());
+  CHECK(menu.InMainMenu());
+  CHECK(menu.BeginQuit() == Begin::Started);
+  menu.EndQuit();
+  CHECK(menu.BeginQuit() == Begin::Started);
+  CHECK(menu.ShowPopup());
+  menu.Leave();
+  CHECK(!menu.Confirming());
+  CHECK(!menu.InMainMenu());
+  CHECK(menu.BeginQuit() == Begin::PassThrough);
+
+  const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
+  const std::string source = check::ReadText(root / "src/main_menu_quit.cpp");
+  CHECK(source.find("g_native_confirmation") == std::string::npos);
+  CHECK(source.find("if (crackdown::main_menu_quit::InFrontend(base))") != std::string::npos);
+  CHECK(source.find("if (crackdown::main_menu_quit::ShowNativeConfirmation())") != std::string::npos);
+  const size_t yes = source.find("REX_HOOK_RAW(sub_826587F8)");
+  const size_t gate = source.find("if (!crackdown::main_menu_quit::NativeConfirmationActive())", yes);
+  const size_t invoke = source.find("InvokeQuitHandler();", yes);
+  CHECK(gate != std::string::npos && invoke != std::string::npos && gate < invoke);
+  CHECK(source.find("InvokeQuitHandler();", invoke + 1) == std::string::npos);
+  const size_t apply = source.find("void ApplyStringOverride");
+  const size_t confirming = source.find("g_state.Confirming()", apply);
+  CHECK(confirming != std::string::npos);
+  CHECK(source.find("OverrideString(g_save_and_quit_override", apply) > confirming);
+  CHECK(source.find("OverrideString(g_quit_override", apply) > confirming);
 }
 
 void TestMainMenuQuitUsesWindowCloseExit() {
@@ -440,6 +487,7 @@ int main() {
   TestCameraRollbackHookIsWired();
   TestMainMenuQuitHookIsWired();
   TestMainMenuQuitUsesWindowCloseExit();
+  TestPauseMenuSaveAndQuitStaysGuestOwned();
   TestXamLaunchTitleOwnsPath();
   TestCompareStringNUsesRealLengths();
   TestScissorEdgesCompareSigned();

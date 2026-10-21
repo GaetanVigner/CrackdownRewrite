@@ -15,6 +15,7 @@
 #include <rex/system/xmemory.h>
 
 #include "guest_memory.h"
+#include "main_menu_quit_state.h"
 
 REX_EXTERN(__imp__sub_82381F28);
 REX_EXTERN(__imp__sub_82658560);
@@ -25,8 +26,6 @@ REX_EXTERN(__imp__sub_82677CB8);
 
 namespace crackdown::main_menu_quit {
 
-std::atomic<bool> g_native_confirmation{false};
-
 namespace {
 
 using guest::Load32;
@@ -36,6 +35,7 @@ constexpr uint32_t kHelpId = 878;
 constexpr uint32_t kSaveAndQuitId = 655;
 constexpr uint32_t kQuitId = 656;
 constexpr uint32_t kSavedUnits = 64;
+constexpr uint32_t kFrontendFlagSingleton = 0x835D3C70;
 
 struct StringOverride {
   uint32_t id = 0;
@@ -45,7 +45,7 @@ struct StringOverride {
   bool active = false;
 };
 
-std::atomic<bool> g_main_menu_active{false};
+QuitState g_state;
 std::mutex g_handler_mutex;
 std::function<void()> g_quit_handler;
 
@@ -101,9 +101,9 @@ void RestoreString(StringOverride& override, uint8_t* base) {
 }
 
 void ApplyStringOverride(uint8_t* base, uint32_t id, uint32_t address) {
-  if (id == kHelpId && g_main_menu_active.load(std::memory_order_acquire)) {
+  if (id == kHelpId && g_state.InMainMenu()) {
     OverrideString(g_help_override, base, address, u"Quit the game");
-  } else if (g_native_confirmation.load(std::memory_order_acquire)) {
+  } else if (g_state.Confirming()) {
     if (id == kSaveAndQuitId) {
       OverrideString(g_save_and_quit_override, base, address, u"Quit Game");
     } else if (id == kQuitId) {
@@ -125,34 +125,35 @@ void InvokeQuitHandler() {
   }
 }
 
-bool NativeConfirmationActive() { return g_native_confirmation.load(std::memory_order_acquire); }
+bool NativeConfirmationActive() { return g_state.Confirming(); }
 
 void SetQuitHandler(std::function<void()> handler) {
   std::lock_guard lock(g_handler_mutex);
   g_quit_handler = std::move(handler);
 }
 
-void MarkMainMenuActive() { g_main_menu_active.store(true, std::memory_order_release); }
+void MarkMainMenuActive() { g_state.EnterMainMenu(); }
 
 void LeaveMainMenu(uint8_t* base) {
-  g_main_menu_active.store(false, std::memory_order_release);
-  g_native_confirmation.store(false, std::memory_order_release);
+  g_state.Leave();
   RestoreString(g_help_override, base);
   RestoreString(g_save_and_quit_override, base);
   RestoreString(g_quit_override, base);
 }
 
-bool BeginNativeConfirmation() {
-  if (g_native_confirmation.exchange(true, std::memory_order_acq_rel)) {
-    return false;
-  }
-  return true;
-}
+Begin BeginNativeConfirmation() { return g_state.BeginQuit(); }
+
+bool ShowNativeConfirmation() { return g_state.ShowPopup(); }
 
 void EndNativeConfirmation(uint8_t* base) {
-  g_native_confirmation.store(false, std::memory_order_release);
+  g_state.EndQuit();
   RestoreString(g_save_and_quit_override, base);
   RestoreString(g_quit_override, base);
+}
+
+bool InFrontend(uint8_t* base) {
+  const uint32_t frontend = Load32(base, kFrontendFlagSingleton);
+  return Plausible(frontend) && Load32(base, frontend + 12) == 0;
 }
 
 void Install() {}
@@ -160,9 +161,15 @@ void Install() {}
 }  // namespace crackdown::main_menu_quit
 
 // The quit block normally disables the control when the frontend session flag is clear. Take its existing
-// event-handler branch instead, then continue through the game's own enable call.
+// event-handler branch instead, then continue through the game's own enable call. In a session (pause menu) the
+// block already takes that branch and the main-menu state stays off.
 void crackdown_main_menu_quit_use_handler() {
-  crackdown::main_menu_quit::MarkMainMenuActive();
+  uint8_t* base = rex::system::kernel_state()->memory()->virtual_membase();
+  if (crackdown::main_menu_quit::InFrontend(base)) {
+    crackdown::main_menu_quit::MarkMainMenuActive();
+  } else {
+    crackdown::main_menu_quit::LeaveMainMenu(base);
+  }
 }
 
 void crackdown_main_menu_quit_handler_attached() {}
@@ -177,15 +184,26 @@ void crackdown_main_menu_quit_enable(PPCRegister& enabled, PPCRegister& control,
 }
 
 void crackdown_main_menu_quit_popup_state(PPCRegister& state) {
-  state.u64 = 2;
+  if (crackdown::main_menu_quit::ShowNativeConfirmation()) {
+    state.u64 = 2;
+  }
 }
 
 REX_HOOK_RAW(sub_82678768) {
-  if (!crackdown::main_menu_quit::BeginNativeConfirmation()) {
-    ctx.r3.u64 = 1;
-    return;
+  switch (crackdown::main_menu_quit::BeginNativeConfirmation()) {
+    case crackdown::main_menu_quit::Begin::Busy:
+      ctx.r3.u64 = 1;
+      return;
+    case crackdown::main_menu_quit::Begin::Started:
+      __imp__sub_82678768(ctx, base);
+      if (!crackdown::main_menu_quit::NativeConfirmationActive()) {
+        crackdown::main_menu_quit::EndNativeConfirmation(base);
+      }
+      return;
+    case crackdown::main_menu_quit::Begin::PassThrough:
+      __imp__sub_82678768(ctx, base);
+      return;
   }
-  __imp__sub_82678768(ctx, base);
 }
 
 REX_HOOK_RAW(sub_826587F8) {
