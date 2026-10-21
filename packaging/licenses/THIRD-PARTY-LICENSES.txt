@@ -1758,17 +1758,19 @@ The ICO and PNG icon files are renderings of the modified SVG.
 
 ========================================================================
 Unowa001/crackdown-recomp, keyboard and mouse input, audio hooks, GPU performance, vector multiply-add and dot products,
-XMA context guards, animation clock steps
+XMA context guards, animation clock steps, presenter frame latency, vehicle action step
 
 Source: https://github.com/Unowa001/crackdown-recomp (patches/sdk/0018 and patches/sdk/0020, crackdown/src/hooks_xaudio.cpp
 and hooks_events.cpp, commit c23c6ff; patches/sdk/0021 to 0024 and 0026, commit f959e96; patches/sdk/0003 and 0006 and
-the sim_anim_step literals in crackdown/src/hooks_framerate.cpp, commit 7a152d0)
+the sim_anim_step literals in crackdown/src/hooks_framerate.cpp, commit 7a152d0; patches/sdk/0027, commit 66916ff;
+the sim_vehicle_30hz vehicle action step in crackdown/src/hooks_framerate.cpp and hooks_diag_physics.cpp, commit 875b2cb)
 License: BSD 3-Clause
 
 patches/rexglue-sdk/0054 and 0055 are adapted from 0018 and 0020, the hooks in src/audio_guest_sync.cpp from
 hooks_xaudio.cpp and hooks_events.cpp, patches/rexglue-sdk/0078 to 0083 from 0021 to 0024 and 0026,
-patches/rexglue-sdk/0095 from 0006 and 0096 from 0003, and crackdown_crowd_anim_step and crackdown_cosmetic_timer_step in
-src/frame_pacing.cpp from sim_anim_step. Each patch starts with the same attribution.
+patches/rexglue-sdk/0095 from 0006, 0096 from 0003 and 0103 from 0027, crackdown_crowd_anim_step and
+crackdown_cosmetic_timer_step in src/frame_pacing.cpp from sim_anim_step, and src/vehicle_action_step.cpp from
+sim_vehicle_30hz. Each patch starts with the same attribution.
 
 BSD 3-Clause License
 

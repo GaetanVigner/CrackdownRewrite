@@ -406,6 +406,28 @@ void TestXmaStallGuards() {
   CHECK(HasLine(patch, "-  if (output_rb.empty()) {"));
 }
 
+// Painting waits on the frame-latency object, and every way the swap chain changes keeps or releases it.
+void TestPresentLatencyWait() {
+  const std::string patch = ReadPatch("0103-");
+  CHECK(!patch.empty());
+  CHECK(patch.find("diff --git a/src/ui/d3d12/d3d12_presenter.cpp") != std::string::npos);
+  CHECK(HasLine(patch, "+      swap_chain_desc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;"));
+  CHECK(HasLine(patch, "+        SwapChainFlags(paint_context_.swap_chain_allows_tearing,"));
+  CHECK(HasLine(patch, "+    CloseHandle(frame_latency_waitable);"));
+  CHECK(HasLine(patch, "+    WaitForSingleObjectEx(paint_context_.frame_latency_waitable, 100, TRUE);"));
+  CHECK(patch.find("Present(") == std::string::npos);
+}
+
+// The vehicle action hook swaps the hkStepInfo's step for the call and puts the title's words back after it.
+void TestVehicleActionHookIsWired() {
+  const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
+  const std::string hook = check::ReadText(root / "src/vehicle_action_step.cpp");
+  CHECK(hook.find("REX_HOOK_RAW(sub_824A1708)") != std::string::npos);
+  CHECK(hook.find("Store32(base, info + kDeltaTime, dt_bits)") != std::string::npos);
+  CHECK(hook.find("Store32(base, info + kInvDeltaTime, inv_bits)") != std::string::npos);
+  CHECK(check::ReadText(root / "CMakeLists.txt").find("src/vehicle_action_step.cpp") != std::string::npos);
+}
+
 }  // namespace
 
 int main() {
@@ -434,5 +456,7 @@ int main() {
   TestFrameTimerNeverPublishesZero();
   TestVectorMultiplyAddIsFused();
   TestXmaStallGuards();
+  TestPresentLatencyWait();
+  TestVehicleActionHookIsWired();
   return check::Finish("sdk_patch_guards_tests");
 }

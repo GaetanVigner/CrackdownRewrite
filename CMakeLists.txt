@@ -229,6 +229,7 @@ set(CRACKDOWN_SOURCES
     src/updater/update_zip.cpp
     src/updater/version.cpp
     src/user_data.cpp
+    src/vehicle_action_step.cpp
     src/visibility_grid_guard.cpp
     src/window_host.cpp
     src/xdvdfs.cpp

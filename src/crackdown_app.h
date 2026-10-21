@@ -1,12 +1,15 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <filesystem>
 #include <functional>
 #include <memory>
 #include <optional>
+#include <string>
 
+#include <rex/cvar.h>
 #include <rex/filesystem.h>
 #include <rex/input/input_system.h>
 #include <rex/logging.h>
@@ -57,7 +60,23 @@ class CrackdownApp : public rex::ReXApp {
   }
 
  protected:
+  // On Windows ReXGlue converts the --*_root flags with the ANSI code page, so a UTF-8 path outside ASCII came out
+  // garbled or threw. Such flags are held back from it and converted as UTF-8 in OnConfigurePaths.
+  bool SetupEnvironment() override {
+#if defined(_WIN32)
+    for (HeldPathFlag& flag : held_path_flags_) {
+      const std::string value = rex::cvar::GetFlagByName(flag.name);
+      if (std::ranges::any_of(value, [](char c) { return static_cast<unsigned char>(c) >= 0x80; }) &&
+          rex::cvar::SetFlagByName(flag.name, "")) {
+        flag.value = value;
+      }
+    }
+#endif
+    return rex::ReXApp::SetupEnvironment();
+  }
+
   void OnConfigurePaths(rex::PathConfig& paths) override {
+    RestoreHeldPathFlags(paths);
     shipped_config_ = paths.config_path;
     if (const auto inherited = crackdown::TakeInheritedSessionLog()) {
       rex::cvar::SetFlagFromCommandLine("log_file", crackdown::Utf8(*inherited));
@@ -424,6 +443,33 @@ class CrackdownApp : public rex::ReXApp {
     }
   }
 
+  struct HeldPathFlag {
+    const char* name;
+    std::filesystem::path rex::PathConfig::*path;
+    std::string value;
+  };
+
+  void RestoreHeldPathFlags(rex::PathConfig& paths) {
+    bool user_data_held = false;
+    for (const HeldPathFlag& flag : held_path_flags_) {
+      if (!flag.value.empty()) {
+        rex::cvar::SetFlagByName(flag.name, flag.value);
+        paths.*flag.path = rex::to_path(flag.value);
+        user_data_held |= flag.path == &rex::PathConfig::user_data_root;
+      }
+    }
+    if (user_data_held && REXCVAR_GET(cache_root).empty()) {
+      paths.cache_root = paths.user_data_root / "cache";
+    }
+  }
+
+  std::array<HeldPathFlag, 5> held_path_flags_{{
+      {"game_data_root", &rex::PathConfig::game_data_root, {}},
+      {"user_data_root", &rex::PathConfig::user_data_root, {}},
+      {"update_data_root", &rex::PathConfig::update_data_root, {}},
+      {"cache_root", &rex::PathConfig::cache_root, {}},
+      {"metadata_root", &rex::PathConfig::metadata_root, {}},
+  }};
   crackdown::GameSettings game_settings_;
   std::filesystem::path shipped_config_;
   crackdown::UserDataSelection user_data_;
