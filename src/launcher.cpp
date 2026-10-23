@@ -923,12 +923,16 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
               "crackdown_show_frame_counter", false, "Hidden", "Shown");
   }
 
-  static std::vector<trg::Option> MultiplierOptions(std::span<const int> values) {
+  static std::vector<trg::Option> CheatOptions(cheats::Kind kind, std::span<const int> values) {
     std::vector<trg::Option> options;
     for (const int value : values) {
-      options.push_back({std::to_string(value), cheats::ValueLabel(cheats::Kind::Multiplier, value)});
+      options.push_back({std::to_string(value), cheats::ValueLabel(kind, value)});
     }
     return options;
+  }
+
+  static std::vector<trg::Option> MultiplierOptions(std::span<const int> values) {
+    return CheatOptions(cheats::Kind::Multiplier, values);
   }
 
   void PageCheats(trg::Ui& ui) {
@@ -951,6 +955,11 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
               false, "Off", "On");
     ui.Combo("Vehicle Speed", "How much faster the vehicle you drive goes.", "cheat_vehicle_speed", "0",
              MultiplierOptions(cheats::kVehicleValues));
+    ui.Heading("MAP");
+    ui.Combo("Agility Orbs on Map", "Marks uncollected agility orbs on the minimap, and on the pause menu's map too "
+             "if you choose.", "cheat_agility_orbs_on_map", "0", CheatOptions(cheats::Kind::MapDisplay, cheats::kMapValues));
+    ui.Combo("Hidden Orbs on Map", "Marks uncollected hidden orbs on the minimap, and on the pause menu's map too if "
+             "you choose.", "cheat_hidden_orbs_on_map", "0", CheatOptions(cheats::Kind::MapDisplay, cheats::kMapValues));
   }
 
   void PageControls(trg::Ui& ui) {

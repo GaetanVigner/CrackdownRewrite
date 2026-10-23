@@ -227,6 +227,7 @@ set(CRACKDOWN_SOURCES
     src/massive_server_guard.cpp
     src/mouse_look.cpp
     src/nan_guards.cpp
+    src/orb_map.cpp
     src/platform.cpp
     src/save_compat.cpp
     src/save_generation.cpp

@@ -54,6 +54,15 @@ struct GuestLayout {
 
   uint32_t hit_merge_ticks;
   bool jump_height_cheat;
+
+  // The orb map overlay (src/orb_map.cpp). cPickup's own vtable, and the list-entry descriptor vtable the minimap and
+  // pause map markers share with supply points; the supply point table global; and the two float constants the pause
+  // map view's world-to-layout conversion reads (an "unset" pan sentinel and the pan blend factor).
+  uint32_t orb_pickup_vtable;
+  uint32_t orb_list_vtable;
+  uint32_t orb_supply_points;
+  uint32_t orb_unset_pan;
+  uint32_t orb_pan_factor;
 };
 
 inline constexpr uint32_t kCharacterPositionOffset = 0x140;
@@ -96,6 +105,11 @@ inline constexpr GuestLayout kLayoutBase = {
     .camera_listener_point = 6384,
     .hit_merge_ticks = 10,
     .jump_height_cheat = true,
+    .orb_pickup_vtable = 0x820B39C8,
+    .orb_list_vtable = 0x820A83C8,
+    .orb_supply_points = 0x82DE2678,
+    .orb_unset_pan = 0x820722DC,
+    .orb_pan_factor = 0x8207047C,
 };
 
 inline constexpr GuestLayout kLayoutTitleUpdate6 = {
@@ -136,6 +150,11 @@ inline constexpr GuestLayout kLayoutTitleUpdate6 = {
     .camera_listener_point = 6416,
     .hit_merge_ticks = 5,
     .jump_height_cheat = false,
+    .orb_pickup_vtable = 0x820BAD38,
+    .orb_list_vtable = 0x820AD9D8,
+    .orb_supply_points = 0x82E79AD4,
+    .orb_unset_pan = 0x820725DC,
+    .orb_pan_factor = 0x82070594,
 };
 
 inline constexpr const GuestLayout& LayoutFor(content::GuestBuild build) {

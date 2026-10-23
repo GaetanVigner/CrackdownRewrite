@@ -118,6 +118,11 @@ std::map<std::string, Accessor> Accessors() {
   a["camera_listener_point"] = [](const GuestLayout& l) { return l.camera_listener_point; };
   a["hit_merge_ticks"] = [](const GuestLayout& l) { return l.hit_merge_ticks; };
   a["jump_height_cheat"] = [](const GuestLayout& l) { return uint32_t(l.jump_height_cheat); };
+  a["orb_pickup_vtable"] = [](const GuestLayout& l) { return l.orb_pickup_vtable; };
+  a["orb_list_vtable"] = [](const GuestLayout& l) { return l.orb_list_vtable; };
+  a["orb_supply_points"] = [](const GuestLayout& l) { return l.orb_supply_points; };
+  a["orb_unset_pan"] = [](const GuestLayout& l) { return l.orb_unset_pan; };
+  a["orb_pan_factor"] = [](const GuestLayout& l) { return l.orb_pan_factor; };
   return a;
 }
 

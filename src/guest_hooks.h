@@ -62,6 +62,16 @@ void SequenceFrame(PPCContext&, uint8_t*, GuestFunction original);
 void ApplyLanguage(PPCContext&, uint8_t*, GuestFunction original);
 void VehicleAction(PPCContext&, uint8_t*, GuestFunction original);
 
+void OrbConstructed(PPCContext&, uint8_t*, GuestFunction original);
+void OrbDestroyed(PPCContext&, uint8_t*, GuestFunction original);
+void OrbMapViewConstructed(PPCContext&, uint8_t*, GuestFunction original);
+void OrbMapViewDestroyed(PPCContext&, uint8_t*, GuestFunction original);
+void OrbFrontendScreenConstructed(PPCContext&, uint8_t*, GuestFunction original);
+void OrbFrontendScreenDestroyed(PPCContext&, uint8_t*, GuestFunction original);
+void OrbListDescriptorShown(PPCContext&, uint8_t*, GuestFunction original);
+void OrbListDescriptorPosition(PPCContext&, uint8_t*, GuestFunction original);
+void OrbMinimapProjection(PPCContext&, uint8_t*, GuestFunction original);
+
 // Guest functions the hooks call that no hook replaces; each build's bindings supply their own (GuestImage::calls).
 struct GuestCalls {
   GuestFunction movie_singleton;

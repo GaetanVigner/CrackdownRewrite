@@ -131,3 +131,17 @@ layout,camera_previous_target,6368,6400,,,,,camera update
 layout,camera_listener_point,6384,6416,,,,,camera update
 layout,hit_merge_ticks,10,5,,,,,addi of the hit-reaction merge window
 layout,jump_height_cheat,1,0,,,,,launch solver no longer writes a character field
+fn,orb pickup constructor,824EFD98,8254EF28,,,204,212,vtable write at offset 0 matches orb_pickup_vtable; allocation size 320 in both; ratio 0.98
+fn,orb pickup destructor,824EFE68,8254D8F8,,,156,156,vtable slot 0 of orb_pickup_vtable in both; ratio 1.00
+fn,orb list descriptor shown check,823E9490,824324E0,,,616,584,vtable slot 1 of orb_list_vtable in both; ratio 0.76
+fn,orb list descriptor position getter,823E96F8,82432728,,,36,36,vtable slot 0 of orb_list_vtable in both; indexes the supply point table at stride 64; ratio 1.00
+fn,orb minimap marker projection,823E9C30,82432CD8,,,904,904,reads orb_pan_factor and orb_unset_pan at the same relative offsets in both; ratio 1.00
+fn,orb pause map view constructor,826400D8,826B3E98,,,2320,2376,writes the same view field offsets in both; ratio 0.91
+fn,orb pause map view destructor,82640A50,826B4848,,,720,720,constructor-destructor address gap matches the constructor's size growth; ratio 1.00
+fn,orb frontend screen constructor,82627528,8269A8C0,,,120,120,ratio 1.00
+fn,orb frontend screen destructor,82627640,8269A9D8,,,92,92,constructor-destructor address gap unchanged; ratio 1.00
+data,orb_pickup_vtable,820B39C8,820BAD38,,,,,stored at offset 0 by the matched constructor in both; destructor is slot 0 in both
+data,orb_list_vtable,820A83C8,820AD9D8,,,,,slots 0/1 are the matched position getter and shown check in both; a shared stub function recurs at the same slots
+data,orb_supply_points,82DE2678,82E79AD4,,,,,allocation size 2816 (44 entries of 64 bytes) in both; the position getter indexes it at +64 with stride 64 in both
+data,orb_unset_pan,820722DC,820725DC,,,,,read by the orb pickup constructor and the pause map view's world-to-layout conversion identically in both
+data,orb_pan_factor,8207047C,82070594,,,,,base of the same constant block as orb_unset_pan in the pause map view's world-to-layout conversion
