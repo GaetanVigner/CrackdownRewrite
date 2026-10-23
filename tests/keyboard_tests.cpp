@@ -375,8 +375,7 @@ void TestMenuIntentFollowsBindings() {
 }
 
 void TestLauncherCtrlSSave() {
-  std::printf("Ctrl+S saves through the launcher Save path, also with text input focused
-");
+  std::printf("Ctrl+S saves through the launcher Save path, also with text input focused\n");
   const std::string patch = ReadSource("../patches/trg-launcher/0004-ctrl-s-save-in-text-input.patch");
   CHECK(Has(patch, "+  if (capturing_key() || ImGui::IsPopupOpen(\"\", ImGuiPopupFlags_AnyPopupId)) return;"));
   CHECK(Has(patch, "+  const bool ctrl = ImGui::IsKeyDown(ImGuiKey_LeftCtrl) || ImGui::IsKeyDown(ImGuiKey_RightCtrl);"));
