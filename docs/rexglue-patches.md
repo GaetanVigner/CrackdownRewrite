@@ -101,6 +101,7 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0107 | windows | `gpu_cached_indirect_buffers` (off, hot reload): an indirect buffer executed again with the same address and size (the precompiled command buffers of mesh assets, replayed every frame) is decoded once into the operations its packets perform and replayed without parsing while its dwords are unchanged (one `memcmp` against the copy taken at translation). Replays make the parse's calls in its order; register runs that already hold their values, where rewriting them changes nothing, are skipped. Other type-3 packets (waits, events with memory writes, swaps) run their own handler from the buffer's dwords; buffers with a malformed packet are parsed as before, and buffers whose dwords keep changing (ring segments) stop being translated. Bypassed while `gpu_draw_trace` records. HLE renderer milestone 3a |
 | 0108 | windows | `gpu_draw_identity_memo` (off, hot reload; needs 0107's cache): a draw of a cached indirect buffer has an identity (its DRAW operation and occurrence in the frame) and a memo of what `IssueDraw` derived for it: pixel shader use, shader variants and translations, pipeline and root signature, color mask, viewport, used textures, and the texture bindings (keys and textures, reused without parsing the fetch constants or looking textures up while no texture was destroyed and the scaled resolve state is unchanged). The memo is reused when the shaders are the same and a 64-bit hash of the render state (0x2000-0x23FF but the resolve registers) and of the used textures' fetch constants matches; float, bool and loop constants are not inputs of any of it. `gpu_frame_stats` also logs the time `IssueDraw` takes per draw by memo outcome. HLE renderer milestone 3b |
 | 0109 | windows | `gpu_fetch_constant_caches` (off, hot reload): what texture bindings and sampler parameters derive from a texture fetch constant is kept in direct-mapped tables indexed by a hash of its six dwords: the binding key, signs and host format swizzle, the textures last looked up for the key (reused while no texture was destroyed and the scaled resolve state of memory is unchanged, or still the texture's), and the sampler parameters (also keyed on the binding's filter overrides and `anisotropic_override`). About 6,000 binding updates and 3,000 sampler parameter computations a frame in the city, from few distinct fetch constants |
+| 0110 | windows | `gpu_edram_bookkeeping_memo` (off, hot reload): every draw marks the EDRAM tiles of each render target it writes dirty and adds stencil bits to them; a range within one of the last four set dirty since tiles were last made clean, or within the render target's last stencil addition with no new bits since its bits were last set, is skipped (both are idempotent, and consecutive draws to the same render targets repeat them) |
 
 Patches 0054 to 0058, 0078 to 0083, 0095 and 0096 and the hooks in `src/audio_guest_sync.cpp` are adapted from
 Unowa001/crackdown-recomp (BSD 3-Clause, notice in [THIRD-PARTY-LICENSES.txt](../packaging/licenses/THIRD-PARTY-LICENSES.txt)).
@@ -124,6 +125,13 @@ the hit-reaction and ragdoll tick windows (`0x822E191C`, `0x822BA48C`), the pose
 (`0x822BA2E8`) and the projectile impact ray (`0x823672B0`). `crackdown_crowd_anim_step` (`0x823308DC`) and
 `crackdown_cosmetic_timer_step` (`0x823FF534`) scale two per-update constants, the crowd animation clock's 1/30 and a
 0.033 s timer, to the update's length.
+The crowd library's movement had the same flaw: its agents (pedestrians and far, low-detail traffic) advance by a
+step sized for the 1/30 s update and never read dt, so above 30 FPS they moved up to 8x too fast and slowed down when
+they became full NPCs near the player. `src/crowd_step_fixes.cpp` scales the walk and run step factors (1/30, 2/30)
+in the steering update and at spawn, the 0.05 displacement blend per update, and the 30 updates a second that turn
+the step into a velocity at the hand-off to a full NPC. The far traffic (crowd cars) gets the same treatment: their distance and heading blend per update, and
+the per-update distance that counts the updates to the next road node. A twin of the ragdoll threshold window (`0x822B9EFC`) keeps
+its 30 FPS length like the one at `0x822BA48C`.
 
 The title's frame timer (`sub_823263D8`, hooked in `src/frame_pacing.cpp`) keeps the fixed step's minimum frame, so with
 the fixed step off it published 0 ms at `0x82D99128` on almost every other 60 FPS frame; a camera mode change on such a
@@ -167,7 +175,7 @@ every thread's call stack (symbolized from the PDB) is written to `hang_<n>.txt`
 |---|---|---|
 | `crackdown_physics_telemetry = true` | F9 | the last ~34 s of the player's and driven vehicle's raw state, `telemetry_<n>.bin`, also on the first NaN repair of a kind (one dump per 20 s) |
 | `crackdown_debug_profiler = true` | F6 | a 10 s sampling profile of every thread using 5% of a core or more, `profile_<n>.txt` (self and total time per function) |
-| `crackdown_debug_profiler = true` | F5 | cycles off, `gpu_cached_indirect_buffers` (0107), then also `gpu_fetch_constant_caches` (0109), for an A/B/C at one spot; with `gpu_frame_stats` the log gives the time `IssueDraw` takes per draw and per subsection |
+| `crackdown_debug_profiler = true` | F5 | cycles off, `gpu_cached_indirect_buffers` (0107) with `gpu_fetch_constant_caches` (0109), then also `gpu_edram_bookkeeping_memo` (0110), for an A/B/C at one spot; with `gpu_frame_stats` the log gives the time `IssueDraw` takes per draw and per subsection |
 | `crackdown_hle_capture = true` | F8 | the HLE renderer's milestone 1 capture: `hle_game_<n>.bin` (D3D device state after every draw call) and `hle_gpu_<n>.bin` (`gpu_draw_trace`, 0106), compared with `tools/hle-trace-compare.ps1` |
 | `crackdown_debug_frame_dips = <ms>` | | delays frames by up to that many ms (100 at most), sweeping every 6 s with jitter and rare stalls, to test physics under frame rate dips |
 | `gpu_frame_stats = true` | | every 10 s, per frame: draws, resolves, packets, constant registers, shader loads and texture lookups (0105) |

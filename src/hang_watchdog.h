@@ -68,8 +68,9 @@ class ProfileKey final : public rex::ui::WindowInputListener {
 };
 
 // With crackdown_debug_profiler on, F5 cycles the HLE renderer's milestone 3 switches for an A/B/C at one spot: off,
-// gpu_cached_indirect_buffers (SDK patch 0107), then also gpu_fetch_constant_caches (0109). The GPU log notes the
-// indirect buffer cache's switches. The game never sees the key.
+// gpu_cached_indirect_buffers (SDK patch 0107) with gpu_fetch_constant_caches (0109), then also
+// gpu_edram_bookkeeping_memo (0110). The GPU log notes the indirect buffer cache's switches. The game never sees the
+// key.
 class IndirectBufferCacheKey final : public rex::ui::WindowInputListener {
  public:
   static constexpr size_t kZOrder = 1000;
@@ -89,11 +90,13 @@ class IndirectBufferCacheKey final : public rex::ui::WindowInputListener {
     e.set_handled(true);
     if (!e.prev_state()) {
       const bool cache = rex::cvar::GetFlagByName("gpu_cached_indirect_buffers") == "true";
-      const bool fetch = rex::cvar::GetFlagByName("gpu_fetch_constant_caches") == "true";
-      const bool next_cache = !cache || !fetch;
-      const bool next_fetch = cache && !fetch;
+      const bool edram = rex::cvar::GetFlagByName("gpu_edram_bookkeeping_memo") == "true";
+      // off -> caches -> caches + EDRAM bookkeeping memo -> off.
+      const bool next_cache = !cache || !edram;
+      const bool next_edram = cache && !edram;
       rex::cvar::SetFlagByName("gpu_cached_indirect_buffers", next_cache ? "true" : "false");
-      rex::cvar::SetFlagByName("gpu_fetch_constant_caches", next_fetch ? "true" : "false");
+      rex::cvar::SetFlagByName("gpu_fetch_constant_caches", next_cache ? "true" : "false");
+      rex::cvar::SetFlagByName("gpu_edram_bookkeeping_memo", next_edram ? "true" : "false");
     }
   }
 

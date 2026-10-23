@@ -20,6 +20,11 @@
 //   with LOAD_ALU_CONSTANT from the shader object into PS c252..c255; the ghost copies at y * 484/720 otherwise):
 //   when the D3D library binds a shader (sub_826C6A50 emits one LOAD_ALU_CONSTANT per entry of the shader's literal
 //   table) and when a command buffer segment loads them, their 1/484 values become 1/720.
+// - the light pools pass (headlights, street lights: dispatcher sub_825A53C0, passes sub_825A0280 and sub_825A2400)
+//   scales its VS constants c21/c35 (dispatcher) and c36.x (passes) by K = 1.5 * (h - overlap) / h, h the tile height
+//   (sub_8259F190): 1.5 and -0.75 are literals of the two-tile layout (720 / 480), so K = 720 / 484 with two tiles but
+//   1.5 instead of 1 in one 720-row tile, which drew the pools on the underside of bridges and on walls. Codegen midasm
+//   hooks before the three `fdivs` of (h - overlap) / h make the dividend 480 when it is 720, so K = 1.
 // The shadow atlas (4 tiles, sub_825C5790) is left as it is.
 
 #include "single_tile_scene.h"
@@ -350,4 +355,13 @@ REX_HOOK_RAW(sub_826C6A50) {
     }
   }
   __imp__sub_826C6A50(ctx, base);
+}
+
+// Codegen midasm hooks before the `fdivs` of (tile height - overlap) by the tile height in the light pools pass:
+// 825A606C (sub_825A53C0, f10), 825A0EA8 (sub_825A0280, f0), 825A2B44 (sub_825A2400, f0). The quotient is multiplied
+// by the two-tile layout's 720 / 480 literals; with one 720-row tile and no overlap, 480 rows make the product 1.
+void crackdown_single_tile_light_rows(PPCRegister& rows) {
+  if (crackdown::Enabled() && float(rows.f64) == 720.0f) {
+    rows.f64 = 480.0;
+  }
 }

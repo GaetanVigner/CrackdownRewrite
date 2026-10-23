@@ -270,3 +270,95 @@ address = 0x82678778
 name = "crackdown_main_menu_quit_popup_state"
 registers = ["r11"]
 after_instruction = true
+
+# Single-tile scene (src/single_tile_scene.cpp): the light pools pass scales its constants by 720 / 480 literals times
+# (tile height - overlap) / tile height; in one 720-row tile the dividend becomes 480 so the product is 1.
+[[midasm_hook]]
+address = 0x825A606C
+name = "crackdown_single_tile_light_rows"
+registers = ["f10"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x825A0EA8
+name = "crackdown_single_tile_light_rows"
+registers = ["f0"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x825A2B44
+name = "crackdown_single_tile_light_rows"
+registers = ["f0"]
+after_instruction = false
+
+# Crowd library (src/crowd_step_fixes.cpp): its agents move by a step sized for the 1/30 s update. After each load:
+# the 1/30 and 2/30 walk and run step factors (steering update and spawn), the 0.05 displacement blend, and the 30
+# updates a second that turn the step into a velocity when an agent becomes a full NPC.
+[[midasm_hook]]
+address = 0x82338390
+name = "crackdown_crowd_step"
+registers = ["f21"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82338380
+name = "crackdown_crowd_step"
+registers = ["f22"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82330CCC
+name = "crackdown_crowd_step"
+registers = ["f13"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82330CE0
+name = "crackdown_crowd_step"
+registers = ["f0"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82342A24
+name = "crackdown_crowd_step"
+registers = ["f12"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x823383AC
+name = "crackdown_crowd_blend"
+registers = ["f20"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82340EF4
+name = "crackdown_crowd_updates_per_second"
+registers = ["f0"]
+after_instruction = true
+
+# Crowd cars (far traffic, src/crowd_step_fixes.cpp): after the 0.1 heading blend and the distance per update in
+# sub_82333538, and the same distance in sub_82343ED8 that gives the updates left to the next road node.
+[[midasm_hook]]
+address = 0x82333580
+name = "crackdown_crowd_blend"
+registers = ["f0"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x823335A0
+name = "crackdown_crowd_step"
+registers = ["f0"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8234417C
+name = "crackdown_crowd_step"
+registers = ["f0"]
+after_instruction = true
+
+# A twin of the ragdoll threshold above in sub_822B97B0: r11 = frame counter + 15.
+[[midasm_hook]]
+address = 0x822B9EFC
+name = "crackdown_ragdoll_tick_window"
+registers = ["r11"]
+after_instruction = true
