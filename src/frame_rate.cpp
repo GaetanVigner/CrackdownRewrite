@@ -14,6 +14,8 @@
 #include <rex/ui/window.h>
 #include <rex/ui/windowed_app_context.h>
 
+#include "guest_hooks.h"
+#include "guest_layout.h"
 #include "platform.h"
 #include "settings.h"
 #include "window_title.h"
@@ -126,18 +128,15 @@ GuestFrameStats GetGuestFrameStats() {
 
 namespace {
 
-// The D3D thread sub_826CE0C8 presents the last frame again after 30 ms without a swap; that swap is no new frame.
-constexpr uint32_t kRepeatPresentSite = 0x826CE148;
+// The D3D thread presents the last frame again after 30 ms without a swap; that swap is no new frame.
 thread_local bool t_repeat_present = false;
 
 }  // namespace
 
-REX_EXTERN(__imp__sub_826BCA98);
-
 // The swap builder; its call to VdSwap is the only one.
-REX_HOOK_RAW(sub_826BCA98) {
-  t_repeat_present = uint32_t(ctx.lr) == kRepeatPresentSite;
-  __imp__sub_826BCA98(ctx, base);
+void crackdown::hooks::SwapBuilder(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  t_repeat_present = uint32_t(ctx.lr) == crackdown::Layout().repeat_present_return;
+  original(ctx, base);
   t_repeat_present = false;
 }
 

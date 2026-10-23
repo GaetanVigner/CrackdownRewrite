@@ -4,6 +4,7 @@
 #include <string>
 
 #include "check.h"
+#include "main_menu_quit_state.h"
 
 namespace {
 
@@ -156,15 +157,18 @@ void TestCameraLiftDivisorHookIsWired() {
 void TestCameraRollbackHookIsWired() {
   const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
   const std::string source = check::ReadText(root / "src/nan_guards.cpp");
-  CHECK(source.find("REX_EXTERN(__imp__sub_82287130);") != std::string::npos);
-  CHECK(source.find("REX_HOOK_RAW(sub_82287130)") != std::string::npos);
+  CHECK(source.find("void crackdown::hooks::CameraUpdate(") != std::string::npos);
   CHECK(source.find("crackdown::guest::Plausible(camera)") != std::string::npos);
   CHECK(source.find("if (plausible)") != std::string::npos);
   CHECK(source.find("if (!plausible)") != std::string::npos);
-  CHECK(source.find("crackdown::nan_guard::kCameraBytes") != std::string::npos);
-  const size_t call = source.find("__imp__sub_82287130(ctx, base);");
+  CHECK(source.find("crackdown::nan_guard::kMaxCameraBytes") != std::string::npos);
+  const size_t call = source.find("original(ctx, base);", source.find("void crackdown::hooks::CameraUpdate("));
   CHECK(call != std::string::npos);
-  CHECK(source.find("__imp__sub_82287130(ctx, base);", call + 1) == std::string::npos);
+  CHECK(source.find("original(ctx, base);", call + 1) == std::string::npos);
+  CHECK(check::ReadText(root / "src/guest_bindings_base.cpp").find("CRACKDOWN_BIND(82287130, CameraUpdate)") !=
+        std::string::npos);
+  CHECK(check::ReadText(root / "src/guest_bindings_tu6.cpp").find("CRACKDOWN_BIND(822AE1E0, CameraUpdate)") !=
+        std::string::npos);
   const std::string cmake = check::ReadText(root / "CMakeLists.txt");
   CHECK(cmake.find("src/nan_guards.cpp") != std::string::npos);
 }
@@ -195,11 +199,38 @@ void TestMainMenuQuitHookIsWired() {
   CHECK(source.find("void crackdown_main_menu_quit_handler_attached()") != std::string::npos);
   CHECK(source.find("void crackdown_main_menu_quit_enable(PPCRegister& enabled, PPCRegister& control, "
                     "PPCRegister& self)") != std::string::npos);
-  CHECK(source.find("REX_HOOK_RAW(sub_82678768)") != std::string::npos);
-  CHECK(source.find("REX_HOOK_RAW(sub_826587F8)") != std::string::npos);
-  CHECK(source.find("REX_HOOK_RAW(sub_826586B0)") != std::string::npos);
-  CHECK(source.find("REX_HOOK_RAW(sub_82658560)") != std::string::npos);
-  CHECK(source.find("REX_HOOK_RAW(sub_82381F28)") != std::string::npos);
+  for (const char* handler : {"MenuPopupOpen", "MenuPopupYes", "MenuPopupNo", "MenuPopupDestroyed", "MenuStringById",
+                              "MenuBlockDestroyed"}) {
+    CHECK(source.find(std::string("void crackdown::hooks::") + handler + "(") != std::string::npos);
+  }
+  const std::string base_bindings = check::ReadText(root / "src/guest_bindings_base.cpp");
+  const std::string tu6_bindings = check::ReadText(root / "src/guest_bindings_tu6.cpp");
+  for (const char* binding :
+       {"(82678768, MenuPopupOpen)", "(826587F8, MenuPopupYes)", "(826586B0, MenuPopupNo)",
+        "(82658560, MenuPopupDestroyed)", "(82381F28, MenuStringById)", "(82677CB8, MenuBlockDestroyed)"}) {
+    CHECK(base_bindings.find(std::string("CRACKDOWN_BIND") + binding) != std::string::npos);
+  }
+  for (const char* binding :
+       {"(826F5250, MenuPopupOpen)", "(826D1A70, MenuPopupYes)", "(826D1928, MenuPopupNo)",
+        "(826D17D8, MenuPopupDestroyed)", "(823C1B80, MenuStringById)", "(826F4180, MenuBlockDestroyed)"}) {
+    CHECK(tu6_bindings.find(std::string("CRACKDOWN_BIND") + binding) != std::string::npos);
+  }
+  const std::string tu6_overrides = check::ReadText(root / "config/tu6/overrides.toml");
+  const size_t tu6_handler = tu6_overrides.find("\naddress = 0x826F4B74");
+  CHECK(tu6_handler != std::string::npos);
+  CHECK(tu6_overrides.find("name = \"crackdown_main_menu_quit_use_handler\"", tu6_handler) != std::string::npos);
+  CHECK(tu6_overrides.find("jump_address = 0x826F4B78", tu6_handler) != std::string::npos);
+  const size_t tu6_attached = tu6_overrides.find("\naddress = 0x826F4B8C");
+  CHECK(tu6_attached != std::string::npos);
+  CHECK(tu6_overrides.find("name = \"crackdown_main_menu_quit_handler_attached\"", tu6_attached) != std::string::npos);
+  CHECK(tu6_overrides.find("jump_address = 0x826F4B90", tu6_attached) != std::string::npos);
+  const size_t tu6_hook = tu6_overrides.find("\naddress = 0x826F4B90");
+  CHECK(tu6_hook != std::string::npos);
+  CHECK(tu6_overrides.find("name = \"crackdown_main_menu_quit_enable\"", tu6_hook) != std::string::npos);
+  CHECK(tu6_overrides.find("registers = [\"r4\", \"r11\", \"r31\"]", tu6_hook) != std::string::npos);
+  const size_t tu6_popup = tu6_overrides.find("\naddress = 0x826F5260");
+  CHECK(tu6_popup != std::string::npos);
+  CHECK(tu6_overrides.find("name = \"crackdown_main_menu_quit_popup_state\"", tu6_popup) != std::string::npos);
   CHECK(source.find("__imp__sub_82690F68") == std::string::npos);
   CHECK(source.find("__imp__sub_8265D630") == std::string::npos);
   CHECK(source.find("__imp__sub_8213BF98") == std::string::npos);
@@ -207,6 +238,52 @@ void TestMainMenuQuitHookIsWired() {
   CHECK(source.find("QuitConfirmOverlay") == std::string::npos);
   CHECK(!std::filesystem::exists(root / "src/quit_confirm_overlay.cpp"));
   CHECK(!std::filesystem::exists(root / "src/quit_confirm_overlay.h"));
+}
+
+void TestPauseMenuSaveAndQuitStaysGuestOwned() {
+  using crackdown::main_menu_quit::Begin;
+  using crackdown::main_menu_quit::QuitState;
+
+  QuitState pause;
+  CHECK(pause.BeginQuit() == Begin::PassThrough);
+  CHECK(!pause.ShowPopup());
+  CHECK(!pause.Confirming());
+  CHECK(!pause.InMainMenu());
+
+  QuitState menu;
+  menu.EnterMainMenu();
+  CHECK(!menu.ShowPopup());
+  CHECK(menu.BeginQuit() == Begin::Started);
+  CHECK(menu.BeginQuit() == Begin::Busy);
+  CHECK(menu.ShowPopup());
+  CHECK(menu.Confirming());
+  menu.EndQuit();
+  CHECK(!menu.Confirming());
+  CHECK(menu.InMainMenu());
+  CHECK(menu.BeginQuit() == Begin::Started);
+  menu.EndQuit();
+  CHECK(menu.BeginQuit() == Begin::Started);
+  CHECK(menu.ShowPopup());
+  menu.Leave();
+  CHECK(!menu.Confirming());
+  CHECK(!menu.InMainMenu());
+  CHECK(menu.BeginQuit() == Begin::PassThrough);
+
+  const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
+  const std::string source = check::ReadText(root / "src/main_menu_quit.cpp");
+  CHECK(source.find("g_native_confirmation") == std::string::npos);
+  CHECK(source.find("if (crackdown::main_menu_quit::InFrontend(base))") != std::string::npos);
+  CHECK(source.find("if (crackdown::main_menu_quit::ShowNativeConfirmation())") != std::string::npos);
+  const size_t yes = source.find("void crackdown::hooks::MenuPopupYes(");
+  const size_t gate = source.find("if (!crackdown::main_menu_quit::NativeConfirmationActive())", yes);
+  const size_t invoke = source.find("InvokeQuitHandler();", yes);
+  CHECK(gate != std::string::npos && invoke != std::string::npos && gate < invoke);
+  CHECK(source.find("InvokeQuitHandler();", invoke + 1) == std::string::npos);
+  const size_t apply = source.find("void ApplyStringOverride");
+  const size_t confirming = source.find("g_state.Confirming()", apply);
+  CHECK(confirming != std::string::npos);
+  CHECK(source.find("OverrideString(g_save_and_quit_override", apply) > confirming);
+  CHECK(source.find("OverrideString(g_quit_override", apply) > confirming);
 }
 
 void TestMainMenuQuitUsesWindowCloseExit() {
@@ -327,40 +404,52 @@ void TestHighFrameRateHooksAreWired() {
 // One intentional hook per guest address: codegen would emit two calls at a repeated midasm address.
 void TestMidasmAddressesAreUnique() {
   const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
-  const std::string overrides = check::ReadText(root / "config/overrides.toml");
   const std::regex address(R"(\naddress = (0x[0-9A-Fa-f]+))");
-  std::set<std::string> seen;
-  size_t count = 0;
-  for (auto it = std::sregex_iterator(overrides.begin(), overrides.end(), address); it != std::sregex_iterator();
-       ++it) {
-    ++count;
-    CHECK(seen.insert((*it)[1].str()).second);
-  }
-  CHECK(count == seen.size() && count >= 38);
-}
-
-// A guest function has at most one REX_HOOK_RAW replacement in the project.
-void TestRawHooksAreUnique() {
-  const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
-  const std::regex hook(R"(REX_HOOK_RAW\((sub_[0-9A-Fa-f]+)\))");
-  std::set<std::string> seen;
-  for (const auto& entry : std::filesystem::recursive_directory_iterator(root / "src")) {
-    const std::string ext = entry.path().extension().string();
-    if (ext != ".cpp" && ext != ".h") continue;
-    const std::string text = check::ReadText(entry.path());
-    for (auto it = std::sregex_iterator(text.begin(), text.end(), hook); it != std::sregex_iterator(); ++it) {
+  for (const char* file : {"config/overrides.toml", "config/tu6/overrides.toml"}) {
+    const std::string overrides = check::ReadText(root / file);
+    std::set<std::string> seen;
+    size_t count = 0;
+    for (auto it = std::sregex_iterator(overrides.begin(), overrides.end(), address); it != std::sregex_iterator();
+         ++it) {
+      ++count;
       CHECK(seen.insert((*it)[1].str()).second);
     }
+    CHECK(count == seen.size() && count >= 38);
   }
-  CHECK(seen.count("sub_823263D8") == 1);
-  CHECK(seen.count("sub_82287130") == 1);
+}
+
+// A guest function has at most one replacement per build, and only the binding files name guest functions.
+void TestRawHooksAreUnique() {
+  const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
+  const std::regex binding(R"(CRACKDOWN_BIND(?:_REPLACEMENT)?\(([0-9A-F]{8}), )");
+  for (const char* file : {"src/guest_bindings_base.cpp", "src/guest_bindings_tu6.cpp"}) {
+    const std::string text = check::ReadText(root / file);
+    std::set<std::string> seen;
+    size_t count = 0;
+    for (auto it = std::sregex_iterator(text.begin(), text.end(), binding); it != std::sregex_iterator(); ++it) {
+      ++count;
+      CHECK(seen.insert((*it)[1].str()).second);
+    }
+    CHECK(count == seen.size() && count >= 40);
+  }
+  const std::string base_bindings = check::ReadText(root / "src/guest_bindings_base.cpp");
+  CHECK(base_bindings.find("CRACKDOWN_BIND(823263D8, FrameTimer)") != std::string::npos);
+  CHECK(base_bindings.find("CRACKDOWN_BIND(82287130, CameraUpdate)") != std::string::npos);
+  for (const auto& entry : std::filesystem::recursive_directory_iterator(root / "src")) {
+    const std::string name = entry.path().filename().string();
+    const std::string ext = entry.path().extension().string();
+    if ((ext != ".cpp" && ext != ".h") || name.rfind("guest_binding", 0) == 0) continue;
+    const std::string text = check::ReadText(entry.path());
+    CHECK(text.find("REX_HOOK_RAW(sub_") == std::string::npos);
+    CHECK(text.find("REX_EXTERN(__imp__sub_") == std::string::npos);
+  }
 }
 
 void TestFrameTimerNeverPublishesZero() {
   const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
   const std::string pacing = check::ReadText(root / "src/frame_pacing.cpp");
-  CHECK(pacing.find("REX_HOOK_RAW(sub_823263D8)") != std::string::npos);
-  CHECK(pacing.find("kMeasuredFrameMsAddress = 0x82D99128") != std::string::npos);
+  CHECK(pacing.find("void crackdown::hooks::FrameTimer(") != std::string::npos);
+  CHECK(pacing.find("crackdown::Layout().measured_frame_ms") != std::string::npos);
   CHECK(pacing.find("crackdown::TakeFrameMs(g_frame_ms_fraction)") != std::string::npos);
   CHECK(pacing.find("crackdown::TakeWhole(g_frame_ms_fraction)") == std::string::npos);
 }
@@ -406,6 +495,46 @@ void TestXmaStallGuards() {
   CHECK(HasLine(patch, "-  if (output_rb.empty()) {"));
 }
 
+// Painting waits on the frame-latency object, and every way the swap chain changes keeps or releases it.
+void TestPresentLatencyWait() {
+  const std::string patch = ReadPatch("0103-");
+  CHECK(!patch.empty());
+  CHECK(patch.find("diff --git a/src/ui/d3d12/d3d12_presenter.cpp") != std::string::npos);
+  CHECK(HasLine(patch, "+      swap_chain_desc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;"));
+  CHECK(HasLine(patch, "+        SwapChainFlags(paint_context_.swap_chain_allows_tearing,"));
+  CHECK(HasLine(patch, "+    CloseHandle(frame_latency_waitable);"));
+  CHECK(HasLine(patch, "+    WaitForSingleObjectEx(paint_context_.frame_latency_waitable, 100, TRUE);"));
+  CHECK(patch.find("Present(") == std::string::npos);
+}
+
+// The vehicle action hook swaps the hkStepInfo's step for the call and puts the title's words back after it.
+void TestVehicleActionHookIsWired() {
+  const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
+  const std::string hook = check::ReadText(root / "src/vehicle_action_step.cpp");
+  CHECK(hook.find("void crackdown::hooks::VehicleAction(") != std::string::npos);
+  CHECK(hook.find("Store32(base, info + kDeltaTime, dt_bits)") != std::string::npos);
+  CHECK(hook.find("Store32(base, info + kInvDeltaTime, inv_bits)") != std::string::npos);
+  CHECK(check::ReadText(root / "CMakeLists.txt").find("src/vehicle_action_step.cpp") != std::string::npos);
+}
+
+// The Title Update 6 guest applies its patch from the update folder through --xex_patch; unset, the sibling file
+// is still used, and a patch file never looks for a patch of its own.
+void TestXexPatchOverride() {
+  const std::string patch = ReadPatch("0104-");
+  CHECK(!patch.empty());
+  CHECK(patch.find("diff --git a/src/system/user_module.cpp") != std::string::npos);
+  CHECK(HasLine(patch, "+REXCVAR_DEFINE_STRING(xex_patch, \"\", \"Runtime\","));
+  CHECK(HasLine(patch, "+  if (IsXexPatchPath(path_)) {"));
+  CHECK(HasLine(patch, "+    return LoadXexContinue();"));
+  CHECK(patch.find("patch_override.empty() ? path_ + \"p\" : patch_override") != std::string::npos);
+  CHECK(HasLine(patch, "-  auto patch_entry = kernel_state_->file_system()->ResolvePath(path_ + \"p\");"));
+  const std::filesystem::path root = std::filesystem::path(CRACKDOWN_PATCH_DIR) / "../..";
+  const std::string app = check::ReadText(root / "src/crackdown_app.h");
+  CHECK(app.find("rex::cvar::SetFlagByName(\"xex_patch\"") != std::string::npos);
+  const std::string guests = check::ReadText(root / "cmake/crackdown_guests.cmake");
+  CHECK(guests.find("crackdown_add_guest(tu6 guest_tu6_") != std::string::npos);
+}
+
 }  // namespace
 
 int main() {
@@ -418,6 +547,7 @@ int main() {
   TestCameraRollbackHookIsWired();
   TestMainMenuQuitHookIsWired();
   TestMainMenuQuitUsesWindowCloseExit();
+  TestPauseMenuSaveAndQuitStaysGuestOwned();
   TestXamLaunchTitleOwnsPath();
   TestCompareStringNUsesRealLengths();
   TestScissorEdgesCompareSigned();
@@ -434,5 +564,8 @@ int main() {
   TestFrameTimerNeverPublishesZero();
   TestVectorMultiplyAddIsFused();
   TestXmaStallGuards();
+  TestPresentLatencyWait();
+  TestVehicleActionHookIsWired();
+  TestXexPatchOverride();
   return check::Finish("sdk_patch_guards_tests");
 }

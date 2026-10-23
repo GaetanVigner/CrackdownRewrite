@@ -5,8 +5,8 @@ result is installed over the stock files in `tools/rexglue`. The game compiles a
 must not move virtual functions or data members of classes the generated game code uses.
 
 `NNNN-name.patch` applies on both platforms, `NNNN-name.windows.patch` only on Windows and `NNNN-name.linux.patch` only on
-Linux. Numbers are unique and patches apply in name order; gaps are fine. 55 patches are common, 25 are Windows only and
-13 are Linux only, so 80 apply on Windows and 68 apply on Linux. Patches 0005, 0052 and 0095 change the code generator and
+Linux. Numbers are unique and patches apply in name order; gaps are fine. 56 patches are common, 26 are Windows only and
+13 are Linux only, so 82 apply on Windows and 69 apply on Linux. Patches 0005, 0052 and 0095 change the code generator and
 are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the runtime and the GPU plugin.
 
 | # | Platform | Purpose |
@@ -94,9 +94,12 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0100 | windows | the texture cache indexes its textures by base page, so `FindResolveCopyTargets` looks at the textures on the resolve's page instead of scanning all of them on every resolve. Portable, but Windows only until a Linux build checks it |
 | 0101 | windows | D3D12 per-draw loops: vertex buffer residency is invalidated a 64-bit mask at a time instead of a bit at a time, the used float constants are copied a run of consecutive constants per `memcpy`, and the stencil tile bits are read and added in up to two contiguous runs that vectorize instead of a byte at a time with wrapping |
 | 0102 | windows | profile-guided optimization of the GPU plugin in Release: `REXGPU_PGO_USE` names a merged profile to optimize it with, and `tools\rexruntime-patch.ps1` sets it to `patches\rexglue-sdk-pgo\rexgpu-xenos.profdata` when that file exists (see [build-workflow.md](build-workflow.md#profile-guided-optimization-of-the-gpu-plugin)) |
+| 0103 | windows | `d3d12_present_latency_wait` (on, restart): the swap chain has a frame-latency waitable object (at most 2 frames queued) and painting waits on it before recording, so a V-Sync forced by the driver no longer makes `Present` wait for a back buffer on the direct queue the GPU emulation submits to; `ResizeBuffers` keeps the same flags and the handle is closed with the swap chain |
+| 0104 | all | `xex_patch` (runtime option): the guest path of the XEX patch applied to the main module, instead of the `.xexp` next to the XEX. The Title Update 6 guest sets it to `update:\Default.xexp` with `--update_data_root` pointing at the installed update, so the patch never sits in the game folder the base build reads. A patch file is not given a patch of its own; with the option set, a missing file fails the load. Unset, nothing changes |
 
-Patches 0054 to 0058, 0078 to 0083, 0095 and 0096 and the hooks in `src/audio_guest_sync.cpp` are adapted from
-Unowa001/crackdown-recomp (BSD 3-Clause, notice in [THIRD-PARTY-LICENSES.txt](../packaging/licenses/THIRD-PARTY-LICENSES.txt)).
+Patches 0054 to 0058, 0078 to 0083, 0095, 0096 and 0103 and the hooks in `src/audio_guest_sync.cpp` and
+`src/vehicle_action_step.cpp` are adapted from Unowa001/crackdown-recomp (BSD 3-Clause, notice in
+[THIRD-PARTY-LICENSES.txt](../packaging/licenses/THIRD-PARTY-LICENSES.txt)).
 
 The AppImage runtime has its own pin and patch in `patches/appimage-runtime` (see [linux.md](linux.md)).
 
@@ -109,6 +112,10 @@ return (`crackdown_audio_barrier_escape`). The `crackdown_variable_step_frame_ms
 frame-time sites the host-paced frame time above 60 FPS. `crackdown_audio_wave_timeout_tick` at `0x8225B254` advances a
 wave's safety timeout at 30 Hz at any frame rate, so speech is not stopped early above 30 FPS.
 `crackdown_audio_pcm_firewall` sanitizes the mixed audio frame before it is submitted.
+
+The Havok vehicle action (`sub_824A1708`, hooked in `src/vehicle_action_step.cpp`) loses speed per physics step, so above
+30 FPS cars pulled away 7-12% slower. Each car's action runs once per 1/30 s of physics time with the time accumulated
+since its last run; steps of 25 ms or more, so every step at 30 FPS, run unchanged.
 
 The character hooks in `src/character_step_fixes.cpp` turn per-step terms the title tuned for 1/30 s into per-second ones
 above 30 FPS, and change nothing at 30: the ledge and slope snap-down pull (`0x822B5634`, shorter steps only), the

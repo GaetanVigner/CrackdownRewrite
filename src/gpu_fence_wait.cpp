@@ -1,6 +1,7 @@
 // The Direct3D GPU waits block on the word they poll instead of spinning; the command processor wakes them when it
 // writes guest memory (patches 0033 and 0069).
 
+#include <array>
 #include <atomic>
 #include <bit>
 #include <cstdint>
@@ -28,14 +29,14 @@
 #include <rex/system/kernel_state.h>
 #include <rex/system/xmemory.h>
 
-#if defined(_WIN32) || defined(__linux__)
+#include "guest_hooks.h"
+#include "guest_layout.h"
 
-REX_EXTERN(__imp__sub_826BB4F0);
-REX_EXTERN(__imp__sub_826BBEE0);
+#if defined(_WIN32) || defined(__linux__)
 
 namespace {
 
-// sub_826BBEE0(wait) is the poll of every Direct3D GPU wait: the wait's first word is the device, its word at +20 the
+// The poll is the function every Direct3D GPU wait calls: (wait): the wait's first word is the device, its word at +20 the
 // time base when the wait began, and the caller checks its own condition after each poll. The callers that wait on a
 // word of the GPU writeback block at device+10768 block on it; the others keep the guest's own polling.
 constexpr uint32_t kDeviceWritebackOffset = 10768;
@@ -54,17 +55,20 @@ struct PollSite {
   uint32_t timeout_ms;
 };
 
-// fence: sub_826BB4F0, the fence written by EVENT_WRITE_SHD. ring_space: sub_826BAC90, the read pointer the command
-// processor writes back (VdEnableRingBufferRPtrWriteBack gets block+60). ring_progress: sub_826BA678, the progress word
-// at block+4. swap_throttle (sub_826BCA98) and resource (sub_826CD950) wait on words the CPU writes.
-constexpr PollSite kSites[] = {
-    {"fence", 0x826BB590, true, 0, 2},
-    {"ring_space", 0x826BAD10, true, 60, 1},
-    {"ring_progress", 0x826BA6EC, true, 4, 1},
-    {"swap_throttle", 0x826BD160, false, 0, 0},
-    {"resource", 0x826CD9C0, false, 0, 0},
-};
-constexpr size_t kSiteCount = std::size(kSites);
+// fence: the fence written by EVENT_WRITE_SHD. ring_space: the read pointer the command processor writes back
+// (VdEnableRingBufferRPtrWriteBack gets block+60). ring_progress: the progress word at block+4. swap_throttle and
+// resource wait on words the CPU writes. return_address is where each site's call to the poll returns.
+constexpr size_t kSiteCount = 5;
+const std::array<PollSite, kSiteCount>& Sites() {
+  static const std::array<PollSite, kSiteCount> sites = {{
+      {"fence", crackdown::Layout().gpu_wait_returns[0], true, 0, 2},
+      {"ring_space", crackdown::Layout().gpu_wait_returns[1], true, 60, 1},
+      {"ring_progress", crackdown::Layout().gpu_wait_returns[2], true, 4, 1},
+      {"swap_throttle", crackdown::Layout().gpu_wait_returns[3], false, 0, 0},
+      {"resource", crackdown::Layout().gpu_wait_returns[4], false, 0, 0},
+  }};
+  return sites;
+}
 constexpr size_t kOtherSite = kSiteCount;
 
 struct alignas(64) SiteState {
@@ -86,7 +90,7 @@ thread_local WaitState t_wait;
 
 size_t SiteIndex(uint32_t return_address) {
   for (size_t i = 0; i < kSiteCount; ++i) {
-    if (kSites[i].return_address == return_address) {
+    if (Sites()[i].return_address == return_address) {
       return i;
     }
   }
@@ -116,7 +120,7 @@ bool ViewsAgree(const uint32_t* physical_word, const uint32_t* guest_word) {
 
 void DisableBlocking(size_t site, const char* reason) {
   if (g_site_state[site].blocking.exchange(false, std::memory_order_relaxed)) {
-    REXLOG_WARN("GPU wait {}: blocking disabled ({}), the guest polls again", kSites[site].name, reason);
+    REXLOG_WARN("GPU wait {}: blocking disabled ({}), the guest polls again", Sites()[site].name, reason);
   }
 }
 
@@ -172,7 +176,7 @@ WaitOutcome WaitWhileEqual(const uint32_t* word, uint32_t undesired, uint32_t ti
 }
 
 void BlockUntilWordWritten(size_t site, WaitState& wait) {
-  const WaitOutcome outcome = WaitWhileEqual(wait.word, wait.seen, kSites[site].timeout_ms);
+  const WaitOutcome outcome = WaitWhileEqual(wait.word, wait.seen, Sites()[site].timeout_ms);
   const uint32_t current = LoadWord(wait.word);
   if (outcome == WaitOutcome::kFailed) {
     DisableBlocking(site, "wait failed");
@@ -193,19 +197,19 @@ void BlockUntilWordWritten(size_t site, WaitState& wait) {
 
 }  // namespace
 
-REX_HOOK_RAW(sub_826BB4F0) {
+void crackdown::hooks::GpuFence(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   t_wait = {};
-  __imp__sub_826BB4F0(ctx, base);
+  original(ctx, base);
   t_wait = {};
 }
 
 // Returns nonzero while the wait should go on. The first call for a wait only reads the word, so a block always
 // follows a check of the word by the guest.
-REX_HOOK_RAW(sub_826BBEE0) {
+void crackdown::hooks::GpuPoll(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t object = ctx.r3.u32;
   const size_t site = SiteIndex(uint32_t(ctx.lr));
-  __imp__sub_826BBEE0(ctx, base);
-  if (site == kOtherSite || !kSites[site].blocks || !ctx.r3.u32 ||
+  original(ctx, base);
+  if (site == kOtherSite || !Sites()[site].blocks || !ctx.r3.u32 ||
       !g_site_state[site].blocking.load(std::memory_order_relaxed)) {
     return;
   }
@@ -214,7 +218,7 @@ REX_HOOK_RAW(sub_826BBEE0) {
   const uint32_t start = LoadGuest32(base, object + kWaitStartOffset);
   if (!wait.word || wait.object != object || wait.device != device || wait.start != start) {
     wait = {};
-    if (!ResolveWaitWord(base, device, kSites[site].word_offset, wait)) {
+    if (!ResolveWaitWord(base, device, Sites()[site].word_offset, wait)) {
       wait = {};
       return;
     }

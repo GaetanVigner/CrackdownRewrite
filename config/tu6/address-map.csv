@@ -1,0 +1,147 @@
+kind,name,tu0,tu6,tu0_word,tu6_word,tu0_size,tu6_size,evidence
+fn,pad state,82743798,827CCB18,,,16,16,tail call of the XamInputGetState thunk; its caller maps; ratio 1.00
+fn,camera constructor,822846A0,822AB4D0,,,280,280,writes the camera aspect; one writer in both; ratio 1.00
+fn,xaudio rendezvous,82A50000,82AD8EB8,,,264,264,identical code; ratio 1.00
+fn,job reset event,82A4FA70,821512C0,,,16,16,folded body; 4/4 callers and the vtable slots map; ratio 1.00
+fn,audio mixer callback,82A4BEF8,82AD4E80,,,96,96,callees map (renderer and XAudio import); pointer slots map; ratio 1.00
+fn,wave instance setup,8225AB30,8227F8A0,,,1400,1400,identical code; ratio 1.00
+fn,audio handle release,82A49908,82AD2860,,,88,88,identical code; 10/10 callers map; ratio 1.00
+fn,damage entry,822A38D0,822CC508,,,1472,1480,controller global with +292-32; health fields 400/404/408; 6 vtable slots; ratio 0.78
+fn,weapon fire A,823597F8,82390340,,,1176,1000,owner +160; profile +152; clip +1312; ratio 0.64
+fn,weapon fire B,8235D570,82394040,,,1232,1232,owner +160; profile +152; clip +1312; ratio 0.75
+fn,vehicle damage A,824C9E08,82527AC8,,,2720,2936,same prologue; extra new checks; ratio 0.95
+fn,vehicle damage B,824BB950,8250EBC8,,,608,608,same code; vehicle field +7124; ratio 1.00
+fn,vehicle damage C,824C1A10,82514B78,,,664,664,same code; vehicle field +7664; ratio 1.00
+fn,vehicle damage D,824D51B8,82533750,,,1304,1408,same code; state byte +3059 became +3043; ratio 0.86
+fn,engine torque,8249E808,824F1660,,,992,992,vehicle state +3064 became +3048; ratio 1.00
+fn,walk velocity,824FC190,8255ED88,,,2648,3424,caller maps; same velocity block; takes a new float argument; ratio 0.63
+fn,jump launch,822ECED0,,,,752,,launch velocity is no longer a character field; not mapped
+fn,crt memcpy,82ABDF90,82B475B0,,,1056,1056,identical code; ratio 1.00
+fn,crt memmove,82AB5F10,82B3F930,,,192,192,identical code; ratio 1.00
+fn,crt memset,82ABDE40,82B47460,,,160,160,identical code; ratio 1.00
+fn,entity destroyed,824EC668,8254B008,,,128,128,vtable slot and callees map; ratio 1.00
+fn,frame loop,826A7698,8272F7C0,,,696,696,identical code; ratio 1.00
+fn,simulation update,826A6B50,8272ED00,,,280,280,identical code; ratio 1.00
+fn,frame delta,8254C568,825B7020,,,136,136,identical code; ratio 1.00
+fn,timing update,82324938,82358AD0,,,264,288,timing object offsets 13/14/16 unchanged; new tail call; ratio 0.94
+fn,frame timer,823263D8,8235A750,,,328,328,identical code; ratio 1.00
+fn,present interval,826B1150,8273A4E8,,,8,8,stw r4,13220(r3); blr; ratio 1.00
+fn,swap packet,826BC568,82745900,,,416,416,identical code; device +13220; ratio 1.00
+fn,swap callback,826BC3D0,82745768,,,408,408,identical code; ratio 1.00
+fn,swap builder,826BCA98,82745E30,,,1824,1824,identical code; ratio 1.00
+fn,gpu fence,826BB4F0,82744888,,,216,216,identical code; ratio 1.00
+fn,gpu poll,826BBEE0,82745278,,,216,216,identical code; ratio 1.00
+fn,menu popup open,82678768,826F5250,,,72,72,vtable slot with the r11=0 sibling; callees map; ratio 1.00
+fn,menu popup yes,826587F8,826D1A70,,,160,160,identical code; cluster offsets match; ratio 1.00
+fn,menu popup no,826586B0,826D1928,,,48,48,vtable slot and offsets map; ratio 1.00
+fn,menu popup destroyed,82658560,826D17D8,,,120,120,vtable slot and offsets map; ratio 1.00
+fn,menu string by id,82381F28,823C1B80,,,208,224,callees map; caller and vtable slots map; ids 878/655/656 unchanged; ratio 0.35
+fn,menu block destroyed,82677CB8,826F4180,,,120,120,unique masked match; vtable slot maps; ratio 1.00
+fn,aim update,824FD840,82560740,,,1960,1992,same aim block; offsets moved; ratio 0.94
+fn,camera update,82287130,822AE1E0,,,672,672,same update; follow state moved by 32; ratio 0.92
+fn,engine movie,826A8940,82730A70,,,288,208,movie path table MSGS/RTW_Logo at the same index; both callers map; ratio 0.47
+fn,play video,82624A30,82696DA0,,,144,144,videos-disabled singleton byte +152 unchanged; ratio 0.92
+fn,sequence frame,82653FC0,826CD158,,,808,840,callback of the step table 4 5 6 7 8 10 8 10; calls the advance function; ratio 0.84
+fn,apply language,823819A0,823C1188,,,136,216,locale table order unchanged; call site maps; ratio 0.36
+fn,vehicle action,824A1708,824F4600,,,664,664,identical code; vtable slot maps; ratio 1.00
+call,movie singleton,8232EA18,82363DE8,,,160,184,singleton constructor maps; ratio 0.79
+call,sequence advance,826544E0,826CD5E0,,,320,432,step table advance; callback calls it; ratio 0.84
+site,crackdown_audio_barrier_escape,82A500DC,82AD8F94,7F2A5800,7F2A5800,,,same function r=1.0
+site,crackdown_massive_server_count_guard,82AA0A6C,82B2A274,83C10064,83C10064,,,same function r=1.0
+site,crackdown_visibility_grid_guard,822541D8,82278C6C,7D651E70,7D651E70,,,same function r=0.992, same grid constants
+site,crackdown_audio_listener_guard,82252134,82276BC4,4800BC35,4800BEB5,,,same function r=1.0
+site,crackdown_look_target_guard,822A026C,822C90D0,38DF13B0,38DF0C10,,,head controller; r31 character
+site,crackdown_look_target_guard,822A2C50,822CB8F0,38BF13B0,38BF0C10,,,look matrix update; r31 character
+site,crackdown_ledge_snap_down,822B5634,822DBB30,EC00A024,EC00A024,,,fdivs f0,f0,f20 same role
+site,crackdown_ground_snap_decay,822A2DB8,822CBA70,EC000372,EC000372,,,fmuls f0,f0,f13
+site,crackdown_ground_snap_lerp,822A2E28,822CBAE4,EDAD0032,EDAD0032,,,fmuls f13,f13,f0
+site,crackdown_first_gravity_step,822AA8F4,822D31EC,EC0005F2,EC0005F2,,,fmuls f0,f0,f23; f13 accumulator
+site,crackdown_ragdoll_pose_dt,822BA2E8,822E72B8,48011D19,48014089,,,character is r30 in TU6
+site,crackdown_hit_merge_window,822E191C,823128E0,396B000A,48000008,,,addi r11,r11,5 in TU6
+site,crackdown_ragdoll_tick_window,822BA48C,822E74F8,394B000F,394B000F,,,addi r10,r11,15 same
+site,crackdown_projectile_probe_dt,823672B0,8239E708,392101DC,392101DC,,,same stack slot r1+476
+site,crackdown_crowd_anim_step,823308DC,82365AA4,C00AD7CC,C00A8154,,,lfs f0 of 1/30 (value verified)
+site,crackdown_cosmetic_timer_step,823FF534,8244D8D4,C1AAF2B4,C1AA27E0,,,lfs f13 of 0.033 (value verified)
+site,crackdown_camera_lift_divisor,8228FDDC,822B763C,EC006824,EF806824,,,fdivs f28,f0,f13; f13 forward y
+site,crackdown_mouse_look_camera_a,824FC15C,8255EC60,7F83E378,7F63DB78,,,yaw f22 pitch f30
+site,crackdown_mouse_look_camera_b,824FABF0,8255D588,7F63DB78,7F63DB78,,,yaw f28 pitch f31
+site,crackdown_audio_pcm_firewall,82A4BF40,82AD4EC8,4811BEB5,4811D5D5,,,bl XAudioSubmitRenderDriverFrame
+site,crackdown_audio_wave_timeout_tick,8225B254,8227FFC4,396B0001,396B0001,,,same function r=1.0
+site,crackdown_variable_step_frame_ms,82287194,822AE244,39600010,39600010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,82388E98,823C9008,39200010,39200010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,823F0ED8,8243AE48,39600010,39600010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,8248F278,824E2110,39600010,39600010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,824F9D1C,8255C6B4,39400010,39400010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,824FB408,8255DE48,39400010,39400010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,82505EF4,82569B14,39200010,39200010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,8257AB0C,825E5520,39600010,39600010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,8259A3CC,82605B1C,39600010,39600010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,825E1230,82652F90,3B600010,3B600010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,8265178C,826C9DFC,39600010,39600010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,826517F0,826C9E60,39600010,39600010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,826A7918,8272FA40,39600010,39600010,,,li rN,16 with the same register
+site,crackdown_variable_step_frame_ms,,82559028,,39400010,,,new in Title Update 6; same idiom (valid ? ms : 16)
+site,crackdown_variable_step_frame_ms,,823867BC,,39400010,,,new in Title Update 6; same idiom (valid ? ms : 16)
+site,crackdown_main_menu_quit_use_handler,8267839C,826F4B74,419A001C,419A001C,,,beq in the Quit block
+site,crackdown_main_menu_quit_handler_attached,826783B4,826F4B8C,48000010,48000010,,,b after the handler attach
+site,crackdown_main_menu_quit_enable,826783B8,826F4B90,38800000,38800000,,,li r4,0 before the set-enabled call
+site,crackdown_main_menu_quit_popup_state,82678778,826F5260,39600000,39600000,,,li r11,0 of the popup opener
+return,repeat_present_return,826CE148,827574F0,7FC3F378,7FC3F378,,,after the swap builder call of the D3D thread
+return,console_language_return,8232293C,82356964,38600000,4806B21D,,,after the console language call
+return,null_audio_return,8225D5F0,82282388,89610050,89610050,,,after the handle release call of the slot teardown
+return,gpu_wait_fence_return,826BB590,82744928,2C030000,2C030000,,,after the poll call
+return,gpu_wait_ring_space_return,826BAD10,827440A8,2C030000,2C030000,,,after the poll call
+return,gpu_wait_ring_progress_return,826BA6EC,82743A84,2C030000,2C030000,,,after the poll call
+return,gpu_wait_swap_throttle_return,826BD160,827464F8,2C030000,2C030000,,,after the poll call
+return,gpu_wait_resource_return,826CD9C0,82756D68,2C030000,2C030000,,,after the poll call
+data,camera_aspect,82BAA498,82C3ACB8,,,,,16 readers and one writer map one to one
+data,time_scale,82C63578,82CF6C98,,,,,base plus +20 in the identical frame delta getter
+data,timing_object,82DE25C0,82E79A14,,,,,39 aligned references
+data,limiter_frame_rate,82BAA330,82C3A9A4,,,,,12 readers and writers map one to one
+data,measured_frame_valid,82DE3FB0,82E7B447,,,,,30 aligned references
+data,measured_frame_ms,82D99128,82E2C268,,,,,16 readers map; two new readers
+data,player_controller,82DE3F3C,82E7B3DC,,,,,245 aligned references
+data,coop_session,82DE3EA8,82E7B344,,,,,136 aligned references
+data,entity_manager,82DE3F2C,82E7B3CC,,,,,15 users map one to one
+data,font_object,82D94CBC,82E27B78,,,,,10 users map one to one; offsets 68/72/76 unchanged
+data,camera_tuning,82DE258C,82E799DC,,,,,mouse look camera code; pitch limits +80/+84 unchanged
+data,presentation_flag,82DE450A,82E7BA07,,,,,start-prompt check of the intro sequence
+data,frontend_singleton,835D3C70,835FB5A0,,,,,accessor maps; +12 flag read by the Quit block
+data,thrown_weapon_vtable_0,820991D8,820A0530,,,,,constructor maps with ratio 1.0
+data,thrown_weapon_vtable_1,8209C3D0,8209C2B0,,,,,constructors map with ratio 1.0
+data,thrown_weapon_vtable_2,8209CA90,8209C988,,,,,constructor maps with ratio 1.0
+data,thrown_weapon_vtable_3,8209D0D8,8209CFE8,,,,,constructor maps with ratio 1.0
+layout,character_look_target,5040,3088,,,,,both look target readers
+layout,character_ragdoll_flags,4220,2436,,,,,start ragdoll: byte set became bit 0x20 of a flags byte
+layout,character_ragdoll_mask,255,32,,,,,start ragdoll: byte set became bit 0x20 of a flags byte
+layout,character_primary_equipment,6304,4304,,,,,weapon equip code
+layout,character_secondary_equipment,6308,4308,,,,,weapon swap code
+layout,character_vehicle,5580,3588,,,,,driving checks
+layout,character_vehicle_flags,5457,3473,,,,,driving checks; bit 0x10 unchanged
+layout,vehicle_state,3064,3048,,,,,engine torque function
+layout,controller_desired_velocity,5072,5696,,,,,stick to world block of the walk velocity function
+layout,controller_aim_0,5152,5760,,,,,aim update
+layout,controller_aim_1,5104,5728,,,,,aim update
+layout,action_character,260,252,,,,,jump action
+layout,sequence_state,136,140,,,,,intro sequence callback
+layout,camera_bytes,7152,7184,,,,,camera follow state moved by 32
+layout,camera_velocity,6336,6368,,,,,camera update
+layout,camera_target,6352,6384,,,,,camera update
+layout,camera_previous_target,6368,6400,,,,,camera update
+layout,camera_listener_point,6384,6416,,,,,camera update
+layout,hit_merge_ticks,10,5,,,,,addi of the hit-reaction merge window
+layout,jump_height_cheat,1,0,,,,,launch solver no longer writes a character field
+fn,orb pickup constructor,824EFD98,8254EF28,,,204,212,vtable write at offset 0 matches orb_pickup_vtable; allocation size 320 in both; ratio 0.98
+fn,orb pickup destructor,824EFE68,8254D8F8,,,156,156,vtable slot 0 of orb_pickup_vtable in both; ratio 1.00
+fn,orb list descriptor shown check,823E9490,824324E0,,,616,584,vtable slot 1 of orb_list_vtable in both; ratio 0.76
+fn,orb list descriptor position getter,823E96F8,82432728,,,36,36,vtable slot 0 of orb_list_vtable in both; indexes the supply point table at stride 64; ratio 1.00
+fn,orb minimap marker projection,823E9C30,82432CD8,,,904,904,reads orb_pan_factor and orb_unset_pan at the same relative offsets in both; ratio 1.00
+fn,orb pause map view constructor,826400D8,826B3E98,,,2320,2376,writes the same view field offsets in both; ratio 0.91
+fn,orb pause map view destructor,82640A50,826B4848,,,720,720,constructor-destructor address gap matches the constructor's size growth; ratio 1.00
+fn,orb frontend screen constructor,82627528,8269A8C0,,,120,120,ratio 1.00
+fn,orb frontend screen destructor,82627640,8269A9D8,,,92,92,constructor-destructor address gap unchanged; ratio 1.00
+data,orb_pickup_vtable,820B39C8,820BAD38,,,,,stored at offset 0 by the matched constructor in both; destructor is slot 0 in both
+data,orb_list_vtable,820A83C8,820AD9D8,,,,,slots 0/1 are the matched position getter and shown check in both; a shared stub function recurs at the same slots
+data,orb_supply_points,82DE2678,82E79AD4,,,,,allocation size 2816 (44 entries of 64 bytes) in both; the position getter indexes it at +64 with stride 64 in both
+data,orb_unset_pan,820722DC,820725DC,,,,,read by the orb pickup constructor and the pause map view's world-to-layout conversion identically in both
+data,orb_pan_factor,8207047C,82070594,,,,,base of the same constant block as orb_unset_pan in the pause map view's world-to-layout conversion

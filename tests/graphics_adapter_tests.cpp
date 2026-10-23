@@ -27,24 +27,34 @@ void TestValues() {
   CHECK(ParseGraphicsAdapter("12") == 12);
 
   const std::vector<GraphicsAdapter> adapters = {{0, "NVIDIA GeForce RTX 4070"}, {1, "Intel UHD Graphics 730"}};
-  CHECK(ResolveGraphicsAdapter("auto", adapters) == -1);
+  CHECK(ResolveGraphicsAdapter("auto", adapters) == 0);
+  CHECK(ResolveGraphicsAdapter("", adapters) == 0);
   CHECK(ResolveGraphicsAdapter("0", adapters) == 0);
   CHECK(ResolveGraphicsAdapter("1", adapters) == 1);
-  CHECK(ResolveGraphicsAdapter("2", adapters) == -1);
-  CHECK(ResolveGraphicsAdapter("1", {}) == -1);
+  CHECK(ResolveGraphicsAdapter("2", adapters) == 0);
+  CHECK(!ResolveGraphicsAdapter("1", {}));
+  CHECK(!ResolveGraphicsAdapter("auto", {}));
   // The index is the DXGI one, not the position in the list.
   const std::vector<GraphicsAdapter> gap = {{1, "A"}, {3, "B"}};
   CHECK(ResolveGraphicsAdapter("3", gap) == 3);
-  CHECK(ResolveGraphicsAdapter("0", gap) == -1);
+  CHECK(ResolveGraphicsAdapter("0", gap) == 1);
+  CHECK(ResolveGraphicsAdapter("auto", gap) == 1);
 
-  auto options = GraphicsAdapterOptions(adapters, "auto");
-  CHECK(options.size() == 3);
-  CHECK(options[0].first == "auto" && options[0].second == "Automatic (Recommended)");
-  CHECK(options[1].first == "0" && options[1].second == "NVIDIA GeForce RTX 4070");
-  options = GraphicsAdapterOptions({{0, "Same"}, {1, "Same"}}, "auto");
-  CHECK(options[1].second == "Same (0)" && options[2].second == "Same (1)");
-  options = GraphicsAdapterOptions(adapters, "5");
-  CHECK(options.size() == 4 && options[3].first == "5" && options[3].second == "Graphics card 5 (not found)");
+  const std::vector<GraphicsAdapter> single = {{0, "Only GPU"}};
+  CHECK(ResolveGraphicsAdapter("auto", single) == 0);
+  CHECK(ResolveGraphicsAdapter("4", single) == 0);
+
+  auto options = GraphicsAdapterOptions(adapters);
+  CHECK(options.size() == 2);
+  CHECK(options[0].first == "0" && options[0].second == "NVIDIA GeForce RTX 4070");
+  CHECK(options[1].first == "1" && options[1].second == "Intel UHD Graphics 730");
+  for (const auto& [value, label] : options) {
+    CHECK(value != "auto" && label.find("Automatic") == std::string::npos);
+  }
+  CHECK(GraphicsAdapterOptions(single).size() == 1);
+  CHECK(GraphicsAdapterOptions({}).empty());
+  options = GraphicsAdapterOptions({{0, "Same"}, {1, "Same"}});
+  CHECK(options[0].second == "Same (0)" && options[1].second == "Same (1)");
 }
 
 #if defined(_WIN32)

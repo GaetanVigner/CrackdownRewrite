@@ -16,8 +16,8 @@ void FinalizeSessionLog();
 
 // The launcher and the game share one normal log. A relaunch hands the active log to the next
 // process: Begin sets the inherited path, Cancel clears it when the relaunch fails, and the child
-// takes it once the previous process has exited.
-void BeginSessionLogHandoff();
+// takes it once the previous process has exited. `same_process`: the next image runs in this very process (exec).
+void BeginSessionLogHandoff(bool same_process = false);
 void CancelSessionLogHandoff();
 std::optional<std::filesystem::path> TakeInheritedSessionLog();
 

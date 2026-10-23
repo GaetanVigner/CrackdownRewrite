@@ -1,0 +1,1 @@
+crackdown_add_test(guest_isolation_tests SOURCES guest_isolation_tests.cpp)

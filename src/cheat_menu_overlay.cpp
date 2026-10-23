@@ -40,10 +40,10 @@ void CheatMenuOverlay::TrackKeys() {
 }
 
 void CheatMenuOverlay::ActivateSelected() {
-  if (!cheats::Available()) {
+  const cheats::Cheat cheat = cheats::kCheats[size_t(selected_)].cheat;
+  if (!cheats::Available() || !cheats::Supported(cheat)) {
     return;
   }
-  const cheats::Cheat cheat = cheats::kCheats[size_t(selected_)].cheat;
   const cheats::CheatInfo& info = cheats::InfoOf(cheat);
   const int value = cheats::Cycle(cheat);
   REXLOG_INFO("Cheats: {} {} (this session)", info.label, cheats::ValueLabel(info.kind, value));
@@ -94,10 +94,14 @@ void CheatMenuOverlay::DrawEntry(const cheats::MenuEntry& entry, int row, float 
   ImDrawList* draw = ImGui::GetWindowDrawList();
   if (selected_ == row) {
     draw->AddRectFilled(min, max, ImGui::GetColorU32(focus), 3.0f * scale);
+    // On a window too short for every row, the panel scrolls to keep the selection in view.
+    if (!ImGui::IsRectVisible(min, max)) {
+      ImGui::SetScrollHereY();
+    }
   }
   const float pad = ImGui::GetFontSize() * 0.4f;
   const float y = min.y + (height - ImGui::GetFontSize()) * 0.5f;
-  const bool available = cheats::Available();
+  const bool available = cheats::Available() && cheats::Supported(entry.cheat);
   const int value = cheats::Value(entry.cheat);
   const char* state = available ? cheats::ValueLabel(info.kind, value) : cheats::kMenuUnavailable;
   const bool lit = available && value != 0;

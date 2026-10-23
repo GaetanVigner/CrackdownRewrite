@@ -9,6 +9,8 @@
 #include <system_error>
 #include <vector>
 
+#include "content_fs.h"
+
 namespace crackdown {
 
 // What a supported install is. The real one comes from src/game_manifest.h; tests inject small ones.
@@ -55,30 +57,10 @@ enum class InstallStatus {
   kIoError,
 };
 
-struct InstallProgress {
-  std::string phase;
-  uint64_t done_bytes = 0;  // across the whole install, never decreasing
-  uint64_t total_bytes = 0;
-};
-
-struct InstallHooks {
-  // Return false to cancel. Cancelling is possible until the new files are activated.
-  std::function<bool(const InstallProgress&)> progress;
-};
-
 struct InstallResult {
   InstallStatus status = InstallStatus::kOk;
   std::string detail;  // technical text for the log only
   bool ok() const { return status == InstallStatus::kOk; }
-};
-
-// The file system calls an install makes that tests replace. An empty function means the real call.
-struct FileOps {
-  std::function<void(const std::filesystem::path& from, const std::filesystem::path& to, std::error_code&)> rename;
-  std::function<void(const std::filesystem::path&, std::error_code&)> remove_all;
-  std::function<uintmax_t(const std::filesystem::path&, std::error_code&)> available_space;
-  std::chrono::milliseconds retry_delay{300};  // between attempts of a rename (antivirus can hold a new folder)
-  int rename_attempts = 10;
 };
 
 // `source` is a disc image file (XDVDFS) or a folder with the extracted disc contents. The required files are

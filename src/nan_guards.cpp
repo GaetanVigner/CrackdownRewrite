@@ -15,6 +15,8 @@
 #include <rex/ppc.h>
 #include <rex/system/kernel_state.h>
 
+#include "guest_hooks.h"
+#include "guest_layout.h"
 #include "guest_memory.h"
 #include "nan_guard_rules.h"
 
@@ -23,8 +25,6 @@ namespace {
 using crackdown::guest::LoadFloat;
 using crackdown::guest::StoreFloat;
 
-constexpr uint32_t kLookTargetOffset = 0x13B0;
-constexpr uint32_t kPositionOffset = 0x140;
 constexpr int64_t kLogGapMs = 2000;
 
 uint8_t* GuestBase() {
@@ -77,7 +77,7 @@ bool g_target_valid = false;
 
 void GuardLookTarget(uint32_t character) {
   uint8_t* base = GuestBase();
-  const uint32_t target = character + kLookTargetOffset;
+  const uint32_t target = character + crackdown::Layout().character_look_target;
   if (XyzFinite(base, target)) {
     for (uint32_t i = 0; i < 3; ++i) g_last_target[i] = LoadFloat(base, target + 4 * i);
     g_target_valid = true;
@@ -85,15 +85,15 @@ void GuardLookTarget(uint32_t character) {
   }
   g_target_log.Note();
   for (uint32_t i = 0; i < 3; ++i) {
-    const float fallback = LoadFloat(base, character + kPositionOffset + 4 * i);
+    const float fallback = LoadFloat(base, character + crackdown::kCharacterPositionOffset + 4 * i);
     StoreFloat(base, target + 4 * i, g_target_valid ? g_last_target[i] : (std::isfinite(fallback) ? fallback : 0.0f));
   }
 }
 
 }  // namespace
 
-// Codegen hook before the `bl 0x8225DD68` at 82252134 in sub_82252068 (config/overrides.toml): r3 is the listener's
-// 4x4 matrix (row 3 the position, from the character's head data), r4 its velocity vector.
+// Codegen hook before the listener is submitted: r3 is the listener's 4x4 matrix (row 3 the position, from the
+// character's head data), r4 its velocity vector.
 void crackdown_audio_listener_guard(PPCRegister& matrix, PPCRegister& vector) {
   uint8_t* base = GuestBase();
   bool finite = XyzFinite(base, vector.u32);
@@ -120,19 +120,16 @@ void crackdown_audio_listener_guard(PPCRegister& matrix, PPCRegister& vector) {
   }
 }
 
-// Codegen hooks before the two reads of the character's look-at target (+0x13B0): `addi r6,r31,5040` at 822A026C in
-// sub_822A0170 (head controller) and `addi r5,r31,5040` at 822A2C50 in sub_822A28D0 (look matrix +0x490). r31 is the
-// character. A NaN target becomes the last finite target (no head turn).
+// Codegen hooks before the two reads of the character's look-at target, in the head controller and in the look matrix
+// update. r31 is the character. A NaN target becomes the last finite target (no head turn).
 void crackdown_look_target_guard(PPCRegister& character) {
   GuardLookTarget(character.u32);
 }
 
-REX_EXTERN(__imp__sub_824FD840);
-
-// The player controller's aim update (r3 = controller) writes the aim point to +5152 (copied to the character's
-// look-at target) and +5104. A target whose body went NaN hands it a NaN point every update; the previous point is kept.
-REX_HOOK_RAW(sub_824FD840) {
-  constexpr uint32_t kAimOffsets[] = {5152, 5104};
+// The player controller's aim update (r3 = controller) writes two aim points, the first copied to the character's
+// look-at target. A target whose body went NaN hands it a NaN point every update; the previous point is kept.
+void crackdown::hooks::AimUpdate(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  const std::array<uint32_t, 2>& kAimOffsets = crackdown::Layout().controller_aim;
   constexpr uint32_t kCharacterOffsetInController = 292;
   constexpr uint32_t kCharacterBase = 32;
   const uint32_t controller = ctx.r3.u32;
@@ -140,7 +137,7 @@ REX_HOOK_RAW(sub_824FD840) {
   for (int i = 0; i < 2; ++i) {
     std::memcpy(saved[i], rex::memory::GuestPtr<const uint8_t*>(base, controller + kAimOffsets[i]), 16);
   }
-  __imp__sub_824FD840(ctx, base);
+  original(ctx, base);
   for (int i = 0; i < 2; ++i) {
     const uint32_t field = controller + kAimOffsets[i];
     if (XyzFinite(base, field)) {
@@ -161,29 +158,29 @@ REX_HOOK_RAW(sub_824FD840) {
     const uint32_t subobject = crackdown::guest::Load32(base, controller + kCharacterOffsetInController);
     const uint32_t character = crackdown::guest::Plausible(subobject) ? subobject - kCharacterBase : 0;
     for (uint32_t lane = 0; lane < 3; ++lane) {
-      const float position = character ? LoadFloat(base, character + kPositionOffset + 4 * lane) : 0.0f;
+      const float position =
+          character ? LoadFloat(base, character + crackdown::kCharacterPositionOffset + 4 * lane) : 0.0f;
       StoreFloat(base, field + 4 * lane, std::isfinite(position) ? position : 0.0f);
     }
   }
 }
 
-REX_EXTERN(__imp__sub_82287130);
-
 // The camera's per-frame update (r3 = camera). Its target-derived points feed the audio listener and the aim ray; a
 // non-finite camera state is put back to the state before the update.
-REX_HOOK_RAW(sub_82287130) {
+void crackdown::hooks::CameraUpdate(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t camera = ctx.r3.u32;
   const bool plausible = crackdown::guest::Plausible(camera);
-  thread_local std::array<uint8_t, crackdown::nan_guard::kCameraBytes> saved;
+  thread_local std::array<uint8_t, crackdown::nan_guard::kMaxCameraBytes> saved;
+  const size_t bytes = crackdown::Layout().camera_bytes;
   if (plausible) {
-    std::memcpy(saved.data(), rex::memory::GuestPtr<const uint8_t*>(base, camera), saved.size());
+    std::memcpy(saved.data(), rex::memory::GuestPtr<const uint8_t*>(base, camera), bytes);
   }
-  __imp__sub_82287130(ctx, base);
+  original(ctx, base);
   if (!plausible) {
     return;
   }
   std::string broken;
-  for (const crackdown::nan_guard::CameraField& field : crackdown::nan_guard::kCameraFields) {
+  for (const crackdown::nan_guard::CameraField& field : crackdown::nan_guard::CameraFields(crackdown::Layout())) {
     if (XyzFinite(base, camera + field.offset)) {
       continue;
     }
@@ -197,5 +194,5 @@ REX_HOOK_RAW(sub_82287130) {
   if (!logged_fields.test_and_set()) {
     REXLOG_WARN("[NAN_GUARD] camera fields not finite after its update: {}", broken);
   }
-  std::memcpy(rex::memory::GuestPtr<uint8_t*>(base, camera), saved.data(), saved.size());
+  std::memcpy(rex::memory::GuestPtr<uint8_t*>(base, camera), saved.data(), bytes);
 }

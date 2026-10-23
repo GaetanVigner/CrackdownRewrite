@@ -4,11 +4,12 @@
 
 namespace crackdown {
 
-enum class LauncherPage { kPlay, kDisplay, kGraphics, kGameplay, kCheats, kControls, kAchievements, kAbout };
+enum class LauncherPage { kPlay, kDlc, kDisplay, kGraphics, kGameplay, kCheats, kControls, kAchievements, kAbout };
 
 inline constexpr std::array kLauncherPageOrder = {
-    LauncherPage::kPlay,     LauncherPage::kDisplay,      LauncherPage::kGraphics,    LauncherPage::kGameplay,
-    LauncherPage::kCheats,   LauncherPage::kControls,     LauncherPage::kAchievements, LauncherPage::kAbout,
+    LauncherPage::kPlay,     LauncherPage::kDlc,      LauncherPage::kDisplay,      LauncherPage::kGraphics,
+    LauncherPage::kGameplay, LauncherPage::kCheats,   LauncherPage::kControls,     LauncherPage::kAchievements,
+    LauncherPage::kAbout,
 };
 
 }  // namespace crackdown

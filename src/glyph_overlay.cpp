@@ -28,6 +28,7 @@
 #include "button_glyph_plan.h"
 #include "font_atlas.h"
 #include "font_rerender.h"
+#include "guest_layout.h"
 #include "guest_memory.h"
 #include "sha256.h"
 
@@ -46,9 +47,8 @@ constexpr std::string_view kGamePartition = "\\Device\\Harddisk0\\Partition1";
 constexpr std::string_view kTitleFolder = "4D5307DC";
 constexpr std::string_view kFontFiles[] = {"Crackdown_Font.abc", "Crackdown_Font.dds"};
 
-// The font object singleton (cFontRendering): +68 the char map, +72 the glyph count, +76 the 16-byte glyph records,
-// all inside the .abc the game read and parses in place.
-constexpr uint32_t kFontObjectGlobal = 0x82D94CBC;
+// The font object singleton (cFontRendering, Layout().font_object): +68 the char map, +72 the glyph count, +76 the
+// 16-byte glyph records, all inside the .abc the game read and parses in place.
 constexpr uint32_t kFontMapOffset = 68;
 constexpr uint32_t kFontCountOffset = 72;
 constexpr uint32_t kFontRecordsOffset = 76;
@@ -398,7 +398,7 @@ void crackdown::UpdateButtonGlyphs(uint8_t* base) {
   // Each outcome of the font check is logged once, so a log tells whether the game is drawing the overlay.
   static std::atomic_flag logged_loaded;
   static std::atomic_flag logged_other;
-  const uint32_t font = Load32(base, kFontObjectGlobal);
+  const uint32_t font = Load32(base, crackdown::Layout().font_object);
   if (!Plausible(font)) {
     return;
   }

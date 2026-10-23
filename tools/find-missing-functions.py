@@ -31,6 +31,15 @@ IMAGE_SIZE = 0x1670000
 OVERRIDES = os.path.join(ROOT, 'config', 'overrides.toml')
 DISCOVERED = os.path.join(ROOT, 'config', 'discovered-functions.toml')
 REPORT = os.path.join(ROOT, 'build', 'missing-functions-report.txt')
+if '--build=tu6' in sys.argv:
+    # The Title Update 6 image: out/tu6/game/default.xex patched with Default.xexp (tools/codegen-tu6.ps1).
+    MANIFEST = os.path.join(ROOT, 'crackdown_tu6_manifest.toml')
+    IMAGE_PATH = os.path.join(ROOT, 'out', 'tu6', 'default_image.bin')
+    IMAGE_SHA256 = 'c5fa7e119b08981aac05e3cc43779a1b4d1efc49cc132ff6bb6bae20d102e872'
+    IMAGE_SIZE = 0x16C0000
+    OVERRIDES = os.path.join(ROOT, 'config', 'tu6', 'overrides.toml')
+    DISCOVERED = os.path.join(ROOT, 'config', 'tu6', 'discovered-functions.toml')
+    REPORT = os.path.join(ROOT, 'build', 'missing-functions-report-tu6.txt')
 CXX_EH_MAGIC = 0x19930520
 MAX_HIGH_BYTES = 0x400
 IMAGE_CHARACTERISTIC_EXEC = 0x20000000

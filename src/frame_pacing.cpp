@@ -27,6 +27,8 @@
 #include "frame_pacing.h"
 #include "frame_timing.h"
 #include "glyph_overlay.h"
+#include "guest_hooks.h"
+#include "guest_layout.h"
 #include "hang_watchdog.h"
 #include "settings.h"
 
@@ -34,40 +36,25 @@ REXCVAR_DEFINE_INT32(crackdown_debug_frame_dips, 0, "Crackdown",
                      "Developer test of uneven frame rates: 0 off, else the maximum extra delay in ms (up to 100) added "
                      "before frames, sweeping from none to full every 6 s with random jitter and rare stalls of twice it");
 
-REX_EXTERN(__imp__sub_826A7698);
-REX_EXTERN(__imp__sub_826A6B50);
-REX_EXTERN(__imp__sub_82324938);
-REX_EXTERN(__imp__sub_826B1150);
-REX_EXTERN(__imp__sub_826BC568);
-REX_EXTERN(__imp__sub_826BC3D0);
-REX_EXTERN(__imp__sub_823263D8);
-
 namespace {
 
 using crackdown::FrameStep;
 
 constexpr uint32_t kOriginalPresentInterval = crackdown::PresentIntervalFor(crackdown::kOriginalFrameRate);
 
-// Frame delta getter's time scale (float, 1.0 unless the game scales time).
-constexpr uint32_t kTimeScaleAddress = 0x82C63578;
-
-constexpr uint32_t kTimingObjectAddress = 0x82DE25C0;
 constexpr uint32_t kFixedStepOffset = 13;
 constexpr uint32_t kSuspendedOffset = 14;
 constexpr uint32_t kLogicalTickOffset = 16;
-constexpr uint32_t kLimiterFrameRateAddress = 0x82BAA330;
 constexpr uint32_t kDevicePresentIntervalOffset = 13220;
 // The swap word: front buffer | present interval << 8 | immediate threshold. A swap whose vblank has passed is
 // released at once below the threshold percentage of a frame.
 constexpr uint32_t kSwapImmediateThresholdMask = 0xFF;
 constexpr uint32_t kSwapPresentIntervalMask = 0xF00;
 constexpr uint32_t kSwapImmediateAlways = 100;
-// The variable-step frame time the title's inline sites use without the replay branch.
+// The variable-step frame time the title's inline sites use without the replay branch. The frame timer publishes a
+// frame as a byte set once it has measured one and that frame's milliseconds; with the fixed step off, the inline sites
+// read `[valid] ? [ms] : 16`.
 constexpr uint32_t kVariableStepFrameMs = 16;
-// The frame timer's published frame: a byte set once it has measured one, and that frame's milliseconds. With the
-// fixed step off, the inline sites read `[valid] ? [ms] : 16`.
-constexpr uint32_t kMeasuredFrameValidAddress = 0x82DE3FB0;
-constexpr uint32_t kMeasuredFrameMsAddress = 0x82D99128;
 
 std::atomic<uint32_t> g_step_bits{std::bit_cast<uint32_t>(1.0f / 60.0f)};
 std::atomic<uint32_t> g_frame_ms{kVariableStepFrameMs};
@@ -155,12 +142,12 @@ void WaitUntil(int64_t deadline_ns) {
 
 // The timing object can be replaced while the title runs, and every new one starts in fixed-step mode.
 void SelectVariableStep(uint8_t* base, int rate) {
-  if (const uint32_t timing = LoadBE32(base, kTimingObjectAddress)) {
+  if (const uint32_t timing = LoadBE32(base, crackdown::Layout().timing_object)) {
     *GuestByte(base, timing + kFixedStepOffset) = 0;
   }
   const uint32_t limiter = crackdown::LimiterFrameRateFor(rate);
-  if (LoadBE32(base, kLimiterFrameRateAddress) != limiter) {
-    StoreBE32(base, kLimiterFrameRateAddress, limiter);
+  if (LoadBE32(base, crackdown::Layout().limiter_frame_rate) != limiter) {
+    StoreBE32(base, crackdown::Layout().limiter_frame_rate, limiter);
   }
 }
 
@@ -240,7 +227,7 @@ void LogFrameRate(int rate) {
 }  // namespace
 
 // One main-loop frame. It reads the fixed-step byte for the frame time, the frame limiter and the logical tick.
-REX_HOOK_RAW(sub_826A7698) {
+void crackdown::hooks::FrameLoop(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const int rate = FrameRate();
   LogFrameRate(rate);
   BeginFrame(rate);
@@ -249,71 +236,72 @@ REX_HOOK_RAW(sub_826A7698) {
   }
   crackdown::UpdateButtonGlyphs(base);
   crackdown::NoteGuestFrame();
-  __imp__sub_826A7698(ctx, base);
+  original(ctx, base);
 }
 
 // The simulation update. Its only caller passes 1/30 s times the time scale; g_step.original_steps is exactly 1.0
 // on an on-time frame at every rate, so this is a no-op multiply unless a frame ran long or short of its target.
-REX_HOOK_RAW(sub_826A6B50) {
+void crackdown::hooks::SimulationUpdate(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   ctx.f1.f64 = double(float(ctx.f1.f64 * g_step.original_steps));
-  __imp__sub_826A6B50(ctx, base);
+  original(ctx, base);
 }
 
 // The frame delta getter. With the fixed step on (30), the original always returns timescale/30, the same value
 // g_step gives on an on-time frame, so this can replace it outright instead of only overriding the variable-step
-// rates; it is what keeps camera and animation on the same compensated clock as the simulation update.
-REX_HOOK_RAW(sub_8254C568) {
-  ctx.f1.f64 =
-      double(LoadBEFloat(base, kTimeScaleAddress) * std::bit_cast<float>(g_step_bits.load(std::memory_order_relaxed)));
+// rates; it is what keeps camera and animation on the same compensated clock as the simulation update. The time scale
+// is a float, 1.0 unless the game scales time.
+void crackdown::hooks::FrameDelta(PPCContext& ctx, uint8_t* base) {
+  ctx.f1.f64 = double(LoadBEFloat(base, crackdown::Layout().time_scale) *
+                      std::bit_cast<float>(g_step_bits.load(std::memory_order_relaxed)));
 }
 
-REX_HOOK_RAW(sub_82324938) {
-  const uint32_t timing = LoadBE32(base, kTimingObjectAddress);
+void crackdown::hooks::TimingUpdate(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  const uint32_t timing = LoadBE32(base, crackdown::Layout().timing_object);
   const bool active = timing && !*GuestByte(base, timing + kSuspendedOffset);
   const uint32_t before = active ? LoadBE32(base, timing + kLogicalTickOffset) : 0;
-  __imp__sub_82324938(ctx, base);
+  original(ctx, base);
   if (active) {
     SyncLogicalTick(base, timing, LoadBE32(base, timing + kLogicalTickOffset) - before);
   }
 }
 
-// The title's frame timer (slot 0x2C of the timing object's vtable 0x82095D5C) keeps the fixed step's 30 or 33 ms
-// minimum frame, so with the fixed step off a shorter frame is published as 0 ms. The camera divides by its time step
-// (sub_8228BAB8), and a ragdoll on a 0 ms frame turned the camera, the player and the audio listener NaN. With the
-// fixed step off the published frame is the port's own frame time, never 0; at 30 the sites use the fixed 33 ms.
-REX_HOOK_RAW(sub_823263D8) {
-  __imp__sub_823263D8(ctx, base);
-  if (HighFrameRate(FrameRate()) && *GuestByte(base, kMeasuredFrameValidAddress)) {
-    StoreBE32(base, kMeasuredFrameMsAddress, g_frame_ms.load(std::memory_order_relaxed));
+// The title's frame timer (slot 0x2C of the timing object's vtable) keeps the fixed step's 30 or 33 ms minimum frame, so
+// with the fixed step off a shorter frame is published as 0 ms. The camera divides by its time step, and a ragdoll on a
+// 0 ms frame turned the camera, the player and the audio listener NaN. With the fixed step off the published frame is
+// the port's own frame time, never 0; at 30 the sites use the fixed 33 ms.
+void crackdown::hooks::FrameTimer(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  original(ctx, base);
+  if (HighFrameRate(FrameRate()) && *GuestByte(base, crackdown::Layout().measured_frame_valid)) {
+    StoreBE32(base, crackdown::Layout().measured_frame_ms, g_frame_ms.load(std::memory_order_relaxed));
   }
 }
 
 // D3D present interval setter: r3 = device, r4 = D3DPRESENT_INTERVAL value.
-REX_HOOK_RAW(sub_826B1150) {
+void crackdown::hooks::PresentInterval(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   ctx.r4.u64 = TitlePresentInterval(ctx.r4.u32);
-  __imp__sub_826B1150(ctx, base);
+  original(ctx, base);
 }
 
 // Builds the swap packet from the device's interval; the interval from device creation never goes through the setter.
-REX_HOOK_RAW(sub_826BC568) {
+void crackdown::hooks::SwapPacket(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t field = ctx.r3.u32 + kDevicePresentIntervalOffset;
   const uint32_t interval = LoadBE32(base, field);
   if (const uint32_t wanted = TitlePresentInterval(interval); wanted != interval) {
     StoreBE32(base, field, wanted);
   }
-  __imp__sub_826BC568(ctx, base);
+  original(ctx, base);
 }
 
 // The XDK swap callback: r3 = the swap word. The title passes threshold 0, so a frame finished just after its vblank
 // waited a whole extra vblank; the host presents without tearing either way. Host-paced rates take interval 0.
-REX_HOOK_RAW(sub_826BC3D0) {
+void crackdown::hooks::SwapCallback(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const int rate = FrameRate();
   if (crackdown::HostPacedFrameRate(rate)) {
     ctx.r3.u64 = ctx.r3.u32 & ~kSwapPresentIntervalMask;
   } else if (HighFrameRate(rate)) {
     ctx.r3.u64 = (ctx.r3.u32 & ~kSwapImmediateThresholdMask) | kSwapImmediateAlways;
   }
-  __imp__sub_826BC3D0(ctx, base);
+  original(ctx, base);
 }
 
 // Codegen midasm hook after each inline `li rN,16`: the 16 ms frame time of the title's variable-step sites.
@@ -323,9 +311,8 @@ void crackdown_variable_step_frame_ms(PPCRegister& frame_ms) {
   }
 }
 
-// Codegen midasm hooks after the loads of per-update constants that ignore the frame time: the 1/30 at 0x820ED7CC by
-// `lfs f0` at 823308DC in sub_82330888 (crowd animation time += rate * step), and the 0.033 at 0x82CFF2B4 by
-// `lfs f13` at 823FF534 in sub_823FF3B8 (a cosmetic timer).
+// Codegen midasm hooks after the loads of per-update constants that ignore the frame time: the 1/30 of the crowd
+// animation (time += rate * step) and the 0.033 of a cosmetic timer.
 void crackdown_crowd_anim_step(PPCRegister& step) {
   step.f64 = double(crackdown::ScalePerOriginalStep(float(step.f64), g_original_steps.load(std::memory_order_relaxed)));
 }
