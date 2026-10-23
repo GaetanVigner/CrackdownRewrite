@@ -1,0 +1,323 @@
+gpu_fetch_constant_caches (off by default, hot reload): what texture bindings and sampler parameters derive from a
+texture fetch constant is kept in direct-mapped tables indexed by a hash of its six dwords: the binding key, signs and
+host format swizzle (functions of the dwords), the textures last looked up for the key (reused while no texture was
+destroyed and the scaled resolve generation is unchanged, or the key's scaled resolve state is still the texture's), and
+the sampler parameters (also keyed on the binding's filter overrides and anisotropic_override). Saves the fetch
+constant parse and the texture map lookup on most of the ~6,000 binding updates a frame, and the sampler parameter
+computation on most of the ~3,000 a frame. Counters in the gpu_frame_stats log.
+
+diff --git a/include/rex/graphics/pipeline/texture/cache.h b/include/rex/graphics/pipeline/texture/cache.h
+--- a/include/rex/graphics/pipeline/texture/cache.h
++++ b/include/rex/graphics/pipeline/texture/cache.h
+@@ -693,6 +693,30 @@ class TextureCache {
+   TextureBindingMemo* binding_memo_ = nullptr;
+   // Incremented whenever textures are destroyed (pointers in binding memos may be stale then).
+   uint64_t texture_destruction_generation_ = 0;
++  // Incremented whenever the scaled resolve state of any memory changes (resolves, and guest writes
++  // to scaled resolve memory, from other threads).
++  std::atomic<uint64_t> scaled_resolve_generation_{0};
++
++  // gpu_fetch_constant_caches: what RequestTextures derives from a texture fetch constant's six
++  // dwords (the binding key, signs and host format swizzle, which are functions of them, and the
++  // textures last looked up for the key), in a direct-mapped table indexed by a hash of the dwords.
++  struct FetchBindingCacheEntry {
++    uint32_t fetch[6];
++    bool valid = false;
++    TextureKey key;
++    uint8_t swizzled_signs;
++    uint32_t host_format_swizzle;
++    // Valid while no texture has been destroyed since texture_generation; each is what
++    // FindOrCreateTexture returned for the key (or the signed key) while the scaled resolve
++    // generation was the one beside it.
++    uint64_t texture_generation = UINT64_MAX;
++    Texture* texture = nullptr;
++    uint64_t texture_scaled_resolve_generation = UINT64_MAX;
++    Texture* texture_signed = nullptr;
++    uint64_t texture_signed_scaled_resolve_generation = UINT64_MAX;
++  };
++  static constexpr uint32_t kFetchBindingCacheSizeLog2 = 10;
++  std::unique_ptr<FetchBindingCacheEntry[]> fetch_binding_cache_;
+ };
+ 
+ }  // namespace rex::graphics
+diff --git a/src/graphics/pipeline/texture/cache.cpp b/src/graphics/pipeline/texture/cache.cpp
+--- a/src/graphics/pipeline/texture/cache.cpp
++++ b/src/graphics/pipeline/texture/cache.cpp
+@@ -136,6 +136,12 @@ REXCVAR_DEFINE_BOOL(pre_mask_resolve_l2_block, true, "GPU",
+ //     "96 MB, and with 3x3, it will be 360 + 216 MB.",
+ //     "GPU");
+ 
++REXCVAR_DEFINE_BOOL(gpu_fetch_constant_caches, false, "GPU",
++                    "Reuse what texture bindings and sampler parameters derive from a texture fetch "
++                    "constant (the texture key, the texture looked up for it, the sampler state) "
++                    "when the fetch constant has the same dwords as before")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++
+ namespace rex::graphics {
+ 
+ namespace {
+@@ -273,6 +279,7 @@ TextureCache::TextureCache(const RegisterFile& register_file, SharedMemory& shar
+     constexpr uint32_t kScaledResolvePageDwordCount = SharedMemory::kBufferSize / 4096 / 32;
+     scaled_resolve_pages_ = std::unique_ptr<uint32_t[]>(new uint32_t[kScaledResolvePageDwordCount]);
+     std::memset(scaled_resolve_pages_.get(), 0, kScaledResolvePageDwordCount * sizeof(uint32_t));
++    scaled_resolve_generation_.fetch_add(1, std::memory_order_release);
+     std::memset(scaled_resolve_pages_l2_, 0, sizeof(scaled_resolve_pages_l2_));
+     scaled_resolve_global_watch_handle_ =
+         shared_memory.RegisterGlobalWatch(ScaledResolveGlobalWatchCallbackThunk, this);
+@@ -416,6 +423,7 @@ void TextureCache::MarkRangeAsResolved(uint32_t start_unscaled, uint32_t length_
+       scaled_resolve_pages_[i] |= add_bits;
+       scaled_resolve_pages_l2_[i >> 6] |= UINT64_C(1) << (i & 63);
+     }
++    scaled_resolve_generation_.fetch_add(1, std::memory_order_release);
+   }
+ 
+   // Invalidate textures. Toggling individual textures between scaled and
+@@ -592,13 +600,45 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+     memo->generation = texture_destruction_generation_;
+     memo->valid_mask = 0;
+   }
++  // gpu_fetch_constant_caches.
++  const bool fetch_cache_enabled = REXCVAR_GET(gpu_fetch_constant_caches);
++  if (fetch_cache_enabled && !fetch_binding_cache_) {
++    fetch_binding_cache_ =
++        std::make_unique<FetchBindingCacheEntry[]>(size_t(1) << kFetchBindingCacheSizeLog2);
++  }
++  const uint64_t scaled_resolve_generation =
++      scaled_resolve_generation_.load(std::memory_order_acquire);
++  FetchBindingCacheEntry* fetch_entry = nullptr;
+   // A memoized texture is what FindOrCreateTexture would return while the key's scaled resolve
+-  // state is the one the texture was created for.
+-  auto find_or_create_texture = [&](const TextureKey& texture_key, Texture* memoized) {
++  // state is the one the texture was created for. So is a fetch cache entry's while no texture
++  // has been destroyed and the scaled resolve generation is unchanged (or, when it has changed,
++  // the key's scaled resolve state is still the texture's).
++  auto find_or_create_texture = [&](const TextureKey& texture_key, Texture* memoized,
++                                    bool is_signed) {
+     if (memoized && memoized->key().scaled_resolve == uint32_t(IsKeyScaledResolved(texture_key))) {
+       return memoized;
+     }
+-    return FindOrCreateTexture(texture_key);
++    if (!fetch_entry) {
++      return FindOrCreateTexture(texture_key);
++    }
++    Texture*& entry_texture = is_signed ? fetch_entry->texture_signed : fetch_entry->texture;
++    uint64_t& entry_generation = is_signed ? fetch_entry->texture_signed_scaled_resolve_generation
++                                           : fetch_entry->texture_scaled_resolve_generation;
++    if (fetch_entry->texture_generation != texture_destruction_generation_) {
++      fetch_entry->texture_generation = texture_destruction_generation_;
++      fetch_entry->texture = nullptr;
++      fetch_entry->texture_signed = nullptr;
++    } else if (entry_texture &&
++               (entry_generation == scaled_resolve_generation ||
++                entry_texture->key().scaled_resolve ==
++                    uint32_t(IsKeyScaledResolved(texture_key)))) {
++      ++g_gpu_frame_stats.fetch_cache_textures_reused;
++      entry_generation = scaled_resolve_generation;
++      return entry_texture;
++    }
++    entry_texture = FindOrCreateTexture(texture_key);
++    entry_generation = scaled_resolve_generation;
++    return entry_texture;
+   };
+   uint32_t old_host_swizzles[32];
+   uint32_t index = 0;
+@@ -611,9 +651,35 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+     uint8_t old_swizzled_signs = binding.swizzled_signs;
+     TextureBindingMemo::Slot* memo_slot =
+         memo && (memo->valid_mask & index_bit) ? &memo->slots[index] : nullptr;
++    fetch_entry = nullptr;
+     if (memo_slot) {
+       binding.key = memo_slot->key;
+       binding.swizzled_signs = memo_slot->swizzled_signs;
++    } else if (fetch_cache_enabled) {
++      const uint32_t* fetch_dwords =
++          &regs.values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + index * 6];
++      uint64_t fetch_hash = 0;
++      for (uint32_t i = 0; i < 6; ++i) {
++        fetch_hash = (fetch_hash ^ fetch_dwords[i]) * UINT64_C(0x9E3779B97F4A7C15);
++      }
++      fetch_entry = &fetch_binding_cache_[fetch_hash >> (64 - kFetchBindingCacheSizeLog2)];
++      if (fetch_entry->valid &&
++          !std::memcmp(fetch_entry->fetch, fetch_dwords, sizeof(fetch_entry->fetch))) {
++        ++g_gpu_frame_stats.fetch_cache_binding_hits;
++        binding.key = fetch_entry->key;
++        binding.swizzled_signs = fetch_entry->swizzled_signs;
++      } else {
++        ++g_gpu_frame_stats.fetch_cache_binding_misses;
++        BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);
++        std::memcpy(fetch_entry->fetch, fetch_dwords, sizeof(fetch_entry->fetch));
++        fetch_entry->valid = true;
++        fetch_entry->key = binding.key;
++        fetch_entry->swizzled_signs = binding.swizzled_signs;
++        fetch_entry->host_format_swizzle =
++            binding.key.is_valid ? GetHostFormatSwizzle(binding.key) : 0;
++        fetch_entry->texture = nullptr;
++        fetch_entry->texture_signed = nullptr;
++      }
+     } else {
+       BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);
+     }
+@@ -644,7 +710,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+       continue;
+     }
+     old_host_swizzles[index] = binding.host_swizzle;
+-    binding.host_swizzle = GuestToHostSwizzle(fetch.swizzle, GetHostFormatSwizzle(binding.key));
++    binding.host_swizzle = GuestToHostSwizzle(
++        fetch.swizzle,
++        fetch_entry ? fetch_entry->host_format_swizzle : GetHostFormatSwizzle(binding.key));
+ 
+     // Check if need to load the unsigned and the signed versions of the texture
+     // (if the format is emulated with different host bit representations for
+@@ -669,7 +737,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+       if (any_sign_is_not_signed) {
+         if (key_changed || !any_sign_was_not_signed) {
+           binding.texture =
+-              find_or_create_texture(binding.key, memo_slot ? memo_slot->texture : nullptr);
++              find_or_create_texture(binding.key, memo_slot ? memo_slot->texture : nullptr, false);
+           load_unsigned_data = true;
+         }
+       } else {
+@@ -679,8 +747,8 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+         if (key_changed || !any_sign_was_signed) {
+           TextureKey signed_key = binding.key;
+           signed_key.signed_separate = 1;
+-          binding.texture_signed =
+-              find_or_create_texture(signed_key, memo_slot ? memo_slot->texture_signed : nullptr);
++          binding.texture_signed = find_or_create_texture(
++              signed_key, memo_slot ? memo_slot->texture_signed : nullptr, true);
+           load_signed_data = true;
+         }
+       } else {
+@@ -691,7 +759,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+       // be different.
+       if (key_changed) {
+         binding.texture =
+-            find_or_create_texture(binding.key, memo_slot ? memo_slot->texture : nullptr);
++            find_or_create_texture(binding.key, memo_slot ? memo_slot->texture : nullptr, false);
+         load_unsigned_data = true;
+       }
+       binding.texture_signed = nullptr;
+@@ -1344,6 +1412,7 @@ void TextureCache::ScaledResolveGlobalWatchCallback(
+       }
+     }
+   }
++  scaled_resolve_generation_.fetch_add(1, std::memory_order_release);
+ }
+ 
+ }  // namespace rex::graphics
+diff --git a/include/rex/graphics/d3d12/texture_cache.h b/include/rex/graphics/d3d12/texture_cache.h
+--- a/include/rex/graphics/d3d12/texture_cache.h
++++ b/include/rex/graphics/d3d12/texture_cache.h
+@@ -114,6 +114,22 @@ class D3D12TextureCache final : public TextureCache {
+   uint32_t GetActiveTextureBindlessSRVIndex(const D3D12Shader::TextureBinding& host_shader_binding);
+ 
+   SamplerParameters GetSamplerParameters(const D3D12Shader::SamplerBinding& binding) const;
++
++ private:
++  // gpu_fetch_constant_caches: sampler parameters by the fetch constant's dwords and the binding's
++  // filter overrides (and anisotropic_override), in a direct-mapped table.
++  struct SamplerCacheEntry {
++    uint32_t fetch[6];
++    uint32_t binding_filters;
++    int32_t anisotropic_override;
++    bool valid = false;
++    SamplerParameters parameters;
++  };
++  static constexpr uint32_t kSamplerCacheSizeLog2 = 9;
++  mutable std::unique_ptr<SamplerCacheEntry[]> sampler_cache_;
++  SamplerParameters ComputeSamplerParameters(const D3D12Shader::SamplerBinding& binding) const;
++
++ public:
+   void WriteSampler(SamplerParameters parameters, D3D12_CPU_DESCRIPTOR_HANDLE handle) const;
+ 
+   // Returns whether the actual scale is not smaller than the requested one.
+diff --git a/src/graphics/d3d12/texture_cache.cpp b/src/graphics/d3d12/texture_cache.cpp
+--- a/src/graphics/d3d12/texture_cache.cpp
++++ b/src/graphics/d3d12/texture_cache.cpp
+@@ -33,6 +33,8 @@
+ #include <rex/ui/d3d12/d3d12_upload_buffer_pool.h>
+ #include <rex/ui/d3d12/d3d12_util.h>
+ 
++REXCVAR_DECLARE(bool, gpu_fetch_constant_caches);
++
+ namespace rex::graphics::d3d12 {
+ 
+ // Generated with `xb buildshaders`.
+@@ -929,6 +931,41 @@ uint32_t D3D12TextureCache::GetActiveTextureBindlessSRVIndex(
+ 
+ D3D12TextureCache::SamplerParameters D3D12TextureCache::GetSamplerParameters(
+     const D3D12Shader::SamplerBinding& binding) const {
++  if (!REXCVAR_GET(gpu_fetch_constant_caches)) {
++    return ComputeSamplerParameters(binding);
++  }
++  if (!sampler_cache_) {
++    sampler_cache_ = std::make_unique<SamplerCacheEntry[]>(size_t(1) << kSamplerCacheSizeLog2);
++  }
++  const uint32_t* fetch_dwords =
++      &register_file().values[XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + binding.fetch_constant * 6];
++  const uint32_t binding_filters = uint32_t(binding.mag_filter) |
++                                   (uint32_t(binding.min_filter) << 8) |
++                                   (uint32_t(binding.mip_filter) << 16) |
++                                   (uint32_t(binding.aniso_filter) << 24);
++  const int32_t anisotropic_override = REXCVAR_GET(anisotropic_override);
++  uint64_t hash = binding_filters;
++  for (uint32_t i = 0; i < 6; ++i) {
++    hash = (hash ^ fetch_dwords[i]) * UINT64_C(0x9E3779B97F4A7C15);
++  }
++  SamplerCacheEntry& entry = sampler_cache_[hash >> (64 - kSamplerCacheSizeLog2)];
++  if (entry.valid && entry.binding_filters == binding_filters &&
++      entry.anisotropic_override == anisotropic_override &&
++      !std::memcmp(entry.fetch, fetch_dwords, sizeof(entry.fetch))) {
++    ++g_gpu_frame_stats.fetch_cache_sampler_hits;
++    return entry.parameters;
++  }
++  ++g_gpu_frame_stats.fetch_cache_sampler_misses;
++  entry.parameters = ComputeSamplerParameters(binding);
++  std::memcpy(entry.fetch, fetch_dwords, sizeof(entry.fetch));
++  entry.binding_filters = binding_filters;
++  entry.anisotropic_override = anisotropic_override;
++  entry.valid = true;
++  return entry.parameters;
++}
++
++D3D12TextureCache::SamplerParameters D3D12TextureCache::ComputeSamplerParameters(
++    const D3D12Shader::SamplerBinding& binding) const {
+   const auto& regs = register_file();
+   xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(binding.fetch_constant);
+ 
+diff --git a/include/rex/graphics/gpu_frame_stats.h b/include/rex/graphics/gpu_frame_stats.h
+--- a/include/rex/graphics/gpu_frame_stats.h
++++ b/include/rex/graphics/gpu_frame_stats.h
+@@ -56,6 +56,13 @@ struct GpuFrameStats {
+   uint64_t issue_draw_section_cycles[kIssueDrawKinds][kIssueDrawSections];
+   uint64_t sub_cycles[32];
+   uint64_t sub_events[32];
++  // gpu_fetch_constant_caches: texture bindings and sampler parameters taken from the fetch
++  // constant caches or derived again, and textures reused without a lookup.
++  uint64_t fetch_cache_binding_hits;
++  uint64_t fetch_cache_binding_misses;
++  uint64_t fetch_cache_textures_reused;
++  uint64_t fetch_cache_sampler_hits;
++  uint64_t fetch_cache_sampler_misses;
+ };
+ 
+ // Whether gpu_frame_stats is on (read by the backends' per-draw timers).
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -200,6 +200,15 @@ void GpuFrameStatsSwap() {
+       REXGPU_INFO("IssueDraw subsections per draw (events a frame): {}", text);
+     }
+   }
++  if (stats.fetch_cache_binding_hits || stats.fetch_cache_binding_misses ||
++      stats.fetch_cache_sampler_hits || stats.fetch_cache_sampler_misses) {
++    REXGPU_INFO(
++        "Fetch constant caches per frame: texture bindings {:.0f} hits / {:.0f} misses, {:.0f} "
++        "textures reused without a lookup; samplers {:.0f} hits / {:.0f} misses",
++        per_frame(stats.fetch_cache_binding_hits), per_frame(stats.fetch_cache_binding_misses),
++        per_frame(stats.fetch_cache_textures_reused), per_frame(stats.fetch_cache_sampler_hits),
++        per_frame(stats.fetch_cache_sampler_misses));
++  }
+   if (stats.draw_memo_hits || stats.draw_memo_misses) {
+     REXGPU_INFO(
+         "Draw identity memo per frame: {:.0f} hits ({:.0f} with the pipeline), {:.0f} misses, "

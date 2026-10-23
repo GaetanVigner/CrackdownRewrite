@@ -1,0 +1,1273 @@
+gpu_draw_identity_memo (off by default, hot reload; works on the draws of 0107's cached indirect buffers): each such draw
+has an identity, its DRAW operation and occurrence in the frame, and a memo of what IssueDraw derived for it: pixel
+shader use, shader variants and translations, pipeline and root signature, color mask, viewport, used textures and the
+texture bindings (keys and textures, reused while no texture was destroyed and the scaled resolve state is unchanged).
+The memo is reused when the shaders are the same and a 64-bit hash of the render state (0x2000-0x23FF but the resolve
+registers) and of the used textures' fetch constants matches; float, bool and loop constants are not inputs of any of
+it. Primitive processing, the render target cache update, vertex buffer residency, constant uploads and bindings stay
+per draw. gpu_frame_stats logs the memo's hits and misses and the time IssueDraw takes per draw, by section and by kind
+of draw (without an identity, memo hit, memo miss, identity with the memo off), and the subsections of UpdateBindings,
+RequestTextures and the render target cache Update per draw, with how often each had work to do.
+
+diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
+--- a/include/rex/graphics/command_processor.h
++++ b/include/rex/graphics/command_processor.h
+@@ -293,6 +293,19 @@ class CommandProcessor {
+   bool cached_indirect_buffers_enabled_ = false;
+   uint32_t indirect_buffer_replay_depth_ = 0;
+ 
++  // gpu_draw_identity_memo: what a backend derives in IssueDraw for one draw of a cached indirect
++  // buffer (its DRAW operation and occurrence in the frame: a stable draw identity), kept to be
++  // reused when the draw comes back with the same state. Created by the backend.
++  struct DrawMemo {
++    virtual ~DrawMemo() = default;
++  };
++  virtual std::unique_ptr<DrawMemo> CreateDrawMemo() { return nullptr; }
++  // The memo of the draw IssueDraw is called for, null for draws without an identity. IssueDraw
++  // takes it and clears it.
++  DrawMemo* current_draw_memo_ = nullptr;
++  // Whether the draw IssueDraw is called for has an identity (for gpu_frame_stats).
++  bool current_draw_has_identity_ = false;
++
+   Shader* active_vertex_shader_ = nullptr;
+   Shader* active_pixel_shader_ = nullptr;
+ 
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -19,6 +19,8 @@
+ #include <string>
+ #include <string_view>
+ 
++#include <intrin.h>
++
+ #include <fmt/format.h>
+ 
+ #include <rex/cvar.h>
+@@ -115,14 +117,19 @@ using namespace rex::graphics::xenos;
+ 
+ GpuFrameStats g_gpu_frame_stats{};
+ 
++bool GpuFrameStatsEnabled() { return REXCVAR_GET(gpu_frame_stats); }
++
+ void GpuFrameStatsSwap() {
+   GpuFrameStats& stats = g_gpu_frame_stats;
+   ++stats.frames;
+   static std::chrono::steady_clock::time_point start;
++  static uint64_t start_tsc;
+   const auto now = std::chrono::steady_clock::now();
++  const uint64_t now_tsc = __rdtsc();
+   if (!REXCVAR_GET(gpu_frame_stats) || start == std::chrono::steady_clock::time_point()) {
+     stats = {};
+     start = REXCVAR_GET(gpu_frame_stats) ? now : std::chrono::steady_clock::time_point();
++    start_tsc = now_tsc;
+     return;
+   }
+   const double seconds = std::chrono::duration<double>(now - start).count();
+@@ -153,8 +160,56 @@ void GpuFrameStatsSwap() {
+         per_frame(stats.ib_cache_changed), per_frame(stats.ib_cache_parsed),
+         per_frame(stats.ib_cache_runs_skipped));
+   }
++  {
++    // Time stamp counter cycles to nanoseconds, from this window's length.
++    const double ns_per_cycle = seconds * 1e9 / double(now_tsc - start_tsc);
++    static const char* const kKinds[GpuFrameStats::kIssueDrawKinds] = {
++        "without an identity", "memo hit", "memo miss", "with an identity, memo off"};
++    for (int kind = 0; kind < GpuFrameStats::kIssueDrawKinds; ++kind) {
++      const uint64_t count = stats.issue_draw_count[kind];
++      if (!count) {
++        continue;
++      }
++      auto ns = [&](uint64_t cycles) { return double(cycles) * ns_per_cycle / double(count); };
++      const uint64_t* sections = stats.issue_draw_section_cycles[kind];
++      REXGPU_INFO(
++          "IssueDraw, {} ({:.0f} draws a frame): {:.0f} ns a draw = setup {:.0f}, primitives "
++          "{:.0f}, shader variants {:.0f}, render targets {:.0f}, pipeline {:.0f}, textures "
++          "{:.0f}, viewport and system constants {:.0f}, bindings {:.0f}, vertex buffers {:.0f}, "
++          "draw {:.0f}",
++          kKinds[kind], per_frame(count), ns(stats.issue_draw_cycles[kind]), ns(sections[0]),
++          ns(sections[1]), ns(sections[2]), ns(sections[3]), ns(sections[4]), ns(sections[5]),
++          ns(sections[6]), ns(sections[7]), ns(sections[8]), ns(sections[9]));
++    }
++  }
++  {
++    const uint64_t draws = stats.issue_draw_count[0] + stats.issue_draw_count[1] +
++                           stats.issue_draw_count[2] + stats.issue_draw_count[3];
++    if (draws) {
++      const double ns_per_cycle = seconds * 1e9 / double(now_tsc - start_tsc);
++      static const char* const kSubNames[kSubSectionCount] = {
++          "bindings: setup", "system constants", "float VS", "float PS", "bool/loop + fetch",
++          "samplers", "descriptors", "root", "textures: keys", "loads", "bindings", "D3D12",
++          "render targets: estimate", "ownership", "transfers", "dirty tiles", "bind"};
++      std::string text;
++      for (int i = 0; i < kSubSectionCount; ++i) {
++        text += fmt::format("{}{} {:.0f} ns ({:.0f}/f)", i ? ", " : "", kSubNames[i],
++                            double(stats.sub_cycles[i]) * ns_per_cycle / double(draws),
++                            per_frame(stats.sub_events[i]));
++      }
++      REXGPU_INFO("IssueDraw subsections per draw (events a frame): {}", text);
++    }
++  }
++  if (stats.draw_memo_hits || stats.draw_memo_misses) {
++    REXGPU_INFO(
++        "Draw identity memo per frame: {:.0f} hits ({:.0f} with the pipeline), {:.0f} misses, "
++        "{:.1f} primitive processing misses",
++        per_frame(stats.draw_memo_hits), per_frame(stats.draw_memo_pipelines_reused),
++        per_frame(stats.draw_memo_misses), per_frame(stats.draw_memo_primitive_misses));
++  }
+   stats = {};
+   start = now;
++  start_tsc = now_tsc;
+ }
+ 
+ // --- Draw trace (gpu_draw_trace) -----------------------------------------------------------------
+@@ -384,6 +439,12 @@ struct CommandProcessor::CachedIndirectBuffer {
+     Skip skip;  // kRegisters: d is then the offset of the run's host-order values in `values`
+     uint32_t a, b, c, d;
+   };
++  // Per kDraw operation: a draw memo per occurrence in the frame (instances replay the buffer).
++  struct DrawMemos {
++    uint32_t frame = UINT32_MAX;
++    uint32_t next_occurrence = 0;
++    std::vector<std::unique_ptr<DrawMemo>> occurrences;
++  };
+   enum class State : uint8_t { kTranslated, kUncacheable };
+   State state = State::kTranslated;
+   mutable bool replaying = false;  // guards a buffer that calls itself
+@@ -392,6 +453,10 @@ struct CommandProcessor::CachedIndirectBuffer {
+   std::vector<uint32_t> words;   // the dwords when translated, guest byte order
+   std::vector<uint32_t> values;  // register values, host byte order
+   std::vector<Operation> operations;
++  // One per kDraw operation, filled by replays (draw_memo_index: for each operation, its index
++  // in draw_memos, UINT32_MAX for other operations).
++  mutable std::vector<DrawMemos> draw_memos;
++  std::vector<uint32_t> draw_memo_index;
+ };
+ 
+ namespace {
+@@ -525,6 +590,8 @@ bool CommandProcessor::TranslateIndirectBuffer(CachedIndirectBuffer& buffer, con
+   buffer.words.assign(words, words + count);
+   buffer.values.clear();
+   buffer.operations.clear();
++  buffer.draw_memos.clear();
++  buffer.draw_memo_index.clear();
+   const uint32_t* source = buffer.words.data();
+   auto read = [source](uint32_t i) { return memory::load_and_swap<uint32_t>(source + i); };
+   auto add = [&buffer](Op op, bool predicated, uint32_t a, uint32_t b = 0, uint32_t c = 0,
+@@ -728,6 +795,14 @@ bool CommandProcessor::TranslateIndirectBuffer(CachedIndirectBuffer& buffer, con
+       } break;
+     }
+   }
++  buffer.draw_memo_index.assign(buffer.operations.size(), UINT32_MAX);
++  uint32_t draw_count = 0;
++  for (size_t j = 0; j < buffer.operations.size(); ++j) {
++    if (buffer.operations[j].op == Op::kDraw) {
++      buffer.draw_memo_index[j] = draw_count++;
++    }
++  }
++  buffer.draw_memos.resize(draw_count);
+   return true;
+ }
+ 
+@@ -738,7 +813,8 @@ void CommandProcessor::ReplayIndirectBuffer(const CachedIndirectBuffer& buffer,
+   const bool skip_unchanged_constants = REXCVAR_GET(gpu_skip_unchanged_constant_writes);
+   buffer.replaying = true;
+   ++indirect_buffer_replay_depth_;
+-  for (const CachedIndirectBuffer::Operation& operation : buffer.operations) {
++  for (size_t operation_index = 0; operation_index < buffer.operations.size(); ++operation_index) {
++    const CachedIndirectBuffer::Operation& operation = buffer.operations[operation_index];
+     if (operation.predicated && !(bin_select_ & bin_mask_)) {
+       continue;
+     }
+@@ -782,12 +858,34 @@ void CommandProcessor::ReplayIndirectBuffer(const CachedIndirectBuffer& buffer,
+           active_pixel_shader_ = shader;
+         }
+       } break;
+-      case Op::kDraw:
++      case Op::kDraw: {
++        // A draw identity: this DRAW operation and its occurrence in the frame.
++        constexpr uint32_t kMaxDrawMemoOccurrences = 64;
++        CachedIndirectBuffer::DrawMemos& memos =
++            buffer.draw_memos[buffer.draw_memo_index[operation_index]];
++        if (memos.frame != counter_) {
++          memos.frame = counter_;
++          memos.next_occurrence = 0;
++        }
++        if (memos.next_occurrence < kMaxDrawMemoOccurrences) {
++          if (memos.next_occurrence >= memos.occurrences.size()) {
++            memos.occurrences.emplace_back();
++          }
++          std::unique_ptr<DrawMemo>& memo = memos.occurrences[memos.next_occurrence++];
++          if (!memo) {
++            memo = CreateDrawMemo();  // null while the backend does not memoize
++          }
++          current_draw_memo_ = memo.get();
++        }
++        current_draw_has_identity_ = true;
+         ExecuteDraw(operation.a,
+                     ((operation.a >> 8) & 0x7F) == PM4_DRAW_INDX ? "PM4_DRAW_INDX"
+                                                                  : "PM4_DRAW_INDX_2",
+                     operation.b, operation.c, operation.d);
+-        break;
++        // Not every draw reaches IssueDraw.
++        current_draw_memo_ = nullptr;
++        current_draw_has_identity_ = false;
++      } break;
+       case Op::kIndirectBuffer:
+         ExecuteIndirectBuffer(operation.a, operation.b);
+         break;
+diff --git a/include/rex/graphics/gpu_frame_stats.h b/include/rex/graphics/gpu_frame_stats.h
+--- a/include/rex/graphics/gpu_frame_stats.h
++++ b/include/rex/graphics/gpu_frame_stats.h
+@@ -6,6 +6,8 @@
+ 
+ #include <cstdint>
+ 
++#include <intrin.h>
++
+ namespace rex::graphics {
+ 
+ // What the guest's command stream asks of the command processor, counted between swaps. Plain
+@@ -37,10 +39,79 @@ struct GpuFrameStats {
+   uint64_t ib_cache_changed;
+   uint64_t ib_cache_parsed;
+   uint64_t ib_cache_runs_skipped;
++  // gpu_draw_identity_memo: draws of cached indirect buffers that reused their memo, that did not
++  // (state changed, first execution, or memo switched), whose primitive processing differed, and
++  // that also reused the pipeline (not when the bound render target formats changed).
++  uint64_t draw_memo_hits;
++  uint64_t draw_memo_misses;
++  uint64_t draw_memo_primitive_misses;
++  uint64_t draw_memo_pipelines_reused;
++  // Time stamp counter cycles spent in the D3D12 IssueDraw, in total and by section, and draws
++  // counted, by kind of draw: without an identity (ring draws), memo hit, memo miss, with an
++  // identity but no memo (memo off). Resolves are not counted.
++  static constexpr int kIssueDrawKinds = 4;
++  static constexpr int kIssueDrawSections = 10;
++  uint64_t issue_draw_cycles[kIssueDrawKinds];
++  uint64_t issue_draw_count[kIssueDrawKinds];
++  uint64_t issue_draw_section_cycles[kIssueDrawKinds][kIssueDrawSections];
++  uint64_t sub_cycles[32];
++  uint64_t sub_events[32];
++};
++
++// Whether gpu_frame_stats is on (read by the backends' per-draw timers).
++bool GpuFrameStatsEnabled();
++
++// Sections of UpdateBindings, RequestTextures and the render target cache Update, timed with the
++// time stamp counter while gpu_frame_stats is on; GpuFrameStats::sub_events counts the times a
++// section had work to do (see the code that increments it).
++enum GpuSubSection : int {
++  kSubBindingsSetup,
++  kSubBindingsSystemConstants,
++  kSubBindingsFloatVertex,
++  kSubBindingsFloatPixel,
++  kSubBindingsBoolLoopFetch,
++  kSubBindingsSamplers,
++  kSubBindingsDescriptors,
++  kSubBindingsRoot,
++  kSubTexturesKeys,
++  kSubTexturesLoads,
++  kSubTexturesBindings,
++  kSubTexturesD3D12,
++  kSubRenderTargetsEstimate,
++  kSubRenderTargetsOwnership,
++  kSubRenderTargetsTransfers,
++  kSubRenderTargetsDirtyTiles,
++  kSubRenderTargetsBind,
++  kSubSectionCount,
++};
++
++// Accumulates the time from its construction or the previous Mark into each marked section, and
++// the rest into `last_section` when destroyed.
++class GpuSubTimer {
++ public:
++  explicit GpuSubTimer(GpuSubSection last_section);
++  ~GpuSubTimer() { Mark(last_section_); }
++  void Mark(GpuSubSection section);
++
++ private:
++  GpuSubSection last_section_;
++  bool enabled_;
++  uint64_t last_;
+ };
+ 
+ extern GpuFrameStats g_gpu_frame_stats;
+ 
++inline GpuSubTimer::GpuSubTimer(GpuSubSection last_section)
++    : last_section_(last_section), enabled_(GpuFrameStatsEnabled()), last_(enabled_ ? __rdtsc() : 0) {}
++
++inline void GpuSubTimer::Mark(GpuSubSection section) {
++  if (enabled_) {
++    uint64_t now = __rdtsc();
++    g_gpu_frame_stats.sub_cycles[section] += now - last_;
++    last_ = now;
++  }
++}
++
+ // Called at every guest swap.
+ void GpuFrameStatsSwap();
+ 
+diff --git a/include/rex/graphics/pipeline/texture/cache.h b/include/rex/graphics/pipeline/texture/cache.h
+--- a/include/rex/graphics/pipeline/texture/cache.h
++++ b/include/rex/graphics/pipeline/texture/cache.h
+@@ -509,6 +509,26 @@ class TextureCache {
+     }
+   };
+ 
++ public:
++  // gpu_draw_identity_memo: the bindings one draw got from its fetch constants. While a memo is
++  // set, RequestTextures takes a binding's key and textures from it instead of parsing the fetch
++  // constant and looking the texture up, as long as no texture has been destroyed since and the
++  // scaled resolve state of the texture's memory is the same; it fills the memo as it goes. The
++  // caller sets a memo only when the fetch constants are those the memo was filled with.
++  struct TextureBindingMemo {
++    struct Slot {
++      TextureKey key;
++      Texture* texture;
++      Texture* texture_signed;
++      uint8_t swizzled_signs;
++    };
++    uint64_t generation = UINT64_MAX;
++    uint32_t valid_mask = 0;
++    Slot slots[xenos::kTextureFetchConstantCount];
++  };
++  void SetBindingMemo(TextureBindingMemo* memo) { binding_memo_ = memo; }
++
++ protected:
+   explicit TextureCache(const RegisterFile& register_file, SharedMemory& shared_memory,
+                         uint32_t draw_resolution_scale_x, uint32_t draw_resolution_scale_y);
+ 
+@@ -618,6 +638,8 @@ class TextureCache {
+   // Checks if there are any pages that contain scaled resolve data within the
+   // range.
+   bool IsRangeScaledResolved(uint32_t start_unscaled, uint32_t length_unscaled);
++  // Whether FindOrCreateTexture looks a texture with this key up as a scaled resolve texture.
++  bool IsKeyScaledResolved(const TextureKey& key);
+   // Global shared memory invalidation callback for invalidating scaled resolved
+   // texture data.
+   static void ScaledResolveGlobalWatchCallbackThunk(
+@@ -668,6 +690,9 @@ class TextureCache {
+   // Bit vector with bits reset on fetch constant writes to avoid parsing fetch
+   // constants again and again.
+   uint32_t texture_bindings_in_sync_ = 0;
++  TextureBindingMemo* binding_memo_ = nullptr;
++  // Incremented whenever textures are destroyed (pointers in binding memos may be stale then).
++  uint64_t texture_destruction_generation_ = 0;
+ };
+ 
+ }  // namespace rex::graphics
+diff --git a/src/graphics/pipeline/texture/cache.cpp b/src/graphics/pipeline/texture/cache.cpp
+--- a/src/graphics/pipeline/texture/cache.cpp
++++ b/src/graphics/pipeline/texture/cache.cpp
+@@ -350,6 +350,7 @@ void TextureCache::CompletedSubmissionUpdated(uint64_t completed_submission_inde
+     }
+     if (!destroyed_any) {
+       destroyed_any = true;
++      ++texture_destruction_generation_;
+       // The texture being destroyed might have been bound in the previous
+       // submissions, and nothing has overwritten the binding yet, so completion
+       // of the submission where the texture was last actually used on the GPU
+@@ -551,6 +552,7 @@ bool TextureCache::CommitPreparedTextureLoad(const PendingTextureLoad& pending_l
+ 
+ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+   const auto& regs = register_file();
++  GpuSubTimer sub_timer(kSubTexturesBindings);
+ 
+   if (texture_became_outdated_.exchange(false, std::memory_order_acquire)) {
+     // A texture has become outdated - make sure whether textures are outdated
+@@ -585,6 +587,19 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+   };
+   uint32_t textures_remaining = used_texture_mask & ~texture_bindings_in_sync_;
+   const uint32_t textures_updated = textures_remaining;
++  TextureBindingMemo* memo = binding_memo_;
++  if (memo && memo->generation != texture_destruction_generation_) {
++    memo->generation = texture_destruction_generation_;
++    memo->valid_mask = 0;
++  }
++  // A memoized texture is what FindOrCreateTexture would return while the key's scaled resolve
++  // state is the one the texture was created for.
++  auto find_or_create_texture = [&](const TextureKey& texture_key, Texture* memoized) {
++    if (memoized && memoized->key().scaled_resolve == uint32_t(IsKeyScaledResolved(texture_key))) {
++      return memoized;
++    }
++    return FindOrCreateTexture(texture_key);
++  };
+   uint32_t old_host_swizzles[32];
+   uint32_t index = 0;
+   while (rex::bit_scan_forward(textures_remaining, &index)) {
+@@ -594,13 +609,38 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+     xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(index);
+     TextureKey old_key = binding.key;
+     uint8_t old_swizzled_signs = binding.swizzled_signs;
+-    BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);
++    TextureBindingMemo::Slot* memo_slot =
++        memo && (memo->valid_mask & index_bit) ? &memo->slots[index] : nullptr;
++    if (memo_slot) {
++      binding.key = memo_slot->key;
++      binding.swizzled_signs = memo_slot->swizzled_signs;
++    } else {
++      BindingInfoFromFetchConstant(fetch, binding.key, &binding.swizzled_signs);
++    }
+     texture_bindings_in_sync_ |= index_bit;
++    // Filled once the binding's textures are known (a binding whose texture could not be created
++    // is not memoized, so it is retried).
++    auto memoize = [&]() {
++      if (!memo) {
++        return;
++      }
++      if (binding.key.is_valid && !binding.texture && !binding.texture_signed) {
++        memo->valid_mask &= ~index_bit;
++        return;
++      }
++      TextureBindingMemo::Slot& slot = memo->slots[index];
++      slot.key = binding.key;
++      slot.swizzled_signs = binding.swizzled_signs;
++      slot.texture = binding.texture;
++      slot.texture_signed = binding.texture_signed;
++      memo->valid_mask |= index_bit;
++    };
+     if (!binding.key.is_valid) {
+       if (old_key.is_valid) {
+         bindings_changed |= index_bit;
+       }
+       binding.Reset();
++      memoize();
+       continue;
+     }
+     old_host_swizzles[index] = binding.host_swizzle;
+@@ -628,7 +668,8 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+       // load).
+       if (any_sign_is_not_signed) {
+         if (key_changed || !any_sign_was_not_signed) {
+-          binding.texture = FindOrCreateTexture(binding.key);
++          binding.texture =
++              find_or_create_texture(binding.key, memo_slot ? memo_slot->texture : nullptr);
+           load_unsigned_data = true;
+         }
+       } else {
+@@ -638,7 +679,8 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+         if (key_changed || !any_sign_was_signed) {
+           TextureKey signed_key = binding.key;
+           signed_key.signed_separate = 1;
+-          binding.texture_signed = FindOrCreateTexture(signed_key);
++          binding.texture_signed =
++              find_or_create_texture(signed_key, memo_slot ? memo_slot->texture_signed : nullptr);
+           load_signed_data = true;
+         }
+       } else {
+@@ -648,11 +690,13 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+       // Same resource for both unsigned and signed, but descriptor formats may
+       // be different.
+       if (key_changed) {
+-        binding.texture = FindOrCreateTexture(binding.key);
++        binding.texture =
++            find_or_create_texture(binding.key, memo_slot ? memo_slot->texture : nullptr);
+         load_unsigned_data = true;
+       }
+       binding.texture_signed = nullptr;
+     }
++    memoize();
+     if (load_unsigned_data) {
+       queue_pending_texture_load(binding.texture);
+     }
+@@ -661,6 +705,9 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+     }
+   }
+ 
++  sub_timer.Mark(kSubTexturesKeys);
++  g_gpu_frame_stats.sub_events[kSubTexturesKeys] += rex::bit_count(textures_updated);
++  g_gpu_frame_stats.sub_events[kSubTexturesLoads] += pending_texture_loads.size();
+   COUNT_profile_set("gpu/texture_cache/request_textures_pending_load_count",
+                     uint32_t(pending_texture_loads.size()));
+   COUNT_profile_set("gpu/texture_cache/request_textures_pending_range_count",
+@@ -688,6 +735,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+       }
+     }
+   }
++  sub_timer.Mark(kSubTexturesLoads);
+   // Known only after loading: a load gives a texture the memory's component order again.
+   uint32_t swizzles_remaining = textures_updated;
+   while (rex::bit_scan_forward(swizzles_remaining, &index)) {
+@@ -704,6 +752,7 @@ void TextureCache::RequestTextures(uint32_t used_texture_mask) {
+     }
+   }
+   if (bindings_changed) {
++    ++g_gpu_frame_stats.sub_events[kSubTexturesBindings];
+     UpdateTextureBindingsImpl(bindings_changed);
+   }
+ }
+@@ -914,22 +963,30 @@ void TextureCache::WatchCallback(const std::unique_lock<std::recursive_mutex>& g
+ }
+ 
+ void TextureCache::DestroyAllTextures(bool from_destructor) {
++  ++texture_destruction_generation_;
+   ResetTextureBindings(from_destructor);
+   textures_by_base_page_.clear();
+   textures_.clear();
+   COUNT_profile_set("gpu/texture_cache/textures", 0);
+ }
+ 
+-TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
+-  ++g_gpu_frame_stats.texture_lookups;
+-  // Check if the texture is a scaled resolve texture.
++bool TextureCache::IsKeyScaledResolved(const TextureKey& key) {
+   if (IsDrawResolutionScaled() && key.tiled && IsScaledResolveSupportedForFormat(key)) {
+     const GuestLayoutExtents extents = GetGuestLayoutExtentsCached(key);
+     if ((extents.base_bytes && IsRangeScaledResolved(key.base_page << 12, extents.base_bytes)) ||
+         (extents.mips_bytes && IsRangeScaledResolved(key.mip_page << 12, extents.mips_bytes))) {
+-      key.scaled_resolve = 1;
++      return true;
+     }
+   }
++  return false;
++}
++
++TextureCache::Texture* TextureCache::FindOrCreateTexture(TextureKey key) {
++  ++g_gpu_frame_stats.texture_lookups;
++  // Check if the texture is a scaled resolve texture.
++  if (IsKeyScaledResolved(key)) {
++    key.scaled_resolve = 1;
++  }
+ 
+   auto get_host_extent = [this, &key](uint32_t& host_width_out, uint32_t& host_height_out,
+                                       uint32_t& host_depth_or_array_size_out) {
+diff --git a/include/rex/graphics/d3d12/pipeline_cache.h b/include/rex/graphics/d3d12/pipeline_cache.h
+--- a/include/rex/graphics/d3d12/pipeline_cache.h
++++ b/include/rex/graphics/d3d12/pipeline_cache.h
+@@ -96,6 +96,10 @@ class PipelineCache {
+   ID3D12PipelineState* GetD3D12PipelineByHandle(void* handle) const {
+     return reinterpret_cast<const Pipeline*>(handle)->state.load(std::memory_order_acquire);
+   }
++  ID3D12RootSignature* GetRootSignatureByHandle(void* handle) const {
++    return reinterpret_cast<const Pipeline*>(handle)->root_signature.load(
++        std::memory_order_acquire);
++  }
+ 
+  private:
+   REXPACKEDSTRUCT(ShaderStoredHeader, {
+diff --git a/include/rex/graphics/d3d12/command_processor.h b/include/rex/graphics/d3d12/command_processor.h
+--- a/include/rex/graphics/d3d12/command_processor.h
++++ b/include/rex/graphics/d3d12/command_processor.h
+@@ -221,6 +221,7 @@ class D3D12CommandProcessor : public CommandProcessor {
+   bool IssueDraw(xenos::PrimitiveType primitive_type, uint32_t index_count,
+                  IndexBufferInfo* index_buffer_info, bool major_mode_explicit) override;
+   bool IssueCopy() override;
++  std::unique_ptr<DrawMemo> CreateDrawMemo() override;
+ 
+  private:
+   static constexpr uint32_t kQueueFrames = 3;
+@@ -785,6 +786,47 @@ class D3D12CommandProcessor : public CommandProcessor {
+   // anisotropic_override (the sampler layout UID is just the binding count or descriptor indices,
+   // not the bindings). The generation changes on every fetch constant write.
+   uint64_t fetch_constants_generation_ = 1;
++
++  // gpu_draw_identity_memo (HLE renderer milestone 3b): what IssueDraw derives from the render
++  // state, the fetch and bool/loop constants and the shaders for one draw identity, reused while
++  // they are what they were (float constants are not inputs of any of it).
++  static constexpr uint32_t kDrawMemoRenderStateFirst = 0x2000;
++  static constexpr uint32_t kDrawMemoRenderStateCount = 0x400;
++  struct D3D12DrawMemo : DrawMemo {
++    bool valid = false;
++    uint64_t generation = 0;
++    // The state the outputs were derived from: the shaders, and a hash of the render state and
++    // of the fetch constants of the used textures (DrawMemoStateHash).
++    Shader* vertex_shader_active;
++    Shader* pixel_shader_active;
++    uint64_t state_hash;
++    // The primitive processor's results the pipeline depends on, and the bound render targets.
++    xenos::PrimitiveType host_primitive_type;
++    Shader::HostVertexShaderType host_vertex_shader_type;
++    xenos::TessellationMode tessellation_mode;
++    xenos::IndexFormat host_index_format;
++    bool host_primitive_reset_enabled;
++    uint32_t bound_render_target_bits;
++    uint32_t bound_render_target_formats[1 + xenos::kMaxColorRenderTargets];
++    // Outputs.
++    D3D12Shader* pixel_shader;
++    bool primitive_polygonal;
++    bool is_rasterization_done;
++    reg::RB_DEPTHCONTROL normalized_depth_control;
++    uint64_t vertex_shader_modification;
++    uint64_t pixel_shader_modification;
++    uint32_t normalized_color_mask;
++    D3D12Shader::D3D12Translation* vertex_shader_translation;
++    D3D12Shader::D3D12Translation* pixel_shader_translation;
++    void* pipeline_handle;
++    uint32_t used_texture_mask;
++    draw_util::ViewportInfo viewport_info;
++    TextureCache::TextureBindingMemo textures;
++  };
++  uint64_t DrawMemoStateHash(uint32_t used_texture_mask) const;
++  // Changes when what memos hold may no longer be valid (cache clears, switching the memo).
++  uint64_t draw_memo_generation_ = 1;
++  bool draw_memo_enabled_ = false;
+   const D3D12Shader* sampler_memo_shader_vertex_ = nullptr;
+   const D3D12Shader* sampler_memo_shader_pixel_ = nullptr;
+   uint64_t sampler_memo_fetch_generation_vertex_ = 0;
+diff --git a/src/graphics/d3d12/command_processor.cpp b/src/graphics/d3d12/command_processor.cpp
+--- a/src/graphics/d3d12/command_processor.cpp
++++ b/src/graphics/d3d12/command_processor.cpp
+@@ -24,6 +24,10 @@
+ #include <rex/graphics/d3d12/graphics_system.h>
+ #include <rex/graphics/d3d12/shader.h>
+ #include <rex/graphics/flags.h>
++#include <rex/graphics/gpu_frame_stats.h>
++#include <rex/hash.h>
++
++#include <intrin.h>
+ #include <rex/graphics/registers.h>
+ #include <rex/graphics/util/draw.h>
+ #include <rex/graphics/xenos.h>
+@@ -68,6 +72,12 @@ REXCVAR_DEFINE_BOOL(gpu_skip_unchanged_constant_writes, true, "GPU",
+                     "Keep the uploaded constant buffers, texture bindings and sampler state when the "
+                     "game rewrites float, bool, loop or fetch constants with the values they have")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DEFINE_BOOL(gpu_draw_identity_memo, false, "GPU",
++                    "With gpu_cached_indirect_buffers: a draw of a cached indirect buffer reuses the "
++                    "shader variants, pipeline, viewport and texture bindings its previous execution "
++                    "derived when its render state, fetch and bool/loop constants and shaders are "
++                    "unchanged")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
+ namespace rex::graphics::d3d12 {
+ 
+@@ -2434,9 +2444,74 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+   ID3D12Device* device = GetD3D12Provider().GetDevice();
+   const RegisterFile& regs = *register_file_;
+ 
++  // gpu_frame_stats: the time spent here by section, by kind of draw (time stamp counter reads).
++  struct IssueDrawTimer {
++    bool enabled = GpuFrameStatsEnabled();
++    // 0 without an identity, 1 memo hit, 2 memo miss, 3 identity without a memo, 4 not counted.
++    uint32_t category = 0;
++    uint64_t start = enabled ? __rdtsc() : 0;
++    uint64_t last = start;
++    uint64_t sections[GpuFrameStats::kIssueDrawSections] = {};
++    // Ends section `section` (sections are consecutive).
++    void Mark(int section) {
++      if (enabled) {
++        uint64_t now = __rdtsc();
++        sections[section] += now - last;
++        last = now;
++      }
++    }
++    ~IssueDrawTimer() {
++      if (!enabled || category >= uint32_t(GpuFrameStats::kIssueDrawKinds)) {
++        return;
++      }
++      uint64_t now = __rdtsc();
++      sections[GpuFrameStats::kIssueDrawSections - 1] += now - last;
++      g_gpu_frame_stats.issue_draw_cycles[category] += now - start;
++      ++g_gpu_frame_stats.issue_draw_count[category];
++      for (int i = 0; i < GpuFrameStats::kIssueDrawSections; ++i) {
++        g_gpu_frame_stats.issue_draw_section_cycles[category][i] += sections[i];
++      }
++    }
++  } timer;
++  if (current_draw_has_identity_) {
++    timer.category = 3;
++  }
++  current_draw_has_identity_ = false;
++
++  // gpu_draw_identity_memo: a draw with an identity (from a cached indirect buffer) reuses what
++  // the previous execution of the same draw derived, if the state it was derived from is the same.
++  D3D12DrawMemo* memo = static_cast<D3D12DrawMemo*>(current_draw_memo_);
++  current_draw_memo_ = nullptr;
++  const bool memo_enabled = REXCVAR_GET(gpu_draw_identity_memo);
++  if (memo_enabled != draw_memo_enabled_) {
++    draw_memo_enabled_ = memo_enabled;
++    ++draw_memo_generation_;
++    REXGPU_INFO("gpu_draw_identity_memo {}", memo_enabled ? "on" : "off");
++  }
++  if (!memo_enabled) {
++    memo = nullptr;
++  }
++  bool memo_hit = false;
++  if (memo) {
++    if (memo->valid && memo->generation == draw_memo_generation_ &&
++        memo->vertex_shader_active == active_vertex_shader() &&
++        memo->pixel_shader_active == active_pixel_shader() &&
++        memo->state_hash == DrawMemoStateHash(memo->used_texture_mask)) {
++      memo_hit = true;
++      timer.category = 1;
++      ++g_gpu_frame_stats.draw_memo_hits;
++    } else {
++      timer.category = 2;
++      ++g_gpu_frame_stats.draw_memo_misses;
++      memo->valid = false;
++      memo->textures.valid_mask = 0;
++    }
++  }
++
+   xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
+   if (edram_mode == xenos::EdramMode::kCopy) {
+     // Special copy handling.
++    timer.category = 4;
+     return IssueCopy();
+   }
+ 
+@@ -2451,75 +2526,121 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
+   bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
+ 
+-  // Pixel shader analysis.
+-  bool primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
+-  bool is_rasterization_done = draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
+-  if (surface_pitch_is_zero && is_rasterization_done) {
+-    // Doesn't actually draw.
+-    // Unlikely that zero would even really be legal though.
+-    return true;
+-  }
++  // Pixel shader analysis (a memo is only filled by a draw that got past the early returns).
++  bool primitive_polygonal;
++  bool is_rasterization_done;
+   D3D12Shader* pixel_shader = nullptr;
+-  if (is_rasterization_done) {
+-    // See xenos::EdramMode for explanation why the pixel shader is only used
+-    // when it's kColorDepth here.
+-    if (edram_mode == xenos::EdramMode::kColorDepth) {
+-      pixel_shader = static_cast<D3D12Shader*>(active_pixel_shader());
+-      if (pixel_shader) {
+-        pipeline_cache_->AnalyzeShaderUcode(*pixel_shader);
+-        if (!draw_util::IsPixelShaderNeededWithRasterization(*pixel_shader, regs)) {
+-          pixel_shader = nullptr;
+-        }
+-      }
+-    }
++  if (memo_hit) {
++    primitive_polygonal = memo->primitive_polygonal;
++    is_rasterization_done = memo->is_rasterization_done;
++    pixel_shader = memo->pixel_shader;
+   } else {
+-    // Disabling pixel shader for this case is also required by the pipeline
+-    // cache.
+-    if (!memexport_used_vertex) {
+-      // This draw has no effect.
++    primitive_polygonal = draw_util::IsPrimitivePolygonal(regs);
++    is_rasterization_done = draw_util::IsRasterizationPotentiallyDone(regs, primitive_polygonal);
++    if (surface_pitch_is_zero && is_rasterization_done) {
++      // Doesn't actually draw.
++      // Unlikely that zero would even really be legal though.
+       return true;
+     }
++    if (is_rasterization_done) {
++      // See xenos::EdramMode for explanation why the pixel shader is only used
++      // when it's kColorDepth here.
++      if (edram_mode == xenos::EdramMode::kColorDepth) {
++        pixel_shader = static_cast<D3D12Shader*>(active_pixel_shader());
++        if (pixel_shader) {
++          pipeline_cache_->AnalyzeShaderUcode(*pixel_shader);
++          if (!draw_util::IsPixelShaderNeededWithRasterization(*pixel_shader, regs)) {
++            pixel_shader = nullptr;
++          }
++        }
++      }
++    } else {
++      // Disabling pixel shader for this case is also required by the pipeline
++      // cache.
++      if (!memexport_used_vertex) {
++        // This draw has no effect.
++        return true;
++      }
++    }
+   }
+   bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
+   bool memexport_used = memexport_used_vertex || memexport_used_pixel;
++  if (memexport_used) {
++    // Not memoized: memexport draws have more per-draw work and are rare.
++    memo = nullptr;
++    memo_hit = false;
++    if (timer.category) {
++      timer.category = 3;  // an identity, not memoized
++    }
++  }
+ 
+   if (!BeginSubmission(true)) {
+     return false;
+   }
++  timer.Mark(0);
+ 
+   // Process primitives.
+   PrimitiveProcessor::ProcessingResult primitive_processing_result;
+   if (!primitive_processor_->Process(primitive_processing_result)) {
+     return false;
+   }
++  timer.Mark(1);
+   if (!primitive_processing_result.host_draw_vertex_count) {
+     // Nothing to draw.
+     return true;
+   }
+-
+-  reg::RB_DEPTHCONTROL normalized_depth_control = draw_util::GetNormalizedDepthControl(regs);
+-
+-  // Shader modifications.
+-  uint32_t ps_param_gen_pos = UINT32_MAX;
+-  uint32_t interpolator_mask =
+-      pixel_shader ? (vertex_shader->writes_interpolators() &
+-                      pixel_shader->GetInterpolatorInputMask(regs.Get<reg::SQ_PROGRAM_CNTL>(),
+-                                                             regs.Get<reg::SQ_CONTEXT_MISC>(),
+-                                                             ps_param_gen_pos))
+-                   : 0;
+-  DxbcShaderTranslator::Modification vertex_shader_modification =
+-      pipeline_cache_->GetCurrentVertexShaderModification(
+-          *vertex_shader, primitive_processing_result.host_vertex_shader_type, interpolator_mask);
+-  DxbcShaderTranslator::Modification pixel_shader_modification =
+-      pixel_shader
+-          ? pipeline_cache_->GetCurrentPixelShaderModification(
+-                *pixel_shader, interpolator_mask, ps_param_gen_pos, normalized_depth_control)
+-          : DxbcShaderTranslator::Modification(0);
+-
++  if (memo_hit && (memo->host_primitive_type != primitive_processing_result.host_primitive_type ||
++                   memo->host_vertex_shader_type !=
++                       primitive_processing_result.host_vertex_shader_type ||
++                   memo->tessellation_mode != primitive_processing_result.tessellation_mode ||
++                   memo->host_index_format != primitive_processing_result.host_index_format ||
++                   memo->host_primitive_reset_enabled !=
++                       primitive_processing_result.host_primitive_reset_enabled)) {
++    // What was reused so far depends only on the registers and shaders, so it stays right.
++    ++g_gpu_frame_stats.draw_memo_primitive_misses;
++    memo_hit = false;
++    timer.category = 2;
++    memo->valid = false;
++    memo->textures.valid_mask = 0;
++  }
++
++  reg::RB_DEPTHCONTROL normalized_depth_control;
++  DxbcShaderTranslator::Modification vertex_shader_modification;
++  DxbcShaderTranslator::Modification pixel_shader_modification;
++  uint32_t normalized_color_mask;
++  if (memo_hit) {
++    normalized_depth_control = memo->normalized_depth_control;
++    vertex_shader_modification =
++        DxbcShaderTranslator::Modification(memo->vertex_shader_modification);
++    pixel_shader_modification = DxbcShaderTranslator::Modification(memo->pixel_shader_modification);
++    normalized_color_mask = memo->normalized_color_mask;
++  } else {
++    normalized_depth_control = draw_util::GetNormalizedDepthControl(regs);
++
++    // Shader modifications.
++    uint32_t ps_param_gen_pos = UINT32_MAX;
++    uint32_t interpolator_mask =
++        pixel_shader ? (vertex_shader->writes_interpolators() &
++                        pixel_shader->GetInterpolatorInputMask(regs.Get<reg::SQ_PROGRAM_CNTL>(),
++                                                               regs.Get<reg::SQ_CONTEXT_MISC>(),
++                                                               ps_param_gen_pos))
++                     : 0;
++    vertex_shader_modification = pipeline_cache_->GetCurrentVertexShaderModification(
++        *vertex_shader, primitive_processing_result.host_vertex_shader_type, interpolator_mask);
++    pixel_shader_modification =
++        pixel_shader
++            ? pipeline_cache_->GetCurrentPixelShaderModification(
++                  *pixel_shader, interpolator_mask, ps_param_gen_pos, normalized_depth_control)
++            : DxbcShaderTranslator::Modification(0);
++
++    normalized_color_mask =
++        pixel_shader
++            ? draw_util::GetNormalizedColorMask(regs, pixel_shader->writes_color_targets())
++            : 0;
++  }
++
++  timer.Mark(2);
+   // Set up the render targets - this may perform dispatches and draws.
+-  uint32_t normalized_color_mask =
+-      pixel_shader ? draw_util::GetNormalizedColorMask(regs, pixel_shader->writes_color_targets())
+-                   : 0;
+   if (!render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
+                                     normalized_color_mask, *vertex_shader)) {
+     return false;
+@@ -2528,13 +2649,20 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+   // Create the pipeline (for this, need the actually used render target formats
+   // from the render target cache), translating the shaders - doing this now to
+   // obtain the used textures.
+-  D3D12Shader::D3D12Translation* vertex_shader_translation =
+-      static_cast<D3D12Shader::D3D12Translation*>(
+-          vertex_shader->GetOrCreateTranslation(vertex_shader_modification.value));
+-  D3D12Shader::D3D12Translation* pixel_shader_translation =
+-      pixel_shader ? static_cast<D3D12Shader::D3D12Translation*>(
+-                         pixel_shader->GetOrCreateTranslation(pixel_shader_modification.value))
+-                   : nullptr;
++  timer.Mark(3);
++  D3D12Shader::D3D12Translation* vertex_shader_translation;
++  D3D12Shader::D3D12Translation* pixel_shader_translation;
++  if (memo_hit) {
++    vertex_shader_translation = memo->vertex_shader_translation;
++    pixel_shader_translation = memo->pixel_shader_translation;
++  } else {
++    vertex_shader_translation = static_cast<D3D12Shader::D3D12Translation*>(
++        vertex_shader->GetOrCreateTranslation(vertex_shader_modification.value));
++    pixel_shader_translation =
++        pixel_shader ? static_cast<D3D12Shader::D3D12Translation*>(
++                           pixel_shader->GetOrCreateTranslation(pixel_shader_modification.value))
++                     : nullptr;
++  }
+   uint32_t bound_depth_and_color_render_target_bits;
+   uint32_t bound_depth_and_color_render_target_formats[1 + xenos::kMaxColorRenderTargets];
+   bool host_render_targets_used =
+@@ -2548,10 +2676,29 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+   }
+   void* pipeline_handle;
+   ID3D12RootSignature* root_signature;
+-  if (!pipeline_cache_->ConfigurePipeline(
+-          vertex_shader_translation, pixel_shader_translation, primitive_processing_result,
+-          normalized_depth_control, normalized_color_mask, bound_depth_and_color_render_target_bits,
+-          bound_depth_and_color_render_target_formats, &pipeline_handle, &root_signature)) {
++  // The pipeline also depends on the formats of the render targets bound for this draw.
++  auto memo_render_targets_match = [&]() {
++    if (memo->bound_render_target_bits != bound_depth_and_color_render_target_bits) {
++      return false;
++    }
++    for (uint32_t i = 0; i < 1 + xenos::kMaxColorRenderTargets; ++i) {
++      if ((bound_depth_and_color_render_target_bits & (uint32_t(1) << i)) &&
++          memo->bound_render_target_formats[i] != bound_depth_and_color_render_target_formats[i]) {
++        return false;
++      }
++    }
++    return true;
++  };
++  bool memo_pipeline_reused = memo_hit && memo_render_targets_match();
++  if (memo_pipeline_reused) {
++    pipeline_handle = memo->pipeline_handle;
++    root_signature = pipeline_cache_->GetRootSignatureByHandle(pipeline_handle);
++    ++g_gpu_frame_stats.draw_memo_pipelines_reused;
++  } else if (!pipeline_cache_->ConfigurePipeline(
++                 vertex_shader_translation, pixel_shader_translation, primitive_processing_result,
++                 normalized_depth_control, normalized_color_mask,
++                 bound_depth_and_color_render_target_bits,
++                 bound_depth_and_color_render_target_formats, &pipeline_handle, &root_signature)) {
+     return false;
+   }
+   if (REXCVAR_GET(async_shader_compilation) &&
+@@ -2561,9 +2708,16 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+ 
+   // Update the textures - this may bind pipelines.
+   uint32_t used_texture_mask =
+-      vertex_shader->GetUsedTextureMaskAfterTranslation() |
+-      (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMaskAfterTranslation() : 0);
++      memo_hit ? memo->used_texture_mask
++               : vertex_shader->GetUsedTextureMaskAfterTranslation() |
++                     (pixel_shader != nullptr ? pixel_shader->GetUsedTextureMaskAfterTranslation()
++                                              : 0);
++  timer.Mark(4);
++  // The fetch constants are those of the memo on a hit; on a miss its texture memo is refilled.
++  texture_cache_->SetBindingMemo(memo ? &memo->textures : nullptr);
+   texture_cache_->RequestTextures(used_texture_mask);
++  texture_cache_->SetBindingMemo(nullptr);
++  timer.Mark(5);
+ 
+   // Bind the pipeline after configuring it and doing everything that may bind
+   // other pipelines.
+@@ -2596,7 +2750,9 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+                        (uint32_t(host_render_targets_used) << 1) | (uint32_t(ps_writes_depth) << 2);
+ 
+   draw_util::ViewportInfo viewport_info;
+-  if (viewport_cache_valid_ && viewport_key == previous_viewport_key_) {
++  if (memo_hit) {
++    viewport_info = memo->viewport_info;
++  } else if (viewport_cache_valid_ && viewport_key == previous_viewport_key_) {
+     viewport_info = previous_viewport_info_;
+   } else {
+     draw_util::GetHostViewportInfoAtHostScale(
+@@ -2622,10 +2778,12 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+                              primitive_processing_result.host_shader_index_endian, viewport_info,
+                              used_texture_mask, normalized_depth_control, normalized_color_mask);
+ 
++  timer.Mark(6);
+   // Update constant buffers, descriptors and root parameters.
+   if (!UpdateBindings(vertex_shader, pixel_shader, root_signature, memexport_used)) {
+     return false;
+   }
++  timer.Mark(7);
+   // Must not call anything that can change the descriptor heap from now on!
+ 
+   // Ensure vertex buffers are resident.
+@@ -2706,6 +2864,7 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+     }
+   }
+ 
++  timer.Mark(8);
+   // Primitive topology.
+   D3D_PRIMITIVE_TOPOLOGY primitive_topology;
+   if (primitive_processing_result.IsTessellated()) {
+@@ -2880,9 +3039,69 @@ bool D3D12CommandProcessor::IssueDraw(xenos::PrimitiveType primitive_type, uint3
+     }
+   }
+ 
++  if (memo && !memo_hit) {
++    memo->valid = true;
++    memo->generation = draw_memo_generation_;
++    memo->vertex_shader_active = active_vertex_shader();
++    memo->pixel_shader_active = active_pixel_shader();
++    memo->state_hash = DrawMemoStateHash(used_texture_mask);
++    memo->host_primitive_type = primitive_processing_result.host_primitive_type;
++    memo->host_vertex_shader_type = primitive_processing_result.host_vertex_shader_type;
++    memo->tessellation_mode = primitive_processing_result.tessellation_mode;
++    memo->host_index_format = primitive_processing_result.host_index_format;
++    memo->host_primitive_reset_enabled = primitive_processing_result.host_primitive_reset_enabled;
++    memo->pixel_shader = pixel_shader;
++    memo->primitive_polygonal = primitive_polygonal;
++    memo->is_rasterization_done = is_rasterization_done;
++    memo->normalized_depth_control = normalized_depth_control;
++    memo->vertex_shader_modification = vertex_shader_modification.value;
++    memo->pixel_shader_modification = pixel_shader_modification.value;
++    memo->normalized_color_mask = normalized_color_mask;
++    memo->vertex_shader_translation = vertex_shader_translation;
++    memo->pixel_shader_translation = pixel_shader_translation;
++    memo->used_texture_mask = used_texture_mask;
++    memo->viewport_info = viewport_info;
++  }
++  if (memo && !memo_pipeline_reused) {
++    // Also a hit that had to configure the pipeline for other render target formats.
++    memo->bound_render_target_bits = bound_depth_and_color_render_target_bits;
++    std::memcpy(memo->bound_render_target_formats, bound_depth_and_color_render_target_formats,
++                sizeof(memo->bound_render_target_formats));
++    memo->pipeline_handle = pipeline_handle;
++  }
++
+   return true;
+ }
+ 
++uint64_t D3D12CommandProcessor::DrawMemoStateHash(uint32_t used_texture_mask) const {
++  // What the memoized outputs are derived from besides the shaders: the render state (but
++  // RB_COPY_* to RB_SAMPLE_COUNT_ADDR, which only matter to resolves and change between passes) and
++  // the fetch constants of the textures the shaders use. Hashed from the register file, so the
++  // check reads no memo state but the hash.
++  constexpr uint32_t kCopyFirst = XE_GPU_REG_RB_COPY_CONTROL - kDrawMemoRenderStateFirst;
++  constexpr uint32_t kCopyEnd = XE_GPU_REG_RB_SAMPLE_COUNT_ADDR + 1 - kDrawMemoRenderStateFirst;
++  const uint32_t* values = register_file_->values;
++  const uint32_t* render_state = values + kDrawMemoRenderStateFirst;
++  uint64_t hash = XXH3_64bits(render_state, kCopyFirst * sizeof(uint32_t));
++  hash = XXH3_64bits_withSeed(render_state + kCopyEnd,
++                              (kDrawMemoRenderStateCount - kCopyEnd) * sizeof(uint32_t), hash);
++  uint32_t textures_remaining = used_texture_mask;
++  uint32_t index;
++  while (rex::bit_scan_forward(textures_remaining, &index)) {
++    textures_remaining &= ~(uint32_t(1) << index);
++    hash = XXH3_64bits_withSeed(values + XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0 + index * 6,
++                                6 * sizeof(uint32_t), hash);
++  }
++  return hash;
++}
++
++std::unique_ptr<CommandProcessor::DrawMemo> D3D12CommandProcessor::CreateDrawMemo() {
++  if (!REXCVAR_GET(gpu_draw_identity_memo)) {
++    return nullptr;
++  }
++  return std::make_unique<D3D12DrawMemo>();
++}
++
+ bool D3D12CommandProcessor::IssueDraw_MemexportReadbackFullPath(uint32_t total_size) {
+   if (!total_size || memexport_ranges_.empty()) {
+     return true;
+@@ -3639,6 +3858,7 @@ bool D3D12CommandProcessor::EndSubmission(bool is_swap) {
+ 
+     if (cache_clear_requested_ && AwaitAllQueueOperationsCompletion()) {
+       cache_clear_requested_ = false;
++      ++draw_memo_generation_;
+ 
+       ClearCommandAllocatorCache();
+ 
+@@ -4285,6 +4505,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+   const ui::d3d12::D3D12Provider& provider = GetD3D12Provider();
+   ID3D12Device* device = provider.GetDevice();
+   const RegisterFile& regs = *register_file_;
++  GpuSubTimer sub_timer(kSubBindingsRoot);
+ 
+ #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
+   SCOPE_profile_cpu_f("gpu");
+@@ -4364,8 +4585,10 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+     std::memset(current_float_constant_map_pixel_, 0, sizeof(current_float_constant_map_pixel_));
+   }
+ 
++  sub_timer.Mark(kSubBindingsSetup);
+   // Write the constant buffer data.
+   if (!cbuffer_binding_system_.up_to_date) {
++    ++g_gpu_frame_stats.sub_events[kSubBindingsSystemConstants];
+     uint8_t* system_constants = constant_buffer_pool_->Request(
+         frame_current_, sizeof(system_constants_), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT,
+         nullptr, nullptr, &cbuffer_binding_system_.address);
+@@ -4376,7 +4599,9 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+     cbuffer_binding_system_.up_to_date = true;
+     current_graphics_root_up_to_date_ &= ~(1u << root_parameter_system_constants);
+   }
++  sub_timer.Mark(kSubBindingsSystemConstants);
+   if (!cbuffer_binding_float_vertex_.up_to_date) {
++    ++g_gpu_frame_stats.sub_events[kSubBindingsFloatVertex];
+     // Even if the shader doesn't need any float constants, a valid binding must
+     // still be provided, so if the first draw in the frame with the current
+     // root signature doesn't have float constants at all, still allocate an
+@@ -4393,7 +4618,9 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+     cbuffer_binding_float_vertex_.up_to_date = true;
+     current_graphics_root_up_to_date_ &= ~(1u << root_parameter_float_constants_vertex);
+   }
++  sub_timer.Mark(kSubBindingsFloatVertex);
+   if (!cbuffer_binding_float_pixel_.up_to_date) {
++    ++g_gpu_frame_stats.sub_events[kSubBindingsFloatPixel];
+     uint8_t* float_constants = constant_buffer_pool_->Request(
+         frame_current_, sizeof(float) * 4 * std::max(float_constant_count_pixel, uint32_t(1)),
+         D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT, nullptr, nullptr,
+@@ -4410,7 +4637,9 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+     cbuffer_binding_float_pixel_.up_to_date = true;
+     current_graphics_root_up_to_date_ &= ~(1u << root_parameter_float_constants_pixel);
+   }
++  sub_timer.Mark(kSubBindingsFloatPixel);
+   if (!cbuffer_binding_bool_loop_.up_to_date) {
++    ++g_gpu_frame_stats.sub_events[kSubBindingsBoolLoopFetch];
+     constexpr uint32_t kBoolLoopConstantsSize = (8 + 32) * sizeof(uint32_t);
+     uint8_t* bool_loop_constants = constant_buffer_pool_->Request(
+         frame_current_, kBoolLoopConstantsSize, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT,
+@@ -4424,6 +4653,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+     current_graphics_root_up_to_date_ &= ~(1u << root_parameter_bool_loop_constants);
+   }
+   if (!cbuffer_binding_fetch_.up_to_date) {
++    ++g_gpu_frame_stats.sub_events[kSubBindingsBoolLoopFetch];
+     constexpr uint32_t kFetchConstantsSize = 32 * 6 * sizeof(uint32_t);
+     uint8_t* fetch_constants = constant_buffer_pool_->Request(
+         frame_current_, kFetchConstantsSize, D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT,
+@@ -4436,6 +4666,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+     current_graphics_root_up_to_date_ &= ~(1u << root_parameter_fetch_constants);
+   }
+ 
++  sub_timer.Mark(kSubBindingsBoolLoopFetch);
+   //
+   // Update descriptors.
+   //
+@@ -4463,6 +4694,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+       sampler_memo_fetch_generation_vertex_ == fetch_constants_generation_ &&
+       sampler_memo_anisotropic_override_vertex_ == anisotropic_override_value;
+   if (sampler_count_vertex && !samplers_vertex_unchanged) {
++    ++g_gpu_frame_stats.sub_events[kSubBindingsSamplers];
+     if (current_sampler_layout_uid_vertex_ != sampler_layout_uid_vertex) {
+       current_sampler_layout_uid_vertex_ = sampler_layout_uid_vertex;
+       cbuffer_binding_descriptor_indices_vertex_.up_to_date = false;
+@@ -4502,6 +4734,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+         sampler_memo_fetch_generation_pixel_ == fetch_constants_generation_ &&
+         sampler_memo_anisotropic_override_pixel_ == anisotropic_override_value;
+     if (sampler_count_pixel && !samplers_pixel_unchanged) {
++      ++g_gpu_frame_stats.sub_events[kSubBindingsSamplers];
+       if (current_sampler_layout_uid_pixel_ != sampler_layout_uid_pixel) {
+         current_sampler_layout_uid_pixel_ = sampler_layout_uid_pixel;
+         cbuffer_binding_descriptor_indices_pixel_.up_to_date = false;
+@@ -4533,6 +4766,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+ 
+   assert_true(sampler_count_vertex + sampler_count_pixel <= kSamplerHeapSize);
+ 
++  sub_timer.Mark(kSubBindingsSamplers);
+   if (bindless_resources_used_) {
+     //
+     // Bindless descriptors path.
+@@ -4661,6 +4895,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+     }
+ 
+     if (!cbuffer_binding_descriptor_indices_vertex_.up_to_date) {
++      ++g_gpu_frame_stats.sub_events[kSubBindingsDescriptors];
+       uint32_t* descriptor_indices = reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
+           frame_current_,
+           std::max(texture_count_vertex + sampler_count_vertex, size_t(1)) * sizeof(uint32_t),
+@@ -4692,6 +4927,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+     }
+ 
+     if (!cbuffer_binding_descriptor_indices_pixel_.up_to_date) {
++      ++g_gpu_frame_stats.sub_events[kSubBindingsDescriptors];
+       uint32_t* descriptor_indices = reinterpret_cast<uint32_t*>(constant_buffer_pool_->Request(
+           frame_current_,
+           std::max(texture_count_pixel + sampler_count_pixel, size_t(1)) * sizeof(uint32_t),
+@@ -4909,6 +5145,7 @@ bool D3D12CommandProcessor::UpdateBindings(const D3D12Shader* vertex_shader,
+     }
+   }
+ 
++  sub_timer.Mark(kSubBindingsDescriptors);
+   // Update the root parameters.
+   if (!(current_graphics_root_up_to_date_ & (1u << root_parameter_fetch_constants))) {
+     deferred_command_list_.D3DSetGraphicsRootConstantBufferView(root_parameter_fetch_constants,
+diff --git a/src/graphics/d3d12/texture_cache.cpp b/src/graphics/d3d12/texture_cache.cpp
+--- a/src/graphics/d3d12/texture_cache.cpp
++++ b/src/graphics/d3d12/texture_cache.cpp
+@@ -19,6 +19,7 @@
+ 
+ #include <rex/assert.h>
+ #include <rex/dbg.h>
++#include <rex/graphics/gpu_frame_stats.h>
+ #include <rex/graphics/d3d12/command_processor.h>
+ #include <rex/graphics/d3d12/shared_memory.h>
+ #include <rex/graphics/d3d12/texture_cache.h>
+@@ -703,6 +704,7 @@ void D3D12TextureCache::RequestTextures(uint32_t used_texture_mask) {
+ #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
+ 
+   TextureCache::RequestTextures(used_texture_mask);
++  GpuSubTimer sub_timer(kSubTexturesD3D12);
+ 
+   // Pre-create 3D-as-2D wrappers before draw setup. Wrapper loading may bind
+   // compute pipelines and must happen in the texture request phase.
+diff --git a/src/graphics/pipeline/render_target/cache.cpp b/src/graphics/pipeline/render_target/cache.cpp
+--- a/src/graphics/pipeline/render_target/cache.cpp
++++ b/src/graphics/pipeline/render_target/cache.cpp
+@@ -19,6 +19,7 @@
+ 
+ #include <rex/assert.h>
+ #include <rex/cvar.h>
++#include <rex/graphics/gpu_frame_stats.h>
+ #include <rex/graphics/flags.h>
+ #include <rex/graphics/pipeline/render_target/cache.h>
+ #include <rex/graphics/register_file.h>
+@@ -543,6 +544,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+                                uint32_t normalized_color_mask, const Shader& vertex_shader) {
+   const RegisterFile& regs = register_file();
+   bool interlock_barrier_only = GetPath() == Path::kPixelShaderInterlock;
++  GpuSubTimer sub_timer(kSubRenderTargetsOwnership);
+ 
+   auto rb_surface_info = regs.Get<reg::RB_SURFACE_INFO>();
+   xenos::MsaaSamples msaa_samples = rb_surface_info.msaa_samples;
+@@ -723,6 +725,7 @@ bool RenderTargetCache::Update(bool is_rasterization_done,
+                                        << uint32_t(msaa_samples >= xenos::MsaaSamples::k2X)) /
+                                           xenos::kEdramTileHeightSamples;
+ 
++  sub_timer.Mark(kSubRenderTargetsEstimate);
+   // Sorted by EDRAM base and then by index in the pipeline - for simplicity,
+   // treat render targets placed closer to the end of the EDRAM as truncating
+   // the previous one (and in case multiple render targets are placed at the
+diff --git a/src/graphics/d3d12/render_target_cache.cpp b/src/graphics/d3d12/render_target_cache.cpp
+--- a/src/graphics/d3d12/render_target_cache.cpp
++++ b/src/graphics/d3d12/render_target_cache.cpp
+@@ -23,6 +23,7 @@
+ 
+ #include <rex/assert.h>
+ #include <rex/cvar.h>
++#include <rex/graphics/gpu_frame_stats.h>
+ #include <rex/graphics/d3d12/command_processor.h>
+ #include <rex/graphics/d3d12/deferred_command_list.h>
+ #include <rex/graphics/d3d12/render_target_cache.h>
+@@ -1074,6 +1075,7 @@ bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
+                                  normalized_color_mask, vertex_shader)) {
+     return false;
+   }
++  GpuSubTimer sub_timer(kSubRenderTargetsBind);
+   switch (GetPath()) {
+     case Path::kHostRenderTargets: {
+       constexpr uint32_t kRenderTargetCount = 1 + xenos::kMaxColorRenderTargets;
+@@ -1084,6 +1086,9 @@ bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
+       for (uint32_t i = 0; i < kRenderTargetCount; ++i) {
+         any_transfers |= !transfers[i].empty();
+       }
++      if (any_transfers) {
++        ++g_gpu_frame_stats.sub_events[kSubRenderTargetsTransfers];
++      }
+       Transfer::Rectangle overwrite_rectangle = {};
+       uint32_t overwritten = 0;
+       bool overwritten_depth_only = false;
+@@ -1135,6 +1140,7 @@ bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
+         PerformTransfersAndResolveClears(kRenderTargetCount, depth_and_color_render_targets,
+                                          transfers);
+       }
++      sub_timer.Mark(kSubRenderTargetsTransfers);
+       if (depth_and_color_render_targets[0]) {
+         if (CanDrawWriteDepthStencil(normalized_depth_control)) {
+           uint32_t draw_start_tiles, draw_length_tiles;
+@@ -1160,6 +1166,7 @@ bool D3D12RenderTargetCache::Update(bool is_rasterization_done,
+               ->AddStencilBits(draw_start_tiles, draw_length_tiles, UINT8_MAX);
+         }
+       }
++      sub_timer.Mark(kSubRenderTargetsDirtyTiles);
+       SetCommandListRenderTargets(depth_and_color_render_targets);
+     } break;
+     case Path::kPixelShaderInterlock: {

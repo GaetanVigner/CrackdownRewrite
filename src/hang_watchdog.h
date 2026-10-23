@@ -67,8 +67,9 @@ class ProfileKey final : public rex::ui::WindowInputListener {
   rex::ui::Window* window_;
 };
 
-// With crackdown_debug_profiler on, F5 switches gpu_cached_indirect_buffers (SDK patch 0107) for an A/B at one spot.
-// The GPU log notes each switch with what the cache did since the previous one. The game never sees the key.
+// With crackdown_debug_profiler on, F5 cycles the HLE renderer's milestone 3 switches for an A/B/C at one spot: off,
+// gpu_cached_indirect_buffers (SDK patch 0107), then also gpu_fetch_constant_caches (0109). The GPU log notes the
+// indirect buffer cache's switches. The game never sees the key.
 class IndirectBufferCacheKey final : public rex::ui::WindowInputListener {
  public:
   static constexpr size_t kZOrder = 1000;
@@ -87,8 +88,12 @@ class IndirectBufferCacheKey final : public rex::ui::WindowInputListener {
     }
     e.set_handled(true);
     if (!e.prev_state()) {
-      const bool on = rex::cvar::GetFlagByName("gpu_cached_indirect_buffers") == "true";
-      rex::cvar::SetFlagByName("gpu_cached_indirect_buffers", on ? "false" : "true");
+      const bool cache = rex::cvar::GetFlagByName("gpu_cached_indirect_buffers") == "true";
+      const bool fetch = rex::cvar::GetFlagByName("gpu_fetch_constant_caches") == "true";
+      const bool next_cache = !cache || !fetch;
+      const bool next_fetch = cache && !fetch;
+      rex::cvar::SetFlagByName("gpu_cached_indirect_buffers", next_cache ? "true" : "false");
+      rex::cvar::SetFlagByName("gpu_fetch_constant_caches", next_fetch ? "true" : "false");
     }
   }
 
