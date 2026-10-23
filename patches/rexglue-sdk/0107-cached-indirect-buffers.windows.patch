@@ -1,4 +1,4 @@
-gpu_cached_indirect_buffers (off by default, hot reload): an indirect buffer executed again with the same address and
+gpu_cached_indirect_buffers (on by default, hot reload): an indirect buffer executed again with the same address and
 size is decoded once into the operations its packets perform (register runs, constant loads from memory, shader
 loads, draws, nested indirect buffers, bin mask/select, event initiators, visibility queries) and replayed without
 parsing while its dwords are unchanged (one memcmp against the copy taken at translation). Replays make the parse's
@@ -65,7 +65,7 @@ diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor
                      "Log every 10 s what the guest command stream asked per frame: draws, "
                      "resolves, packets, constant registers, shader loads and texture lookups")
      .lifecycle(rex::cvar::Lifecycle::kHotReload);
-+REXCVAR_DEFINE_BOOL(gpu_cached_indirect_buffers, false, "GPU",
++REXCVAR_DEFINE_BOOL(gpu_cached_indirect_buffers, true, "GPU",
 +                    "Decode an indirect buffer executed again with the same dwords once, and replay "
 +                    "its register writes, constant loads, shader loads and draws without parsing "
 +                    "its packets")

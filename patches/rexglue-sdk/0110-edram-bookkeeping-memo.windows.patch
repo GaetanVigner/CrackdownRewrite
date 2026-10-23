@@ -1,4 +1,4 @@
-gpu_edram_bookkeeping_memo (off by default, hot reload): every draw marks the EDRAM tiles of each render target it
+gpu_edram_bookkeeping_memo (on by default, hot reload): every draw marks the EDRAM tiles of each render target it
 writes dirty and adds stencil bits to them (a loop over ~700 tiles each). Both are idempotent, and consecutive draws to
 the same render targets repeat them: a range within one of the last four ranges set dirty since tiles were last made
 clean, or within the render target's last stencil addition with no new bits since its bits were last set, is skipped.
@@ -46,7 +46,7 @@ diff --git a/src/graphics/pipeline/render_target/cache.cpp b/src/graphics/pipeli
                      "state it depends on has not changed since the previous draw")
      .lifecycle(rex::cvar::Lifecycle::kHotReload);
  
-+REXCVAR_DEFINE_BOOL(gpu_edram_bookkeeping_memo, false, "GPU",
++REXCVAR_DEFINE_BOOL(gpu_edram_bookkeeping_memo, true, "GPU",
 +                    "Skip marking EDRAM tiles dirty and adding stencil bits to them when a previous "
 +                    "draw already did it for the same range and nothing has cleared them since")
 +    .lifecycle(rex::cvar::Lifecycle::kHotReload);

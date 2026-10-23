@@ -1,4 +1,4 @@
-gpu_fetch_constant_caches (off by default, hot reload): what texture bindings and sampler parameters derive from a
+gpu_fetch_constant_caches (on by default, hot reload): what texture bindings and sampler parameters derive from a
 texture fetch constant is kept in direct-mapped tables indexed by a hash of its six dwords: the binding key, signs and
 host format swizzle (functions of the dwords), the textures last looked up for the key (reused while no texture was
 destroyed and the scaled resolve generation is unchanged, or the key's scaled resolve state is still the texture's), and
@@ -47,7 +47,7 @@ diff --git a/src/graphics/pipeline/texture/cache.cpp b/src/graphics/pipeline/tex
  //     "96 MB, and with 3x3, it will be 360 + 216 MB.",
  //     "GPU");
  
-+REXCVAR_DEFINE_BOOL(gpu_fetch_constant_caches, false, "GPU",
++REXCVAR_DEFINE_BOOL(gpu_fetch_constant_caches, true, "GPU",
 +                    "Reuse what texture bindings and sampler parameters derive from a texture fetch "
 +                    "constant (the texture key, the texture looked up for it, the sampler state) "
 +                    "when the fetch constant has the same dwords as before")
