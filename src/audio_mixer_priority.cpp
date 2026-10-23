@@ -3,6 +3,8 @@
 #include <rex/logging.h>
 #include <rex/ppc.h>
 
+#include "guest_hooks.h"
+
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -19,7 +21,6 @@
 REXCVAR_DEFINE_BOOL(native_audio_mixer_priority, true, "Audio",
                     "Give the audio mixer callback thread native audio scheduling priority");
 
-REX_EXTERN(__imp__sub_82A4BEF8);
 
 namespace {
 
@@ -36,7 +37,7 @@ bool RaiseNativeAudioPriority() {
 }  // namespace
 
 // The XAudio client callback runs on the audio worker thread. That thread requests scheduling priority once.
-REX_HOOK_RAW(sub_82A4BEF8) {
+void crackdown::hooks::AudioMixerCallback(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   thread_local bool requested = false;
   if (!requested && REXCVAR_GET(native_audio_mixer_priority)) {
     requested = true;
@@ -46,5 +47,5 @@ REX_HOOK_RAW(sub_82A4BEF8) {
       REXLOG_INFO("native_audio_mixer_priority: native audio scheduling unavailable");
     }
   }
-  __imp__sub_82A4BEF8(ctx, base);
+  original(ctx, base);
 }

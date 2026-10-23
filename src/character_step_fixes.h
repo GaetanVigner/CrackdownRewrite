@@ -13,7 +13,7 @@ constexpr float ScaleLedgeSnapDown(float height_pull, double steps) {
   return steps > 0.0 && steps < 1.0 ? height_pull * float(steps) : height_pull;
 }
 
-// sub_822A2C90 decays its height blend by c and closes a fraction a of the gap once per step: c^steps and
+// The ground snap decays its height blend by c and closes a fraction a of the gap once per step: c^steps and
 // 1 - (1 - a)^steps per update.
 inline float ScaleGroundSnapDecay(float decay, double steps) {
   if (!(steps > 0.0) || steps == 1.0 || !(decay > 0.0f)) {
@@ -53,7 +53,7 @@ constexpr float ScaleProjectileProbeDt(float dt, double steps) {
   return steps > 0.0 && steps < 1.0 ? dt / float(steps) : dt;
 }
 
-// sub_8228F990 lifts the camera by depth / forward.y; a level camera makes that divisor zero.
+// The camera lifts by depth / forward.y; a level camera makes that divisor zero.
 inline constexpr float kMinCameraLift = 1e-3f;
 inline float GuardCameraLiftDivisor(float forward_y) {
   if (!std::isfinite(forward_y) || std::fabs(forward_y) >= kMinCameraLift) {

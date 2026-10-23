@@ -32,8 +32,11 @@
 #include "cheat_menu_overlay.h"
 #include "frame_counter.h"
 #include "frame_rate.h"
+#include "content_state.h"
 #include "game_files.h"
 #include "glyph_overlay.h"
+#include "guest_build.h"
+#include "guest_image.h"
 #include "guest_fault_log.h"
 #include "hang_watchdog.h"
 #include "internal_render_scale.h"
@@ -47,19 +50,34 @@
 #include "session_log.h"
 #include "settings.h"
 #include "skip_intro.h"
+#include "startup_selection.h"
 #include "user_data.h"
 #include "window_host.h"
 
 class CrackdownApp : public rex::ReXApp {
  public:
-  using rex::ReXApp::ReXApp;
-
+  // The guest is chosen here, from the installed content, before the runtime is constructed: the image the runtime
+  // gets is the selected guest's and no other guest is initialized.
   static std::unique_ptr<rex::ui::WindowedApp> Create(rex::ui::WindowedAppContext& ctx) {
     crackdown::SetApplicationId();
-    return std::unique_ptr<CrackdownApp>(new CrackdownApp(ctx, "crackdown", PPCImageConfig));
+    const std::string explicit_root = rex::cvar::GetFlagByName("user_data_root");
+    crackdown::StartupSelection startup = crackdown::SelectStartup(
+        {crackdown::PortFolder(), explicit_root.empty() ? std::filesystem::path() : rex::to_path(explicit_root)},
+        crackdown::FindGuestImage(crackdown::content::GuestBuild::kTitleUpdate6) != nullptr);
+    const crackdown::GuestImage* guest = crackdown::SelectGuest(startup.build);
+    if (!guest) {
+      crackdown::ShowFatalMessage("This program does not contain the game version the installed content needs. "
+                                  "Reinstall the port.");
+      std::_Exit(1);
+    }
+    return std::unique_ptr<CrackdownApp>(new CrackdownApp(ctx, "crackdown", *guest->image, std::move(startup)));
   }
 
  protected:
+  CrackdownApp(rex::ui::WindowedAppContext& ctx, std::string_view name, rex::PPCImageInfo image,
+               crackdown::StartupSelection startup)
+      : rex::ReXApp(ctx, name, image), startup_(std::move(startup)) {}
+
   // On Windows ReXGlue converts the --*_root flags with the ANSI code page, so a UTF-8 path outside ASCII came out
   // garbled or threw. Such flags are held back from it and converted as UTF-8 in OnConfigurePaths.
   bool SetupEnvironment() override {
@@ -86,7 +104,11 @@ class CrackdownApp : public rex::ReXApp {
     if (paths.game_data_root.empty()) {
       paths.game_data_root = port_folder / "game";
     }
-    ChooseUserData(paths, port_folder);
+    ChooseUserData(paths);
+    if (crackdown::RunningBuild() == crackdown::content::GuestBuild::kTitleUpdate6) {
+      paths.update_data_root = crackdown::TitleUpdateFolder(paths.user_data_root);
+      rex::cvar::SetFlagByName("xex_patch", "update:\\Default.xexp");
+    }
     // ReXGlue writes its logs beside the executable, which is read-only inside an AppImage.
     const bool appimage = port_folder != rex::filesystem::GetExecutableFolder();
     if (appimage && rex::cvar::GetFlagByName("log_file").empty()) {
@@ -114,7 +136,7 @@ class CrackdownApp : public rex::ReXApp {
     if (crackdown::RecoverInterruptedInstall(game_data_root())) {
       REXLOG_WARN("Restored the game files after an interrupted install");
     }
-    const crackdown::UserDataMessage message = crackdown::DescribeUserData(user_data_);
+    const crackdown::UserDataMessage message = crackdown::DescribeUserData(startup_.user_data);
     if (message.warning) {
       REXLOG_WARN("{}", message.text);
     } else {
@@ -125,6 +147,9 @@ class CrackdownApp : public rex::ReXApp {
     crackdown::InstallSessionLogCleanup();
     REXLOG_INFO("Crackdown port {} ({}, {}, ReXGlue SDK {})", CRACKDOWN_PORT_VERSION,
                 crackdown::ArchitectureName(), crackdown::GraphicsBackendName(), REXGLUE_VERSION_STRING);
+    REXLOG_INFO("Guest build: {}", crackdown::GuestBuildName(crackdown::RunningBuild()));
+    LogSaveGeneration();
+    REXLOG_INFO("Save compatibility: {}", crackdown::SaveCompatibilityName(startup_.content.save));
     crackdown::ApplyGraphicsAdapter();
   }
 
@@ -138,7 +163,7 @@ class CrackdownApp : public rex::ReXApp {
 
   void OnPreSetup(rex::RuntimeConfig&) override {
     game_settings_.Capture(crackdown::PlayerSettingsPath(user_data_root()), shipped_config_);
-    show_launcher_ = crackdown::ShouldShowLauncher(game_data_root());
+    show_launcher_ = crackdown::ShouldShowLauncher(game_data_root(), !crackdown::content::UnsafeContent(startup_.content));
     if (show_launcher_) {
       crackdown::PrepareLauncherWindow();
     }
@@ -178,7 +203,7 @@ class CrackdownApp : public rex::ReXApp {
     crackdown::ShowLauncher(imgui_drawer(),
                             {defaults.game_data_root, defaults.user_data_root,
                              crackdown::PlayerSettingsPath(defaults.user_data_root), LogsDir(defaults.user_data_root),
-                             user_data_.outcome},
+                             startup_.user_data.outcome, SaveSwitchError()},
                             game_settings_, {nullptr, immediate_drawer(), nullptr},
                             MakeLauncherCallbacks([resume, defaults] { resume(defaults); }));
     return std::nullopt;
@@ -199,7 +224,7 @@ class CrackdownApp : public rex::ReXApp {
     callbacks.window_changed = [this] { return game_settings_.WindowChanged() || game_settings_.RuntimeChanged(); };
     crackdown::ShowLauncher(imgui_drawer(),
                             {game_data_root(), user_data_root(), crackdown::PlayerSettingsPath(user_data_root()),
-                             LogsDir(user_data_root()), user_data_.outcome},
+                             LogsDir(user_data_root()), startup_.user_data.outcome, SaveSwitchError()},
                             game_settings_, {runtime(), immediate_drawer(), &achievements()}, std::move(callbacks));
   }
 
@@ -309,6 +334,32 @@ class CrackdownApp : public rex::ReXApp {
     crackdown::FinalizeSessionLog();
     rex::FlushLogging();
     std::_Exit(0);
+  }
+
+  std::string SaveSwitchError() const {
+    return startup_.save_switch.blocks_play() ? crackdown::DescribeSaveSwitch(startup_.save_switch) : std::string();
+  }
+
+  void LogSaveGeneration() const {
+    const crackdown::SaveSwitchResult& saves = startup_.save_switch;
+    if (saves.status == crackdown::SaveSwitchStatus::kSwitched) {
+      REXLOG_INFO("Save generation transition: {} -> {}", crackdown::SaveGenerationName(saves.from),
+                  crackdown::SaveGenerationName(saves.to));
+      if (saves.preserved_snapshot) {
+        REXLOG_INFO("{} save snapshot preserved", crackdown::SaveGenerationName(saves.from));
+      }
+      if (saves.created_empty_snapshot) {
+        REXLOG_INFO("No base snapshot found; creating empty base generation");
+      }
+      if (saves.restored_snapshot) {
+        REXLOG_INFO("{} save snapshot restored", crackdown::SaveGenerationName(saves.to));
+      }
+    } else if (saves.ok()) {
+      REXLOG_INFO("Save generation: {}", crackdown::SaveGenerationName(saves.to));
+    } else {
+      REXLOG_WARN("Save switch to {} not made: {}", crackdown::SaveGenerationName(saves.to),
+                  crackdown::DescribeSaveSwitch(saves));
+    }
   }
 
   crackdown::LauncherCallbacks MakeLauncherCallbacks(std::function<void()> start) {
@@ -426,20 +477,20 @@ class CrackdownApp : public rex::ReXApp {
     game_settings_.SaveNow(crackdown::kFullscreenKey, value);
   }
 
-  // The cache folder ReXGlue derived from the system root follows the user data root unless it was set explicitly.
-  void ChooseUserData(rex::PathConfig& paths, const std::filesystem::path& port_folder) {
-    user_data_ = crackdown::SelectUserData(
-        {port_folder, REXCVAR_GET(user_data_root).empty() ? std::filesystem::path() : paths.user_data_root});
-    if (user_data_.outcome == crackdown::UserDataOutcome::kNotWritable) {
-      crackdown::ShowFatalMessage(crackdown::UserDataNotWritableText(user_data_));
+  // The user data folder is the one the guest was selected from (see Create). The cache folder ReXGlue derived from the
+  // system root follows it unless it was set explicitly.
+  void ChooseUserData(rex::PathConfig& paths) {
+    const crackdown::UserDataSelection& user_data = startup_.user_data;
+    if (user_data.outcome == crackdown::UserDataOutcome::kNotWritable) {
+      crackdown::ShowFatalMessage(crackdown::UserDataNotWritableText(user_data));
       std::_Exit(1);
     }
-    if (user_data_.root == paths.user_data_root) {
+    if (user_data.root == paths.user_data_root) {
       return;
     }
-    paths.user_data_root = user_data_.root;
+    paths.user_data_root = user_data.root;
     if (REXCVAR_GET(cache_root).empty()) {
-      paths.cache_root = user_data_.root / "cache";
+      paths.cache_root = user_data.root / "cache";
     }
   }
 
@@ -472,7 +523,7 @@ class CrackdownApp : public rex::ReXApp {
   }};
   crackdown::GameSettings game_settings_;
   std::filesystem::path shipped_config_;
-  crackdown::UserDataSelection user_data_;
+  crackdown::StartupSelection startup_;
   std::unique_ptr<crackdown::AchievementsOverlay> achievements_;
   std::unique_ptr<crackdown::CheatMenuOverlay> cheat_menu_;
   std::unique_ptr<crackdown::CheatMenuKey> cheat_menu_key_;

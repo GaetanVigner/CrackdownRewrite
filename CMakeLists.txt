@@ -1,6 +1,7 @@
 # crackdown - ReXGlue Recompiled Project
 #
-# SDK wiring for generated/default lives in cmake/rexglue_pregenerated.cmake.
+# SDK wiring lives in cmake/rexglue_pregenerated.cmake; the recompiled guests (base game and Title Update 6) in
+# cmake/crackdown_guests.cmake.
 
 cmake_minimum_required(VERSION 3.25)
 project(crackdown VERSION 0.5.0 LANGUAGES C CXX)
@@ -187,8 +188,12 @@ set(CRACKDOWN_SOURCES
     src/cheat_menu_input.cpp
     src/cheat_menu_overlay.cpp
     src/cheats.cpp
+    src/content_fs.cpp
+    src/content_install.cpp
+    src/content_state.cpp
     src/crash_report.cpp
     src/crt_native.cpp
+    src/dlc.cpp
     src/entity_registry.cpp
     src/font_atlas.cpp
     src/font_rerender.cpp
@@ -200,10 +205,12 @@ set(CRACKDOWN_SOURCES
     src/gpu_fence_wait.cpp
     src/graphics_adapters.cpp
     src/guest_fault_log.cpp
+    src/guest_image.cpp
     src/hang_watchdog.cpp
     src/launcher.cpp
     src/launcher_achievements.cpp
     src/launcher_achievements_page.cpp
+    src/launcher_content_page.cpp
     src/log_filter.cpp
     src/log_path.cpp
     src/main_menu_quit.cpp
@@ -211,11 +218,16 @@ set(CRACKDOWN_SOURCES
     src/mouse_look.cpp
     src/nan_guards.cpp
     src/platform.cpp
+    src/save_compat.cpp
+    src/save_generation.cpp
     src/session_log.cpp
     src/settings.cpp
     src/settings_file.cpp
+    src/startup_selection.cpp
+    src/stfs.cpp
     src/title_compat.cpp
     src/title_language.cpp
+    src/title_update.cpp
     src/update_config.cpp
     src/updater/github_release.cpp
     src/updater/json.cpp
@@ -237,7 +249,7 @@ set(CRACKDOWN_SOURCES
 )
 set_source_files_properties(src/updater/third_party/miniz/miniz.c PROPERTIES COMPILE_OPTIONS "-w")
 # Stricter checks for the project's own C++ only: not the generated code, the SDK headers (system includes) or the SDK
-# sources rexglue_setup_target adds to this target.
+# sources rexglue_configure_target adds to this target.
 set(CRACKDOWN_WARNINGS -Wall -Wextra
     -Wshadow-all -Wimplicit-fallthrough -Wnull-dereference -Wformat=2 -Wundef -Wcast-qual -Wextra-semi
     -Wunreachable-code-aggressive -Wconditional-uninitialized -Wloop-analysis -Wrange-loop-analysis -Wcomma
@@ -258,6 +270,7 @@ if(WIN32)
     endif()
     string(REPLACE "\\" "/" CRACKDOWN_RC_ICON_LINE "${CRACKDOWN_RC_ICON_LINE}")
     set(CRACKDOWN_VERSION_COMMA "${PROJECT_VERSION_MAJOR},${PROJECT_VERSION_MINOR},${PROJECT_VERSION_PATCH},0")
+    set(CRACKDOWN_EXE_NAME crackdown)
     configure_file(packaging/windows/crackdown.rc.in "${CMAKE_CURRENT_BINARY_DIR}/crackdown.rc" @ONLY)
     if(EXISTS "${CRACKDOWN_ICON}")
         set_source_files_properties("${CMAKE_CURRENT_BINARY_DIR}/crackdown.rc" PROPERTIES OBJECT_DEPENDS "${CRACKDOWN_ICON}")
@@ -271,7 +284,7 @@ else()
     add_executable(crackdown ${CRACKDOWN_SOURCES})
 endif()
 
-rexglue_setup_target(crackdown GPU_PLUGINS xenos)
+rexglue_setup_host_target(crackdown GPU_PLUGINS xenos)
 target_link_libraries(crackdown PRIVATE trg::launcher)
 target_compile_definitions(crackdown PRIVATE
     CRACKDOWN_PORT_VERSION="${PROJECT_VERSION}"
@@ -355,9 +368,8 @@ function(crackdown_enable_thinlto target)
     endif()
 endfunction()
 crackdown_enable_thinlto(crackdown)
-if(TARGET crackdown_recomp)
-    crackdown_enable_thinlto(crackdown_recomp)
-endif()
+
+include(cmake/crackdown_guests.cmake)
 
 # The update helper runs from the temporary update workspace, away from the installation, so it keeps its runtime
 # inside the executable.

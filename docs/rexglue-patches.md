@@ -5,8 +5,8 @@ result is installed over the stock files in `tools/rexglue`. The game compiles a
 must not move virtual functions or data members of classes the generated game code uses.
 
 `NNNN-name.patch` applies on both platforms, `NNNN-name.windows.patch` only on Windows and `NNNN-name.linux.patch` only on
-Linux. Numbers are unique and patches apply in name order; gaps are fine. 55 patches are common, 26 are Windows only and
-13 are Linux only, so 81 apply on Windows and 68 apply on Linux. Patches 0005, 0052 and 0095 change the code generator and
+Linux. Numbers are unique and patches apply in name order; gaps are fine. 56 patches are common, 26 are Windows only and
+13 are Linux only, so 82 apply on Windows and 69 apply on Linux. Patches 0005, 0052 and 0095 change the code generator and
 are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the runtime and the GPU plugin.
 
 | # | Platform | Purpose |
@@ -95,6 +95,7 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0101 | windows | D3D12 per-draw loops: vertex buffer residency is invalidated a 64-bit mask at a time instead of a bit at a time, the used float constants are copied a run of consecutive constants per `memcpy`, and the stencil tile bits are read and added in up to two contiguous runs that vectorize instead of a byte at a time with wrapping |
 | 0102 | windows | profile-guided optimization of the GPU plugin in Release: `REXGPU_PGO_USE` names a merged profile to optimize it with, and `tools\rexruntime-patch.ps1` sets it to `patches\rexglue-sdk-pgo\rexgpu-xenos.profdata` when that file exists (see [build-workflow.md](build-workflow.md#profile-guided-optimization-of-the-gpu-plugin)) |
 | 0103 | windows | `d3d12_present_latency_wait` (on, restart): the swap chain has a frame-latency waitable object (at most 2 frames queued) and painting waits on it before recording, so a V-Sync forced by the driver no longer makes `Present` wait for a back buffer on the direct queue the GPU emulation submits to; `ResizeBuffers` keeps the same flags and the handle is closed with the swap chain |
+| 0104 | all | `xex_patch` (runtime option): the guest path of the XEX patch applied to the main module, instead of the `.xexp` next to the XEX. The Title Update 6 guest sets it to `update:\Default.xexp` with `--update_data_root` pointing at the installed update, so the patch never sits in the game folder the base build reads. A patch file is not given a patch of its own; with the option set, a missing file fails the load. Unset, nothing changes |
 
 Patches 0054 to 0058, 0078 to 0083, 0095, 0096 and 0103 and the hooks in `src/audio_guest_sync.cpp` and
 `src/vehicle_action_step.cpp` are adapted from Unowa001/crackdown-recomp (BSD 3-Clause, notice in

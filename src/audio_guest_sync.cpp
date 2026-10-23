@@ -14,11 +14,11 @@
 #include <rex/hook.h>
 #include <rex/ppc.h>
 
+#include "guest_hooks.h"
 #include "xaudio_barrier.h"
 
 bool crackdown_audio_barrier_escape();
 
-REX_EXTERN(__imp__sub_82A50000);
 REX_EXTERN(__imp__KeResetEvent);
 
 namespace {
@@ -95,10 +95,10 @@ void WaitForRelease(const crackdown::XAudioBarrier& barrier, uint64_t round) {
 
 }  // namespace
 
-// sub_82A50000(engine, word): the XAudio mix workers' rendezvous once per audio pass. The title's version marks its
-// processor's byte in the guest word and spins until all are in or the word is reset, so a worker preempted in between
-// can miss the reset and spin forever with its partner. Only this function uses the word.
-REX_HOOK_RAW(sub_82A50000) {
+// The XAudio mix workers' rendezvous once per audio pass: (engine, word). The title's version marks its processor's
+// byte in the guest word and spins until all are in or the word is reset, so a worker preempted in between can miss the
+// reset and spin forever with its partner. Only this function uses the word.
+void crackdown::hooks::AudioBarrier(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t engine = ctx.r3.u32;
   if (!LoadGuest32(base, engine + kEngineActiveOffset)) {
     return;
@@ -106,7 +106,7 @@ REX_HOOK_RAW(sub_82A50000) {
   const uint8_t processor = LoadGuest8(base, ctx.r13.u32 + kPcrProcessorNumberOffset);
   crackdown::XAudioBarrier* barrier = processor < 8 ? BarrierFor(ctx.r4.u32) : nullptr;
   if (!barrier) {
-    __imp__sub_82A50000(ctx, base);
+    original(ctx, base);
     return;
   }
   const crackdown::XAudioBarrier::Arrival arrival = barrier->Arrive(processor, ExpectedProcessors(base, engine));
@@ -115,10 +115,10 @@ REX_HOOK_RAW(sub_82A50000) {
   }
 }
 
-// sub_82A4FA70 is the job dispatcher's inline ResetEvent (`stw 0,4(r3)`), which never reaches the kernel, so the host
-// event the runtime waits on stays signaled. Identical-code folding also puts this body in C++ vtables, where r3 is not
-// an event: only events the runtime already shadows are reset on the host too.
-REX_HOOK_RAW(sub_82A4FA70) {
+// The job dispatcher's inline ResetEvent (`stw 0,4(r3)`) never reaches the kernel, so the host event the runtime waits
+// on stays signaled. Identical-code folding also puts this body in C++ vtables, where r3 is not an event: only events
+// the runtime already shadows are reset on the host too.
+void crackdown::hooks::AudioResetEvent(PPCContext& ctx, uint8_t* base) {
   const uint32_t object = ctx.r3.u32;
   ctx.r11.s64 = 0;
   std::memset(rex::memory::GuestPtr<uint8_t*>(base, object + 4), 0, sizeof(uint32_t));

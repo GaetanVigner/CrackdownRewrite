@@ -8,9 +8,8 @@
 #include <rex/hook.h>
 #include <rex/ppc.h>
 
+#include "guest_hooks.h"
 #include "guest_memory.h"
-
-REX_EXTERN(__imp__sub_824A1708);
 
 namespace {
 
@@ -18,10 +17,10 @@ crackdown::VehicleActionClock g_clock;
 
 }  // namespace
 
-// Havok vehicle action (slot +8 of the vehicle vtable 0x820B5100): r3 is the vehicle instance, r4 the hkStepInfo with
-// deltaTime at +8 and invDeltaTime at +12. The callees read the same hkStepInfo, so it carries the chosen step for the
-// call and gets its own words back after.
-REX_HOOK_RAW(sub_824A1708) {
+// Havok vehicle action (slot +8 of the vehicle vtable): r3 is the vehicle instance, r4 the hkStepInfo with deltaTime at
+// +8 and invDeltaTime at +12. The callees read the same hkStepInfo, so it carries the chosen step for the call and gets
+// its own words back after.
+void crackdown::hooks::VehicleAction(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   constexpr uint32_t kDeltaTime = 8;
   constexpr uint32_t kInvDeltaTime = 12;
   const uint32_t info = ctx.r4.u32;
@@ -32,13 +31,13 @@ REX_HOOK_RAW(sub_824A1708) {
     return;
   }
   if (step == dt) {
-    __imp__sub_824A1708(ctx, base);
+    original(ctx, base);
     return;
   }
   const uint32_t inv_bits = crackdown::guest::Load32(base, info + kInvDeltaTime);
   crackdown::guest::StoreFloat(base, info + kDeltaTime, step);
   crackdown::guest::StoreFloat(base, info + kInvDeltaTime, 1.0f / step);
-  __imp__sub_824A1708(ctx, base);
+  original(ctx, base);
   crackdown::guest::Store32(base, info + kDeltaTime, dt_bits);
   crackdown::guest::Store32(base, info + kInvDeltaTime, inv_bits);
 }

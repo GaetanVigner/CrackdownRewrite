@@ -42,6 +42,9 @@ const char* ValueLabel(Kind kind, int value) {
 }
 
 int Value(Cheat cheat) {
+  if (!Supported(cheat)) {
+    return 0;
+  }
   const size_t index = IndexOf(cheat);
   if (g_overridden[index].load(std::memory_order_acquire)) {
     return g_session[index].load(std::memory_order_relaxed);
@@ -57,6 +60,9 @@ int Factor(Cheat cheat) {
 }
 
 int Cycle(Cheat cheat) {
+  if (!Supported(cheat)) {
+    return 0;
+  }
   const size_t index = IndexOf(cheat);
   const int next = NextValue(InfoOf(cheat), Value(cheat));
   g_session[index].store(next, std::memory_order_relaxed);

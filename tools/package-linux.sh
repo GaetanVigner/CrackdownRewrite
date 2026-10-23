@@ -15,8 +15,9 @@
 # The AppImage runtime (the part that mounts the AppImage before AppRun runs) is built from the pinned AppImage/type2-runtime
 # source with the project's patch (tools/build-appimage-runtime.sh): that needs root or sudo, network access the first time,
 # and is skipped while the pins and patches are unchanged.
-# Needs generated/default from tools/codegen.ps1 (Windows) and the game's Default.xex at game/assets, which only the
-# guest-code freshness check reads (tools/check-guest-code.sh); neither is packaged.
+# Needs generated/default from tools/codegen.ps1 and generated/tu6 from tools/codegen-tu6.ps1 (both Windows) and the
+# game's Default.xex at game/assets, which only the guest-code freshness check reads (tools/check-guest-code.sh); none
+# of them is packaged. The AppImage holds one executable, crackdown, which carries both recompiled guests.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -85,6 +86,8 @@ echo "glibc $HOST_GLIBC"
 echo "== Inputs"
 [ -f "$ROOT/third_party/trg-launcher/CMakeLists.txt" ] || fail "run: git submodule update --init third_party/trg-launcher"
 bash "$ROOT/tools/check-guest-code.sh" "$ROOT" || fail "generated/default is not current (run tools/codegen.ps1 on Windows first)"
+bash "$ROOT/tools/check-guest-code.sh" "$ROOT" tu6 ||
+  fail "generated/tu6 is not current (run tools/codegen-tu6.ps1 on Windows first)"
 
 echo "== Source -> $WORK"
 mkdir -p "$WORK/third_party" "$WORK/tools"
@@ -184,9 +187,9 @@ while IFS= read -r -d '' item; do
   rel="${item#"$APPDIR"/}"
   base="$(basename "$item")"
   case "${base,,}" in
-    default.xex | game | game-install-temp | game-install-backup | user_data | cache | logs | settings.toml | 4d5307dc | \
+    default.xex | default.xexp | gamestrings_dlc.str | crackdown_tu6 | crackdown_tu6.exe | save-versions | .switch-* | title_update | dlc-install-temp | game | game-install-temp | game-install-backup | user_data | cache | logs | settings.toml | 4d5307dc | \
       '$systemupdate') problem "forbidden name: $rel" ;;
-    *.xex | *.iso | *.dvd | *.dff | *.xwb | *.xzp | *.bik | *.tpk | *.spk | *.log | *.dmp | *.pdb | *.xsh | *.xpso | \
+    *.xex | *.xexp | *.str | *.header | *.iso | *.dvd | *.dff | *.xwb | *.xzp | *.bik | *.tpk | *.spk | *.log | *.dmp | *.pdb | *.xsh | *.xpso | \
       *.bak | *.tmp | *.sav | *.invalid | settings.toml.*) problem "forbidden file type: $rel" ;;
   esac
   case "${base,,}" in
@@ -231,13 +234,13 @@ usr/share/icons/hicolor/scalable/apps/crackdown.svg"
 ACTUAL="$(cd "$APPDIR" && find . ! -type d | sed 's|^\./||' | LC_ALL=C sort)"
 [ "$ACTUAL" = "$EXPECTED" ] || { problem "unexpected AppDir contents:"; diff <(echo "$EXPECTED") <(echo "$ACTUAL") >&2 || true; }
 grep -qxF "StartupWMClass=$APP_ID" "$APPDIR/$APP_ID.desktop" || problem "StartupWMClass in $APP_ID.desktop is not $APP_ID"
-grep -qaF "$APP_ID" "$APPDIR/usr/bin/crackdown" || problem "the program does not contain the application id $APP_ID"
+grep -qaF "$APP_ID" "$APPDIR/usr/bin/crackdown" || problem "crackdown does not contain the application id $APP_ID"
 for f in crackdown librexruntime.so librexgpu-xenos.so; do
   if readelf -d "$APPDIR/usr/bin/$f" | grep -i renderdoc >/dev/null; then problem "$f links RenderDoc"; fi
 done
-readelf -d "$APPDIR/usr/bin/crackdown" | grep -q 'R.*PATH.*\[\$ORIGIN\]' || problem "the program's RPATH is not \$ORIGIN"
+readelf -d "$APPDIR/usr/bin/crackdown" | grep -q 'R.*PATH.*\[\$ORIGIN\]' || problem "crackdown's RPATH is not \$ORIGIN"
 missing="$(ldd "$APPDIR/usr/bin/crackdown" | grep 'not found' || true)"
-[ -z "$missing" ] || problem "unresolved libraries: $missing"
+[ -z "$missing" ] || problem "unresolved libraries in crackdown: $missing"
 [ "$problems" = 0 ] || fail "the AppDir holds files that must not be released"
 echo "  clean"
 for f in usr/bin/crackdown usr/bin/librexruntime.so usr/bin/librexgpu-xenos.so usr/lib/libstdc++.so.6 usr/lib/libgcc_s.so.1; do

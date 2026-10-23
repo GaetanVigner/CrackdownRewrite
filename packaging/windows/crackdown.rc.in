@@ -15,8 +15,8 @@ BEGIN
         BEGIN
             VALUE "FileDescription", "Crackdown Recompiled"
             VALUE "FileVersion", "@PROJECT_VERSION@"
-            VALUE "InternalName", "crackdown"
-            VALUE "OriginalFilename", "crackdown.exe"
+            VALUE "InternalName", "@CRACKDOWN_EXE_NAME@"
+            VALUE "OriginalFilename", "@CRACKDOWN_EXE_NAME@.exe"
             VALUE "ProductName", "Crackdown Recompiled"
             VALUE "ProductVersion", "@PROJECT_VERSION@"
         END

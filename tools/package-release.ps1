@@ -34,11 +34,11 @@ $OptionalRootFiles = @('LICENSE')
 $LicenseFiles = @('ReXGlue-LICENSE.txt', 'THIRD-PARTY-LICENSES.txt')
 $GlyphFiles = @('button_glyphs.dds', 'button_glyphs.toml')
 $AssetFiles = @('assets\launcher\header-art.png')
-# Names that mean game data, saves, settings, caches or logs.
-$ForbiddenNames = @('default.xex', 'game', 'game-install-temp', 'game-install-backup', 'user_data', 'cache', 'logs',
-    'settings.toml', '4D5307DC', '$SystemUpdate')
-$ForbiddenPatterns = @('*.xex', '*.iso', '*.dvd', '*.dff', '*.xwb', '*.xzp', '*.bik', '*.tpk', '*.spk', '*.log', '*.dmp',
-    '*.pdb', '*.xsh', '*.xpso', '*.bak', '*.tmp', '*.sav', '*.invalid', 'settings.toml.*', 'trg-update-*')
+# Names that mean game data, saves, settings, caches or logs, and the retired second executable (both guests are in crackdown.exe).
+$ForbiddenNames = @('crackdown_tu6.exe', 'save-versions', 'default.xex', 'Default.xexp', 'GameStrings_DLC.str', 'game', 'game-install-temp', 'game-install-backup',
+    'user_data', 'title_update', 'dlc-install-temp', 'cache', 'logs', 'settings.toml', '4D5307DC', '$SystemUpdate')
+$ForbiddenPatterns = @('*.xex', '*.xexp', '*.str', '*.header', '*.iso', '*.dvd', '*.dff', '*.xwb', '*.xzp', '*.bik', '*.tpk', '*.spk', '*.log', '*.dmp',
+    '*.pdb', '*.xsh', '*.xpso', '*.bak', '*.tmp', '*.sav', '*.invalid', 'settings.toml.*', 'trg-update-*', '.switch-*')
 # First bytes of an Xbox 360 package or executable.
 $ForbiddenMagic = @('LIVE', 'PIRS', 'CON ', 'XEX2')
 
@@ -140,8 +140,14 @@ $layout = Get-RexglueLayout $Root 'Release'
 $runtimeProblems = @(Get-RexglueInstallProblems $layout)
 if ($runtimeProblems.Count) { Write-Problems $runtimeProblems; throw 'tools\rexglue does not hold the current patched Release runtime and GPU plugin (build without -SkipBuild to update them)' }
 
+# crackdown.exe carries the Title Update 6 guest only when generated\tu6 existed at build time.
+if (-not (Test-Path -LiteralPath (Join-Path $Root 'generated\tu6\sources.cmake'))) {
+    throw 'generated\tu6 is missing, so crackdown.exe would carry no Title Update 6 guest: run tools\codegen-tu6.ps1'
+}
 foreach ($leaf in @('crackdown.exe', 'trg-updater.exe', 'rexruntime.dll', 'rexgpu-xenos.dll', 'crackdown.toml')) {
-    if (-not (Test-Path (Join-Path $ReleaseBuild $leaf))) { throw "Release build output is missing $leaf (run without -SkipBuild)" }
+    if (-not (Test-Path (Join-Path $ReleaseBuild $leaf))) {
+        throw "Release build output is missing $leaf (run without -SkipBuild)"
+    }
 }
 
 New-Item -ItemType Directory -Force $Dist | Out-Null

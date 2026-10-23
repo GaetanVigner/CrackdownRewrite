@@ -15,13 +15,14 @@
 #include <rex/ui/window.h>
 #include <rex/ui/window_listener.h>
 
+#include "guest_layout.h"
+
 REXCVAR_DECLARE(double, mnk_sensitivity);
 
 namespace crackdown::mouse_look {
 
 namespace {
 
-constexpr uint32_t kCameraTuningPointer = 0x82DE258C;
 constexpr uint32_t kPitchMinOffset = 80;
 constexpr uint32_t kPitchMaxOffset = 84;
 constexpr double kTwoPi = 6.283185307179586;
@@ -141,7 +142,7 @@ void ClampPitchToCameraLimits(float& pitch) {
     return;
   }
   uint8_t* base = kernel->memory()->virtual_membase();
-  const uint32_t block = rex::memory::load_and_swap<uint32_t>(base + kCameraTuningPointer);
+  const uint32_t block = rex::memory::load_and_swap<uint32_t>(base + crackdown::Layout().camera_tuning);
   if (!block) {
     return;
   }

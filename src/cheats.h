@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <span>
 
+#include "guest_layout.h"
+
 namespace crackdown::cheats {
 
 enum class Cheat : uint8_t {
@@ -67,6 +69,9 @@ inline constexpr const char* SectionLabel(Section section) {
 }
 
 inline constexpr const CheatInfo& InfoOf(Cheat cheat) { return kCheats[static_cast<size_t>(cheat)]; }
+
+// Whether this build's guest has what the cheat needs. An unsupported cheat is always Off.
+inline bool Supported(Cheat cheat) { return cheat != Cheat::JumpHeight || Layout().jump_height_cheat; }
 
 // The value after `value` in the cheat's list, wrapping to Off after the last one.
 constexpr int NextValue(const CheatInfo& info, int value) {

@@ -9,8 +9,8 @@
 
 #include "guest_memory.h"
 
-// Codegen hook before the `lwz r30,100(r1)` at 82AA0A6C in sub_82AA0920 (config/overrides.toml): r1+100 holds the
-// count XamEnumerate returned, and the loop reloads it on every pass.
+// Codegen hook before the load of the count XamEnumerate returned: r1+100 holds it, and the loop reloads it on every
+// pass.
 void crackdown_massive_server_count_guard(PPCRegister& stack) {
   uint8_t* base = rex::system::kernel_state()->memory()->virtual_membase();
   const uint32_t address = stack.u32 + 100;

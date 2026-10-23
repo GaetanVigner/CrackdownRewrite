@@ -17,6 +17,13 @@ $Cases = [ordered]@{
     'disc image'       = 'DVD.iso'
     'stray executable' = 'Default.xex'
     'updater workspace' = 'trg-update-1234-5678\job.txt'
+    'update patch'     = 'Default.xexp'
+    'second executable' = 'crackdown_tu6.exe'
+    'save snapshots'   = 'save-versions\base\'
+    'update strings'   = 'Local\en-US\GameStrings_DLC.str'
+    'installed update' = 'user_data\title_update\4D5307DC\Default.xexp'
+    'installed DLC'    = 'user_data\0000000000000000\4D5307DC\00000002\AA10729E62721B4EAF674486684E31CD9B94AC4F\Digest2.txt'
+    'DLC header'       = 'AA10729E62721B4EAF674486684E31CD9B94AC4F.header'
 }
 $failures = 0
 try {

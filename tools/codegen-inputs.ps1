@@ -3,6 +3,20 @@
 $CodegenStampPath = 'generated\codegen-inputs.stamp'
 $CrackdownXexPath = 'game\assets\Default.xex'
 $CrackdownXexSha256 = '7AAA7A8920D1C3C737E58CF583DEBAFE6013BE0A96BEC3EC136E5DE7E3377E5A'
+$CrackdownUpdateXexpSha256 = 'A0D4FE06D6A4A2FD96D18F5DE426F761FE1B8CCE5D5BC7F981D738C3519C819E'
+
+# The recompiled guests. tu6 is Default.xex with Default.xexp applied, from a private folder so the patch never sits next
+# to the XEX in game\assets.
+$CodegenBuilds = @{
+    default = @{
+        Manifest = 'crackdown_manifest.toml'; Xex = 'game\assets\Default.xex'; Update = ''
+        Stamp = 'generated\codegen-inputs.stamp'; Log = 'generated\codegen.log'; Output = 'generated\default'
+    }
+    tu6 = @{
+        Manifest = 'crackdown_tu6_manifest.toml'; Xex = 'out\tu6\game\default.xex'; Update = 'out\tu6\game\Default.xexp'
+        Stamp = 'generated\codegen-inputs-tu6.stamp'; Log = 'generated\codegen-tu6.log'; Output = 'generated\tu6'
+    }
+}
 
 function Get-InstalledRexglueVersion([string]$Root) {
     $file = Join-Path $Root 'tools\rexglue\win-amd64\lib\cmake\rexglue\rexglueConfigVersion.cmake'
@@ -40,16 +54,23 @@ function Add-CodegenIncludes([string]$Root, [string]$TomlPath, [hashtable]$Seen,
     }
 }
 
-# The files codegen reads, in stamp order: the manifest, the XEX, then the manifest's includes.
-function Get-CodegenInputItems([string]$Root) {
-    $manifest = Get-NormalizedPath (Join-Path $Root 'crackdown_manifest.toml')
-    $xex = Get-NormalizedPath (Join-Path $Root $CrackdownXexPath)
+# The files codegen reads, in stamp order: the manifest, the XEX, the update patch when there is one, then the manifest's
+# includes.
+function Get-CodegenInputItems([string]$Root, [string]$Build = 'default') {
+    $spec = $CodegenBuilds[$Build]
+    $manifest = Get-NormalizedPath (Join-Path $Root $spec.Manifest)
+    $xex = Get-NormalizedPath (Join-Path $Root $spec.Xex)
     $items = New-Object System.Collections.Generic.List[object]
     $items.Add([pscustomobject]@{ Key = Get-CodegenInputKey $Root $manifest; Path = $manifest })
     $items.Add([pscustomobject]@{ Key = Get-CodegenInputKey $Root $xex; Path = $xex })
     $seen = @{}
     $seen[$manifest] = $true
     $seen[$xex] = $true
+    if ($spec.Update) {
+        $update = Get-NormalizedPath (Join-Path $Root $spec.Update)
+        $items.Add([pscustomobject]@{ Key = Get-CodegenInputKey $Root $update; Path = $update })
+        $seen[$update] = $true
+    }
     Add-CodegenIncludes $Root $manifest $seen $items
     return $items
 }
@@ -72,10 +93,10 @@ function Get-PatchedCodegenPath([string]$Root, [string]$Identity) {
     return Join-Path $Root "out\rexglue-codegen\$Identity\rexglue.exe"
 }
 
-function Get-CodegenInputStamp([string]$Root, [string]$SdkVersion) {
+function Get-CodegenInputStamp([string]$Root, [string]$SdkVersion, [string]$Build = 'default') {
     $tool = Get-CodegenToolIdentity $Root
     $lines = @(if ($tool -eq 'stock') { "rexglue  $SdkVersion" } else { "rexglue  $SdkVersion $tool" })
-    foreach ($item in @(Get-CodegenInputItems $Root)) {
+    foreach ($item in @(Get-CodegenInputItems $Root $Build)) {
         $hash = if (Test-Path -LiteralPath $item.Path -PathType Leaf) { Get-FileSha256 $item.Path } else { 'missing' }
         $lines += "$hash  $($item.Key)"
     }
@@ -93,12 +114,12 @@ function Read-CodegenStamp([string]$Text) {
 }
 
 # Whether the guest code matches its inputs, and which inputs changed when it does not.
-function Get-CodegenFreshness([string]$Root, [string]$SdkVersion) {
-    $stampFile = Join-Path $Root $CodegenStampPath
+function Get-CodegenFreshness([string]$Root, [string]$SdkVersion, [string]$Build = 'default') {
+    $stampFile = Join-Path $Root $CodegenBuilds[$Build].Stamp
     if (-not (Test-Path -LiteralPath $stampFile -PathType Leaf)) {
         return [pscustomobject]@{ Current = $false; Reasons = @('no successful codegen record') }
     }
-    $current = Get-CodegenInputStamp $Root $SdkVersion
+    $current = Get-CodegenInputStamp $Root $SdkVersion $Build
     $stored = [IO.File]::ReadAllText($stampFile)
     if ($stored -ceq $current) { return [pscustomobject]@{ Current = $true; Reasons = @() } }
     $reasons = @(Get-ValueChanges (Read-CodegenStamp $stored) (Read-CodegenStamp $current))

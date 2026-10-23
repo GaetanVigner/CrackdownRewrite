@@ -6,14 +6,13 @@
 #include <rex/hook.h>
 #include <rex/ppc.h>
 
+#include "guest_hooks.h"
+#include "guest_layout.h"
 #include "guest_memory.h"
-
-REX_EXTERN(__imp__sub_824EC668);
 
 namespace crackdown::entity_registry {
 namespace {
 
-constexpr uint32_t kManagerGlobal = 0x82DE3F2C;
 constexpr uint32_t kObjectArrayOffset = 4;
 constexpr uint32_t kCapacity = 308;  // The inline object array ends at the count field.
 constexpr uint32_t kCountOffset = 1236;
@@ -24,7 +23,7 @@ constexpr uint32_t kNoSlot = 0xFFFFFFFF;
 }  // namespace
 
 void Unregister(uint8_t* base, uint32_t object) {
-  const uint32_t manager = guest::Load32(base, kManagerGlobal);
+  const uint32_t manager = guest::Load32(base, Layout().entity_manager);
   if (!manager) {
     return;
   }
@@ -59,7 +58,7 @@ void Unregister(uint8_t* base, uint32_t object) {
 
 }  // namespace crackdown::entity_registry
 
-REX_HOOK_RAW(sub_824EC668) {
+void crackdown::hooks::EntityDestroyed(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   crackdown::entity_registry::Unregister(base, ctx.r3.u32);
-  __imp__sub_824EC668(ctx, base);
+  original(ctx, base);
 }
