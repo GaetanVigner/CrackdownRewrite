@@ -4,14 +4,14 @@ Crackdown for Xbox 360 as a native PC recompilation, with enhanced graphics, hig
 
 v0.6.1 adds DLC and Title Update 6 support with save preservation, and brings a major GPU performance pass to the Direct3D 12 command processor.
 
-Thanks to @DyllanM for the GPU command processor work (#13), and to [Unowa001/crackdown-recomp](https://github.com/Unowa001/crackdown-recomp) (BSD 3-Clause) for the vehicle-physics and present-latency fixes it is adapted from.
+Thanks to @DyllanM for the GPU command processor work (#13), to @trevorcarr for the orb map markers work and reverse-engineering in #15, and to [Unowa001/crackdown-recomp](https://github.com/Unowa001/crackdown-recomp) (BSD 3-Clause) for the vehicle-physics and present-latency fixes adapted from that project.
 
 ## Highlights
 - **DLC support**, with save preservation and compatibility improvements: installing, removing or switching DLC never touches your saves, and a failed install leaves your existing game and save data untouched.
 - **Major GPU performance improvements**: profile-guided optimization, ThinLTO and a leaner Direct3D 12 command processor cut per-draw CPU overhead by roughly 7-16% in heavy scenes, measured on city drives with 12,000-15,000 draws per frame.
 - **Additional upstream performance and gameplay fixes** for smoother, more stable gameplay, including a vehicle-physics fix adapted from Unowa001/crackdown-recomp and a present-latency fix on Windows.
 - **Improved save handling**: the pause menu's **Save and Quit** now uses the game's own save flow again, and the launcher's **Ctrl+S** reliably saves settings even while a text field has focus.
-- **Orb map improvements**: the in-game map can show agility and hidden orb markers, correctly matched to whichever guest (base game or Title Update 6) is running.
+- **Orb map improvements**: based on @trevorcarr's work in #15, the in-game map can show agility and hidden orb markers, adapted in v0.6.1 to correctly support both the base game and Title Update 6.
 
 ## What's New
 
