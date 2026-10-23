@@ -2,6 +2,8 @@
 
 #include <filesystem>
 
+#include <rex/cvar.h>
+
 #include <rex/ui/ui_event.h>
 #include <rex/ui/virtual_key.h>
 #include <rex/ui/window.h>
@@ -60,6 +62,45 @@ class ProfileKey final : public rex::ui::WindowInputListener {
  private:
   bool IsF6(const rex::ui::KeyEvent& e) const {
     return ThreadProfilerEnabled() && e.virtual_key() == rex::ui::VirtualKey::kF6 && e.target() == window_;
+  }
+
+  rex::ui::Window* window_;
+};
+
+// With crackdown_debug_profiler on, F5 switches gpu_cached_indirect_buffers (SDK patch 0107) for an A/B at one spot.
+// The GPU log notes each switch with what the cache did since the previous one. The game never sees the key.
+class IndirectBufferCacheKey final : public rex::ui::WindowInputListener {
+ public:
+  static constexpr size_t kZOrder = 1000;
+
+  explicit IndirectBufferCacheKey(rex::ui::Window* window) : window_(window) {
+    window_->AddInputListener(this, kZOrder);
+  }
+  ~IndirectBufferCacheKey() override { window_->RemoveInputListener(this); }
+
+  IndirectBufferCacheKey(const IndirectBufferCacheKey&) = delete;
+  IndirectBufferCacheKey& operator=(const IndirectBufferCacheKey&) = delete;
+
+  void OnKeyDown(rex::ui::KeyEvent& e) override {
+    if (!IsF5(e)) {
+      return;
+    }
+    e.set_handled(true);
+    if (!e.prev_state()) {
+      const bool on = rex::cvar::GetFlagByName("gpu_cached_indirect_buffers") == "true";
+      rex::cvar::SetFlagByName("gpu_cached_indirect_buffers", on ? "false" : "true");
+    }
+  }
+
+  void OnKeyUp(rex::ui::KeyEvent& e) override {
+    if (IsF5(e)) {
+      e.set_handled(true);
+    }
+  }
+
+ private:
+  bool IsF5(const rex::ui::KeyEvent& e) const {
+    return ThreadProfilerEnabled() && e.virtual_key() == rex::ui::VirtualKey::kF5 && e.target() == window_;
   }
 
   rex::ui::Window* window_;

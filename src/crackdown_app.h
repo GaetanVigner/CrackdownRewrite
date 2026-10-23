@@ -256,6 +256,7 @@ class CrackdownApp : public rex::ReXApp {
       cheat_menu_key_ = std::make_unique<crackdown::CheatMenuKey>(
           window(), [this] { app_context().CallInUIThreadDeferred([this] { ToggleCheatMenu(); }); });
       profile_key_ = std::make_unique<crackdown::ProfileKey>(window());
+      ib_cache_key_ = std::make_unique<crackdown::IndirectBufferCacheKey>(window());
       hle_capture_key_ = std::make_unique<crackdown::HleCaptureKey>(window());
       telemetry_key_ = std::make_unique<crackdown::TelemetryKey>(window());
     }
@@ -267,6 +268,7 @@ class CrackdownApp : public rex::ReXApp {
     CloseAchievements();
     cheat_menu_key_.reset();
     profile_key_.reset();
+    ib_cache_key_.reset();
     hle_capture_key_.reset();
     telemetry_key_.reset();
     CloseCheatMenu();
@@ -439,6 +441,7 @@ class CrackdownApp : public rex::ReXApp {
   std::unique_ptr<crackdown::CheatMenuOverlay> cheat_menu_;
   std::unique_ptr<crackdown::CheatMenuKey> cheat_menu_key_;
   std::unique_ptr<crackdown::ProfileKey> profile_key_;
+  std::unique_ptr<crackdown::IndirectBufferCacheKey> ib_cache_key_;
   std::unique_ptr<crackdown::HleCaptureKey> hle_capture_key_;
   std::unique_ptr<crackdown::TelemetryKey> telemetry_key_;
   bool show_launcher_ = false;

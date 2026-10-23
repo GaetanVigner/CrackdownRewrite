@@ -1,0 +1,715 @@
+gpu_cached_indirect_buffers (off by default, hot reload): an indirect buffer executed again with the same address and
+size is decoded once into the operations its packets perform (register runs, constant loads from memory, shader
+loads, draws, nested indirect buffers, bin mask/select, event initiators, visibility queries) and replayed without
+parsing while its dwords are unchanged (one memcmp against the copy taken at translation). Replays make the parse's
+calls in the parse's order; register runs that already hold their values, where rewriting them changes nothing, are
+skipped. Other type-3 packets (waits, events with memory writes, swaps) run their own handler from the buffer's dwords.
+Buffers with a malformed packet are parsed as before, and buffers whose dwords keep changing are no longer
+translated. Bypassed while gpu_draw_trace records. Counters in the gpu_frame_stats log, and a summary at each switch.
+
+diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
+--- a/include/rex/graphics/command_processor.h
++++ b/include/rex/graphics/command_processor.h
+@@ -205,6 +205,11 @@ class CommandProcessor {
+                                           uint32_t count);
+   virtual bool ExecutePacketType3_EVENT_WRITE_ZPD(memory::RingBuffer* reader, uint32_t packet,
+                                                   uint32_t count);
++  // The draw of a DRAW_INDX / DRAW_INDX_2 packet once its words are read (dma_base and dma_size
++  // only for the DMA source).
++  bool ExecuteDraw(uint32_t packet, const char* opcode_name, uint32_t draw_initiator,
++                   uint32_t dma_base, uint32_t dma_size);
++  void ExecuteVizQuery(uint32_t dword0);
+   bool ExecutePacketType3Draw(memory::RingBuffer* reader, uint32_t packet, const char* opcode_name,
+                               uint32_t viz_query_condition, uint32_t count_remaining);
+   bool ExecutePacketType3_DRAW_INDX(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
+@@ -277,6 +282,17 @@ class CommandProcessor {
+   uint64_t bin_select_ = 0xFFFFFFFFull;
+   uint64_t bin_mask_ = 0xFFFFFFFFull;
+ 
++  // gpu_cached_indirect_buffers: indirect buffers decoded once into the operations their packets
++  // perform, replayed while their dwords are unchanged (see command_processor.cpp).
++  struct CachedIndirectBuffer;
++  bool ExecuteCachedIndirectBuffer(uint32_t ptr, uint32_t count);
++  bool TranslateIndirectBuffer(CachedIndirectBuffer& buffer, const uint32_t* words,
++                               uint32_t count);
++  void ReplayIndirectBuffer(const CachedIndirectBuffer& buffer, const uint32_t* words);
++  std::unordered_map<uint64_t, std::unique_ptr<CachedIndirectBuffer>> cached_indirect_buffers_;
++  bool cached_indirect_buffers_enabled_ = false;
++  uint32_t indirect_buffer_replay_depth_ = 0;
++
+   Shader* active_vertex_shader_ = nullptr;
+   Shader* active_pixel_shader_ = nullptr;
+ 
+diff --git a/include/rex/graphics/gpu_frame_stats.h b/include/rex/graphics/gpu_frame_stats.h
+--- a/include/rex/graphics/gpu_frame_stats.h
++++ b/include/rex/graphics/gpu_frame_stats.h
+@@ -29,6 +29,14 @@ struct GpuFrameStats {
+   uint64_t shader_loads;
+   uint64_t texture_lookups;
+   uint64_t textures_created;
++  // gpu_cached_indirect_buffers: replays from a translation, translations, replays that found the
++  // dwords changed, buffers executed by parsing because they are not cacheable, and register runs
++  // a replay skipped because they held the current values.
++  uint64_t ib_cache_replays;
++  uint64_t ib_cache_translations;
++  uint64_t ib_cache_changed;
++  uint64_t ib_cache_parsed;
++  uint64_t ib_cache_runs_skipped;
+ };
+ 
+ extern GpuFrameStats g_gpu_frame_stats;
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -102,6 +102,12 @@ REXCVAR_DEFINE_BOOL(gpu_frame_stats, false, "GPU",
+                     "Log every 10 s what the guest command stream asked per frame: draws, "
+                     "resolves, packets, constant registers, shader loads and texture lookups")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DEFINE_BOOL(gpu_cached_indirect_buffers, false, "GPU",
++                    "Decode an indirect buffer executed again with the same dwords once, and replay "
++                    "its register writes, constant loads, shader loads and draws without parsing "
++                    "its packets")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DECLARE(bool, gpu_skip_unchanged_constant_writes);
+ 
+ namespace rex::graphics {
+ 
+@@ -139,6 +145,14 @@ void GpuFrameStatsSwap() {
+       per_frame(stats.memory_fetch_registers), per_frame(stats.memory_bool_loop_registers),
+       per_frame(stats.shader_loads), per_frame(stats.texture_lookups),
+       per_frame(stats.textures_created));
++  if (REXCVAR_GET(gpu_cached_indirect_buffers)) {
++    REXGPU_INFO(
++        "Indirect buffer cache per frame: {:.0f} replays, {:.2f} translations, {:.2f} changed, "
++        "{:.0f} parsed (not cacheable), {:.0f} register runs skipped",
++        per_frame(stats.ib_cache_replays), per_frame(stats.ib_cache_translations),
++        per_frame(stats.ib_cache_changed), per_frame(stats.ib_cache_parsed),
++        per_frame(stats.ib_cache_runs_skipped));
++  }
+   stats = {};
+   start = now;
+ }
+@@ -323,6 +337,507 @@ bool IsBulkWritableRegisterRange(uint32_t first_index, uint32_t count) {
+ 
+ }  // namespace
+ 
++// --- Cached indirect buffers (gpu_cached_indirect_buffers) ---------------------------------------
++//
++// The title replays the same precompiled command buffers (mesh assets, RunCommandBuffer) every
++// frame. An indirect buffer executed a second time with the same address and size is decoded once
++// into the operations its packets perform; later executions compare its dwords with the copy taken
++// then (one memcmp) and replay the operations without parsing. The operations make the parse's
++// calls in the parse's order: register runs still go through WriteRegistersFromMem (a run that
++// already holds its values, where rewriting them changes nothing, is skipped), constants and
++// shaders loaded from memory are still read at replay, and predicated packets test the bin mask at
++// replay. Other type-3 packets (waits, events, memory writes) run their handler from the buffer's
++// dwords, as the parse does. A buffer with a malformed packet is parsed as before, and one whose
++// dwords keep changing (ring segments) is no longer translated.
++struct CommandProcessor::CachedIndirectBuffer {
++  enum class Op : uint8_t {
++    kRegisters,            // a first register, b count, c dword offset of the values, d see skip
++    kWriteEach,            // a first register, b count, c offset in values, d 1: one register
++    kRegistersFromMemory,  // a first register, b count, c guest physical address
++    kShader,               // a shader type, b guest physical address, c dword count
++    kShaderImmediate,      // a shader type, b dword offset of the microcode, c dword count
++    kDraw,                 // a packet header, b draw initiator, c DMA base, d DMA size
++    kIndirectBuffer,       // a address, b dword count
++    kBinMaskLo,            // a value
++    kBinMaskHi,
++    kBinSelectLo,
++    kBinSelectHi,
++    kBinMask,  // a high, b low
++    kBinSelect,
++    kEventInitiator,  // a initiator
++    kVizQuery,        // a dword 0
++    // Any other type-3 packet, executed by its handler from the buffer's dwords as the parse
++    // does: a packet header, b dword offset of the header, c dword count with the header
++    // (predication included).
++    kPacket,
++  };
++  enum class Skip : uint8_t {
++    kNever,
++    // Side-effect-free registers: rewriting the current values changes nothing.
++    kWhenUnchanged,
++    // Float, bool and loop constants: the same, with gpu_skip_unchanged_constant_writes on.
++    kWhenUnchangedConstants,
++  };
++  struct Operation {
++    Op op;
++    bool predicated;
++    Skip skip;  // kRegisters: d is then the offset of the run's host-order values in `values`
++    uint32_t a, b, c, d;
++  };
++  enum class State : uint8_t { kTranslated, kUncacheable };
++  State state = State::kTranslated;
++  mutable bool replaying = false;  // guards a buffer that calls itself
++  uint32_t changes = 0;
++  uint32_t replays = 0;
++  std::vector<uint32_t> words;   // the dwords when translated, guest byte order
++  std::vector<uint32_t> values;  // register values, host byte order
++  std::vector<Operation> operations;
++};
++
++namespace {
++
++// Larger buffers are ring segments; more entries means the ring is filling the table.
++constexpr uint32_t kMaxCachedIndirectBufferDwords = 16384;
++constexpr size_t kMaxCachedIndirectBuffers = size_t(1) << 18;
++
++// Since the last switch of gpu_cached_indirect_buffers, logged at the next switch.
++struct IndirectBufferCacheTotals {
++  uint64_t replays;
++  uint64_t translations;
++  uint64_t changed;
++  uint64_t parsed;
++  uint64_t runs_skipped;
++  uint64_t uncacheable_buffers;
++  // Translated packets left to their handler, by opcode, and malformed packets that made a buffer
++  // not cacheable (128 + packet type).
++  uint32_t uncacheable_by_opcode[132];
++};
++IndirectBufferCacheTotals g_ib_cache_totals{};
++
++void LogIndirectBufferCacheTotals(bool now_enabled, size_t entries) {
++  IndirectBufferCacheTotals& totals = g_ib_cache_totals;
++  if (totals.replays || totals.translations || totals.parsed) {
++    std::string reasons;
++    for (int top = 0; top < 6; ++top) {
++      uint32_t best = 0, best_count = 0;
++      for (uint32_t i = 0; i < rex::countof(totals.uncacheable_by_opcode); ++i) {
++        if (totals.uncacheable_by_opcode[i] > best_count) {
++          best = i;
++          best_count = totals.uncacheable_by_opcode[i];
++        }
++      }
++      if (!best_count) {
++        break;
++      }
++      reasons += fmt::format(" {}{:02X}:{}", best >= 128 ? "type" : "op",
++                             best >= 128 ? best - 128 : best, best_count);
++      totals.uncacheable_by_opcode[best] = 0;
++    }
++    REXGPU_INFO(
++        "Indirect buffer cache, since it was switched on: {} replays, {} translations, {} changed, "
++        "{} executions parsed, {} register runs skipped, {} buffers not cacheable; packets left "
++        "to their handler and malformed ones:{}; {} table entries",
++        totals.replays, totals.translations, totals.changed, totals.parsed, totals.runs_skipped,
++        totals.uncacheable_buffers, reasons, entries);
++  }
++  totals = {};
++  REXGPU_INFO("gpu_cached_indirect_buffers {}", now_enabled ? "on" : "off");
++}
++
++}  // namespace
++
++bool CommandProcessor::ExecuteCachedIndirectBuffer(uint32_t ptr, uint32_t count) {
++  using State = CachedIndirectBuffer::State;
++  const bool enabled = REXCVAR_GET(gpu_cached_indirect_buffers);
++  if (enabled != cached_indirect_buffers_enabled_ && !indirect_buffer_replay_depth_) {
++    cached_indirect_buffers_enabled_ = enabled;
++    LogIndirectBufferCacheTotals(enabled, cached_indirect_buffers_.size());
++    cached_indirect_buffers_.clear();
++  }
++  // The draw trace records each packet's address, which only the parse knows.
++  if (!cached_indirect_buffers_enabled_ || g_draw_trace.file || !count ||
++      count > kMaxCachedIndirectBufferDwords) {
++    return false;
++  }
++  const uint64_t key = (uint64_t(ptr) << 20) | count;
++  auto [it, inserted] = cached_indirect_buffers_.try_emplace(key);
++  if (inserted) {
++    // Seen once: parsed. A null entry only remembers it.
++    if (cached_indirect_buffers_.size() > kMaxCachedIndirectBuffers &&
++        !indirect_buffer_replay_depth_) {
++      cached_indirect_buffers_.clear();
++    }
++    return false;
++  }
++  auto parsed = [&]() {
++    ++g_gpu_frame_stats.ib_cache_parsed;
++    ++g_ib_cache_totals.parsed;
++    return false;
++  };
++  const uint32_t* words = memory_->TranslatePhysical<const uint32_t*>(ptr);
++  if (!it->second) {
++    it->second = std::make_unique<CachedIndirectBuffer>();
++  } else {
++    CachedIndirectBuffer& buffer = *it->second;
++    if (buffer.state == State::kUncacheable || buffer.replaying) {
++      return parsed();
++    }
++    if (!std::memcmp(buffer.words.data(), words, size_t(count) * sizeof(uint32_t))) {
++      ++buffer.replays;
++      ++g_gpu_frame_stats.ib_cache_replays;
++      ++g_ib_cache_totals.replays;
++      ReplayIndirectBuffer(buffer, words);
++      return true;
++    }
++    ++g_gpu_frame_stats.ib_cache_changed;
++    ++g_ib_cache_totals.changed;
++    // Dwords that keep changing under the same address and size are a ring segment, not a
++    // precompiled buffer.
++    if (++buffer.changes >= 4 && buffer.changes * 4 > buffer.replays) {
++      buffer.state = State::kUncacheable;
++      buffer.words = {};
++      buffer.values = {};
++      buffer.operations = {};
++      ++g_ib_cache_totals.uncacheable_buffers;
++      return parsed();
++    }
++  }
++  CachedIndirectBuffer& buffer = *it->second;
++  if (!TranslateIndirectBuffer(buffer, words, count)) {
++    buffer.state = State::kUncacheable;
++    buffer.words = {};
++    buffer.values = {};
++    buffer.operations = {};
++    ++g_ib_cache_totals.uncacheable_buffers;
++    return parsed();
++  }
++  buffer.state = State::kTranslated;
++  ++g_gpu_frame_stats.ib_cache_translations;
++  ++g_ib_cache_totals.translations;
++  ReplayIndirectBuffer(buffer, words);
++  return true;
++}
++
++bool CommandProcessor::TranslateIndirectBuffer(CachedIndirectBuffer& buffer, const uint32_t* words,
++                                               uint32_t count) {
++  using Op = CachedIndirectBuffer::Op;
++  using Skip = CachedIndirectBuffer::Skip;
++  buffer.words.assign(words, words + count);
++  buffer.values.clear();
++  buffer.operations.clear();
++  const uint32_t* source = buffer.words.data();
++  auto read = [source](uint32_t i) { return memory::load_and_swap<uint32_t>(source + i); };
++  auto add = [&buffer](Op op, bool predicated, uint32_t a, uint32_t b = 0, uint32_t c = 0,
++                       uint32_t d = 0, Skip skip = Skip::kNever) {
++    buffer.operations.push_back({op, predicated, skip, a, b, c, d});
++  };
++  auto add_values = [&](uint32_t first, uint32_t n) {
++    uint32_t offset = uint32_t(buffer.values.size());
++    for (uint32_t i = 0; i < n; ++i) {
++      buffer.values.push_back(read(first + i));
++    }
++    return offset;
++  };
++  // A run WriteRegistersFromMem writes from dwords [first, first + n) of the buffer.
++  auto add_run = [&](bool predicated, uint32_t first_register, uint32_t n, uint32_t first) {
++    if (!n) {
++      return;
++    }
++    uint32_t last_register = first_register + n - 1;
++    Skip skip = Skip::kNever;
++    if (IsSideEffectFreeRegisterRange(first_register, last_register)) {
++      skip = Skip::kWhenUnchanged;
++    } else if ((first_register >= XE_GPU_REG_SHADER_CONSTANT_000_X &&
++                last_register <= XE_GPU_REG_SHADER_CONSTANT_511_W) ||
++               (first_register >= XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031 &&
++                last_register <= XE_GPU_REG_SHADER_CONSTANT_LOOP_31)) {
++      skip = Skip::kWhenUnchangedConstants;
++    }
++    add(Op::kRegisters, predicated, first_register, n, first,
++        skip != Skip::kNever ? add_values(first, n) : 0, skip);
++  };
++  auto not_modelled = [](uint32_t reason) {
++    ++g_ib_cache_totals.uncacheable_by_opcode[reason];
++    return false;
++  };
++  // The base register of each SET_CONSTANT / LOAD_ALU_CONSTANT type (ALU, fetch, bool, loop,
++  // registers).
++  constexpr uint32_t kConstantTypeBase[] = {0x4000, 0x4800, 0x4900, 0x4908, 0x2000};
++
++  uint32_t i = 0;
++  while (i < count) {
++    const uint32_t packet = read(i++);
++    if (!packet) {
++      continue;
++    }
++    const uint32_t n = ((packet >> 16) & 0x3FFF) + 1;
++    switch (packet >> 30) {
++      case 0: {
++        if (count - i < n) {
++          return not_modelled(128);
++        }
++        uint32_t base_index = packet & 0x7FFF;
++        uint32_t write_one_reg = (packet >> 15) & 0x1;
++        if (!write_one_reg && IsBulkWritableRegisterRange(base_index, n)) {
++          add_run(false, base_index, n, i);
++        } else {
++          add(Op::kWriteEach, false, base_index, n, add_values(i, n), write_one_reg);
++        }
++        i += n;
++      } break;
++      case 1: {
++        if (count - i < 2) {
++          return not_modelled(129);
++        }
++        add(Op::kWriteEach, false, packet & 0x7FF, 1, add_values(i, 1));
++        add(Op::kWriteEach, false, (packet >> 11) & 0x7FF, 1, add_values(i + 1, 1));
++        i += 2;
++      } break;
++      case 2:
++        break;
++      case 3: {
++        const uint32_t opcode = (packet >> 8) & 0x7F;
++        if (count - i < n) {
++          return not_modelled(131);
++        }
++        const bool predicated = (packet & 1) != 0;
++        const uint32_t d = i;
++        // Also for the modelled opcodes in a form the replay does not reproduce.
++        auto left_to_handler = [&]() {
++          ++g_ib_cache_totals.uncacheable_by_opcode[opcode];
++          add(Op::kPacket, false, packet, d - 1, n + 1);
++        };
++        switch (opcode) {
++          case PM4_NOP:
++          case PM4_INVALIDATE_STATE:
++            break;
++          case PM4_SET_CONSTANT: {
++            uint32_t offset_type = read(d);
++            uint32_t type = (offset_type >> 16) & 0xFF;
++            if (type < rex::countof(kConstantTypeBase)) {
++              add_run(predicated, (offset_type & 0x7FF) + kConstantTypeBase[type], n - 1, d + 1);
++            }
++          } break;
++          case PM4_SET_CONSTANT2:
++          case PM4_SET_SHADER_CONSTANTS:
++            add_run(predicated, read(d) & 0xFFFF, n - 1, d + 1);
++            break;
++          case PM4_LOAD_ALU_CONSTANT: {
++            if (n < 3) {
++              left_to_handler();
++              break;
++            }
++            uint32_t address = read(d) & 0x3FFFFFFF;
++            uint32_t offset_type = read(d + 1);
++            uint32_t size_dwords = read(d + 2) & 0xFFF;
++            uint32_t type = (offset_type >> 16) & 0xFF;
++            if (type < rex::countof(kConstantTypeBase)) {
++              add(Op::kRegistersFromMemory, predicated,
++                  (offset_type & 0x7FF) + kConstantTypeBase[type], size_dwords, address);
++            }
++          } break;
++          case PM4_IM_LOAD: {
++            uint32_t addr_type = read(d);
++            uint32_t shader_type = addr_type & 0x3;
++            if (n < 2 || (shader_type != uint32_t(xenos::ShaderType::kVertex) &&
++                          shader_type != uint32_t(xenos::ShaderType::kPixel))) {
++              left_to_handler();
++              break;
++            }
++            add(Op::kShader, predicated, shader_type, addr_type & ~0x3u, read(d + 1) & 0xFFFF);
++          } break;
++          case PM4_IM_LOAD_IMMEDIATE: {
++            uint32_t shader_type = read(d);
++            uint32_t size_dwords = n >= 2 ? read(d + 1) & 0xFFFF : 0;
++            if (n < 2 || size_dwords > n - 2 ||
++                (shader_type != uint32_t(xenos::ShaderType::kVertex) &&
++                 shader_type != uint32_t(xenos::ShaderType::kPixel))) {
++              left_to_handler();
++              break;
++            }
++            add(Op::kShaderImmediate, predicated, shader_type, d + 2, size_dwords);
++          } break;
++          case PM4_DRAW_INDX:
++          case PM4_DRAW_INDX_2: {
++            // DRAW_INDX starts with a viz query token.
++            uint32_t first = opcode == PM4_DRAW_INDX ? d + 1 : d;
++            uint32_t remaining = n - (first - d);
++            if (!remaining) {
++              left_to_handler();
++              break;
++            }
++            reg::VGT_DRAW_INITIATOR initiator;
++            initiator.value = read(first);
++            uint32_t dma_base = 0, dma_size = 0;
++            if (initiator.source_select == xenos::SourceSelect::kDMA) {
++              if (remaining < 3) {
++                left_to_handler();
++                break;
++              }
++              dma_base = read(first + 1);
++              dma_size = read(first + 2);
++            }
++            add(Op::kDraw, predicated, packet, initiator.value, dma_base, dma_size);
++          } break;
++          case PM4_INDIRECT_BUFFER:
++          case PM4_INDIRECT_BUFFER_PFD: {
++            if (n < 2) {
++              left_to_handler();
++              break;
++            }
++            add(Op::kIndirectBuffer, predicated, GpuToCpu(CpuToGpu(read(d))),
++                read(d + 1) & 0xFFFFF);
++          } break;
++          case PM4_SET_BIN_MASK_LO:
++            add(Op::kBinMaskLo, predicated, read(d));
++            break;
++          case PM4_SET_BIN_MASK_HI:
++            add(Op::kBinMaskHi, predicated, read(d));
++            break;
++          case PM4_SET_BIN_SELECT_LO:
++            add(Op::kBinSelectLo, predicated, read(d));
++            break;
++          case PM4_SET_BIN_SELECT_HI:
++            add(Op::kBinSelectHi, predicated, read(d));
++            break;
++          case PM4_SET_BIN_MASK:
++          case PM4_SET_BIN_SELECT:
++            if (n < 2) {
++              left_to_handler();
++              break;
++            }
++            add(opcode == PM4_SET_BIN_MASK ? Op::kBinMask : Op::kBinSelect, predicated, read(d),
++                read(d + 1));
++            break;
++          case PM4_EVENT_WRITE:
++            if (n != 1) {
++              left_to_handler();
++              break;
++            }
++            add(Op::kEventInitiator, predicated, read(d) & 0x3F);
++            break;
++          case PM4_VIZ_QUERY:
++            add(Op::kVizQuery, predicated, read(d));
++            break;
++          default:
++            // Waits, events, memory writes, interrupts, swaps and anything unknown.
++            left_to_handler();
++            break;
++        }
++        i += n;
++      } break;
++    }
++  }
++  return true;
++}
++
++void CommandProcessor::ReplayIndirectBuffer(const CachedIndirectBuffer& buffer,
++                                            const uint32_t* words) {
++  using Op = CachedIndirectBuffer::Op;
++  using Skip = CachedIndirectBuffer::Skip;
++  const bool skip_unchanged_constants = REXCVAR_GET(gpu_skip_unchanged_constant_writes);
++  buffer.replaying = true;
++  ++indirect_buffer_replay_depth_;
++  for (const CachedIndirectBuffer::Operation& operation : buffer.operations) {
++    if (operation.predicated && !(bin_select_ & bin_mask_)) {
++      continue;
++    }
++    switch (operation.op) {
++      case Op::kRegisters:
++        if (operation.skip != Skip::kNever &&
++            (operation.skip == Skip::kWhenUnchanged || skip_unchanged_constants) &&
++            !std::memcmp(register_file_->values + operation.a, buffer.values.data() + operation.d,
++                         size_t(operation.b) * sizeof(uint32_t))) {
++          ++g_gpu_frame_stats.ib_cache_runs_skipped;
++          ++g_ib_cache_totals.runs_skipped;
++          break;
++        }
++        WriteRegistersFromMem(operation.a, const_cast<uint32_t*>(words + operation.c), operation.b);
++        break;
++      case Op::kWriteEach:
++        for (uint32_t i = 0; i < operation.b; ++i) {
++          WriteRegister(operation.d ? operation.a : operation.a + i,
++                        buffer.values[operation.c + i]);
++        }
++        break;
++      case Op::kRegistersFromMemory:
++        WriteRegistersFromMem(operation.a, memory_->TranslatePhysical<uint32_t*>(operation.c),
++                              operation.b);
++        break;
++      case Op::kShader:
++      case Op::kShaderImmediate: {
++        auto shader_type = static_cast<xenos::ShaderType>(operation.a);
++        Shader* shader;
++        if (operation.op == Op::kShader) {
++          ++g_gpu_frame_stats.shader_loads;
++          shader = LoadShader(shader_type, operation.b,
++                              memory_->TranslatePhysical<uint32_t*>(operation.b), operation.c);
++        } else {
++          const uint32_t* microcode = words + operation.b;
++          shader = LoadShader(shader_type, uint32_t(uintptr_t(microcode)), microcode, operation.c);
++        }
++        if (shader_type == xenos::ShaderType::kVertex) {
++          active_vertex_shader_ = shader;
++        } else {
++          active_pixel_shader_ = shader;
++        }
++      } break;
++      case Op::kDraw:
++        ExecuteDraw(operation.a,
++                    ((operation.a >> 8) & 0x7F) == PM4_DRAW_INDX ? "PM4_DRAW_INDX"
++                                                                 : "PM4_DRAW_INDX_2",
++                    operation.b, operation.c, operation.d);
++        break;
++      case Op::kIndirectBuffer:
++        ExecuteIndirectBuffer(operation.a, operation.b);
++        break;
++      case Op::kBinMaskLo:
++        bin_mask_ = (bin_mask_ & 0xFFFFFFFF00000000ull) | operation.a;
++        break;
++      case Op::kBinMaskHi:
++        bin_mask_ = (bin_mask_ & 0xFFFFFFFFull) | (uint64_t(operation.a) << 32);
++        break;
++      case Op::kBinSelectLo:
++        bin_select_ = (bin_select_ & 0xFFFFFFFF00000000ull) | operation.a;
++        break;
++      case Op::kBinSelectHi:
++        bin_select_ = (bin_select_ & 0xFFFFFFFFull) | (uint64_t(operation.a) << 32);
++        break;
++      case Op::kBinMask:
++        bin_mask_ = (uint64_t(operation.a) << 32) | operation.b;
++        break;
++      case Op::kBinSelect:
++        bin_select_ = (uint64_t(operation.a) << 32) | operation.b;
++        break;
++      case Op::kEventInitiator:
++        WriteRegister(XE_GPU_REG_VGT_EVENT_INITIATOR, operation.a);
++        break;
++      case Op::kVizQuery:
++        ExecuteVizQuery(operation.a);
++        break;
++      case Op::kPacket: {
++        // Like the parse's reader: past the header, the write offset wrapped to 0 (a reader
++        // at its start would read as empty).
++        const size_t size_bytes = size_t(operation.c) * sizeof(uint32_t);
++        memory::RingBuffer reader(
++            reinterpret_cast<uint8_t*>(const_cast<uint32_t*>(words + operation.b)), size_bytes);
++        reader.set_write_offset(size_bytes);
++        reader.set_read_offset(sizeof(uint32_t));
++        if (!ExecutePacketType3(&reader, operation.a)) {
++          // The parse stops the buffer there.
++          REXGPU_ERROR("**** INDIRECT RINGBUFFER: Failed to execute packet.");
++          assert_always();
++          --indirect_buffer_replay_depth_;
++          buffer.replaying = false;
++          return;
++        }
++      } break;
++    }
++  }
++  --indirect_buffer_replay_depth_;
++  buffer.replaying = false;
++}
++
+ CommandProcessor::CommandProcessor(GraphicsSystem* graphics_system,
+                                    system::KernelState* kernel_state)
+     : memory_(graphics_system->memory()),
+@@ -878,6 +1393,9 @@ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index, uint32_t wr
+ void CommandProcessor::ExecuteIndirectBuffer(uint32_t ptr, uint32_t count) {
+   SCOPE_profile_cpu_f("gpu");
+   ++g_gpu_frame_stats.indirect_buffers;
++  if (ExecuteCachedIndirectBuffer(ptr, count)) {
++    return;
++  }
+ 
+   // Execute commands!
+   memory::RingBuffer reader(memory_->TranslatePhysical(ptr), count * sizeof(uint32_t));
+@@ -1567,6 +2085,42 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader, uint32
+   reg::VGT_DRAW_INITIATOR vgt_draw_initiator;
+   vgt_draw_initiator.value = reader->ReadAndSwap<uint32_t>();
+   --count_remaining;
++  uint32_t vgt_dma_base = 0, vgt_dma_size = 0;
++  if (vgt_draw_initiator.source_select == xenos::SourceSelect::kDMA) {
++    // Two separate bounds checks so if there's only one missing register
++    // value out of two, one uint32_t will be skipped in the command buffer,
++    // not two.
++    assert_not_zero(count_remaining);
++    if (!count_remaining) {
++      WriteRegister(XE_GPU_REG_VGT_DRAW_INITIATOR, vgt_draw_initiator.value);
++      REXGPU_ERROR("{}: Packet too small, can't read VGT_DMA_BASE", opcode_name);
++      return false;
++    }
++    vgt_dma_base = reader->ReadAndSwap<uint32_t>();
++    --count_remaining;
++    assert_not_zero(count_remaining);
++    if (!count_remaining) {
++      WriteRegister(XE_GPU_REG_VGT_DRAW_INITIATOR, vgt_draw_initiator.value);
++      WriteRegister(XE_GPU_REG_VGT_DMA_BASE, vgt_dma_base);
++      REXGPU_ERROR("{}: Packet too small, can't read VGT_DMA_SIZE", opcode_name);
++      return false;
++    }
++    vgt_dma_size = reader->ReadAndSwap<uint32_t>();
++    --count_remaining;
++  }
++
++  // Skip to the next command, for example, if there are immediate indexes that
++  // we don't support yet.
++  reader->AdvanceRead(count_remaining * sizeof(uint32_t));
++
++  return ExecuteDraw(packet, opcode_name, vgt_draw_initiator.value, vgt_dma_base, vgt_dma_size);
++}
++
++bool CommandProcessor::ExecuteDraw(uint32_t packet, const char* opcode_name,
++                                   uint32_t draw_initiator, uint32_t vgt_dma_base,
++                                   uint32_t vgt_dma_value) {
++  reg::VGT_DRAW_INITIATOR vgt_draw_initiator;
++  vgt_draw_initiator.value = draw_initiator;
+   WriteRegister(XE_GPU_REG_VGT_DRAW_INITIATOR, vgt_draw_initiator.value);
+ 
+   bool draw_succeeded = true;
+@@ -1578,28 +2132,10 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader, uint32
+     case xenos::SourceSelect::kDMA: {
+       // Indexed draw.
+       is_indexed = true;
+-
+-      // Two separate bounds checks so if there's only one missing register
+-      // value out of two, one uint32_t will be skipped in the command buffer,
+-      // not two.
+-      assert_not_zero(count_remaining);
+-      if (!count_remaining) {
+-        REXGPU_ERROR("{}: Packet too small, can't read VGT_DMA_BASE", opcode_name);
+-        return false;
+-      }
+-      uint32_t vgt_dma_base = reader->ReadAndSwap<uint32_t>();
+-      --count_remaining;
+       WriteRegister(XE_GPU_REG_VGT_DMA_BASE, vgt_dma_base);
+       reg::VGT_DMA_SIZE vgt_dma_size;
+-      assert_not_zero(count_remaining);
+-      if (!count_remaining) {
+-        REXGPU_ERROR("{}: Packet too small, can't read VGT_DMA_SIZE", opcode_name);
+-        return false;
+-      }
+-      vgt_dma_size.value = reader->ReadAndSwap<uint32_t>();
+-      --count_remaining;
++      vgt_dma_size.value = vgt_dma_value;
+       WriteRegister(XE_GPU_REG_VGT_DMA_SIZE, vgt_dma_size.value);
+-
+       uint32_t index_size_bytes = vgt_draw_initiator.index_size == xenos::IndexFormat::kInt16
+                                       ? sizeof(uint16_t)
+                                       : sizeof(uint32_t);
+@@ -1632,10 +2168,6 @@ bool CommandProcessor::ExecutePacketType3Draw(memory::RingBuffer* reader, uint32
+     } break;
+   }
+ 
+-  // Skip to the next command, for example, if there are immediate indexes that
+-  // we don't support yet.
+-  reader->AdvanceRead(count_remaining * sizeof(uint32_t));
+-
+   if (draw_succeeded) {
+     auto viz_query = register_file_->Get<reg::PA_SC_VIZ_QUERY>();
+     DrawTraceDraw(packet, vgt_draw_initiator.value, is_indexed ? &index_buffer_info : nullptr,
+@@ -1869,8 +2401,11 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(memory::RingBuffer* reader,
+   // https://www.google.com/patents/US20050195186
+   assert_true(count == 1);
+ 
+-  uint32_t dword0 = reader->ReadAndSwap<uint32_t>();
++  ExecuteVizQuery(reader->ReadAndSwap<uint32_t>());
++  return true;
++}
+ 
++void CommandProcessor::ExecuteVizQuery(uint32_t dword0) {
+   uint32_t id = dword0 & 0x3F;
+   uint32_t end = dword0 & 0x100;
+   if (!end) {
+@@ -1891,8 +2426,6 @@ bool CommandProcessor::ExecutePacketType3_VIZ_QUERY(memory::RingBuffer* reader,
+       register_file_->values[XE_GPU_REG_PA_SC_VIZ_QUERY_STATUS_1] |= uint32_t(1) << (id - 32);
+     }
+   }
+-
+-  return true;
+ }
+ 
+ }  // namespace rex::graphics
