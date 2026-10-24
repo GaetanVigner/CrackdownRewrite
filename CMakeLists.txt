@@ -219,6 +219,7 @@ set(CRACKDOWN_SOURCES
     src/guest_image.cpp
     src/hang_watchdog.cpp
     src/hle_capture.cpp
+    src/hle_records.cpp
     src/single_tile_scene.cpp
     src/launcher.cpp
     src/launcher_achievements.cpp

@@ -26,6 +26,7 @@
 #include "guest_memory.h"
 #include "guest_hooks.h"
 #include "hang_watchdog.h"
+#include "hle_records.h"
 #include "platform.h"
 #include "single_tile_scene.h"
 
@@ -87,8 +88,14 @@ struct Capture {
   uint32_t cursor_segment_end = 0;
   uint32_t gap_dwords = 0;
   uint32_t gap_draws = 0;
+  // With crackdown_hle_records on: logs/hle_rec_<n>.bin, the same draws with the state rebuilt from their H1a draw
+  // record (hle_records.h) instead of the walk, for tools/hle-trace-compare.ps1 against the GPU side.
+  std::FILE* records_file = nullptr;
 };
 Capture g_capture;
+
+// The draw record of the hooked call being walked (nullptr outside one, or with records off).
+const DrawRecord* g_pending_record = nullptr;
 
 // Where the draw being recorded comes from, written in the record's (GPU-side) visibility-query field: the
 // comparison reports each source apart. Set by the hooks, under the capture mutex.
@@ -254,23 +261,32 @@ void RecordDraw(uint8_t* base, uint32_t device, const RegisterImage& image, uint
     ++capture.gap_draws;
     return;
   }
-  std::FILE* file = capture.file;
   const uint32_t mode = image.values[0x208] & 7;  // RB_MODECONTROL (0x2208) edram_mode
-  WriteU32(file, mode == 6 ? 2 : 1);
-  WriteU32(file, capture.frame);
-  WriteU32(file, capture.sequence++);
-  WriteU32(file, packet_physical);
-  WriteU32(file, initiator);
-  WriteU32(file, index_base);
-  WriteU32(file, 0);  // index count (not compared)
-  WriteU32(file, 0);  // index format (not compared)
-  WriteU32(file, header & 1);
-  WriteU32(file, Load32(base, device + kBinMaskLow));
-  WriteU32(file, 0);
-  WriteU32(file, uint32_t(g_source));  // the GPU side's visibility-query kill field
-  WriteShader(file, image.vs);
-  WriteShader(file, image.ps);
-  std::fwrite(image.values.data(), sizeof(uint32_t), image.values.size(), file);
+  const uint32_t sequence = capture.sequence++;
+  auto write = [&](std::FILE* file, const uint32_t* values) {
+    WriteU32(file, mode == 6 ? 2 : 1);
+    WriteU32(file, capture.frame);
+    WriteU32(file, sequence);
+    WriteU32(file, packet_physical);
+    WriteU32(file, initiator);
+    WriteU32(file, index_base);
+    WriteU32(file, 0);  // index count (not compared)
+    WriteU32(file, 0);  // index format (not compared)
+    WriteU32(file, header & 1);
+    WriteU32(file, Load32(base, device + kBinMaskLow));
+    WriteU32(file, 0);
+    WriteU32(file, uint32_t(g_source));  // the GPU side's visibility-query kill field
+    WriteShader(file, image.vs);
+    WriteShader(file, image.ps);
+    std::fwrite(values, sizeof(uint32_t), image.values.size(), file);
+  };
+  write(capture.file, image.values.data());
+  // Command buffer draws run with state their buffer writes, which a record keeps as the buffer, not as registers.
+  if (capture.records_file && g_pending_record && g_source != Source::kCommandBuffer) {
+    std::vector<uint32_t> rebuilt(image.values);
+    HleExpandRecord(*g_pending_record, rebuilt.data());
+    write(capture.records_file, rebuilt.data());
+  }
   ++capture.draws;
 }
 
@@ -449,10 +465,22 @@ void RecordCommandBuffer(uint8_t* base, uint32_t device, uint32_t command_buffer
   }
 }
 
+// Runs a hooked call (r3 = device, arguments r4-r7) and returns its H1a draw record (nullptr with records off): the
+// dirty masks are read before the call flushes them, the state after.
 template <typename Original>
-void CaptureDraw(PPCContext& ctx, uint8_t* base, bool begin_variant, Original original, Source source = Source::kDraw) {
+const DrawRecord* CallWithRecord(PPCContext& ctx, uint8_t* base, RecordKind kind, Original original) {
+  const uint32_t device = ctx.r3.u32;
+  const uint32_t args[4] = {ctx.r4.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32};
+  const HleRecordMasks masks = HleReadRecordMasks(base, device);
+  original();
+  return HleRecordCall(base, device, kind, args, masks);
+}
+
+template <typename Original>
+void CaptureDraw(PPCContext& ctx, uint8_t* base, bool begin_variant, Original original, RecordKind kind,
+                 Source source = Source::kDraw) {
   if (!g_recording.load(std::memory_order_relaxed)) {
-    original();
+    CallWithRecord(ctx, base, kind, original);
     return;
   }
   const uint32_t device = ctx.r3.u32;
@@ -462,14 +490,16 @@ void CaptureDraw(PPCContext& ctx, uint8_t* base, bool begin_variant, Original or
     std::lock_guard lock(g_capture.mutex);
     if (g_capture.file) WalkGap(base, device, pre, segment_end);
   }
-  original();
+  const DrawRecord* record = CallWithRecord(ctx, base, kind, original);
   std::lock_guard lock(g_capture.mutex);
   if (!g_capture.file) {
     return;
   }
   const uint32_t post = Load32(base, device + (begin_variant ? kBeginWritePointer : kWritePointer));
   g_source = source;
+  g_pending_record = record;
   RecordCall(base, device, pre, post, Load32(base, device + kSegmentEnd) == segment_end);
+  g_pending_record = nullptr;
   g_source = Source::kDraw;
   AdvanceCursor(base, device, begin_variant ? 0 : post);
 }
@@ -499,6 +529,7 @@ bool StartHleCapture() {
 }
 
 void HleCaptureFrame() {
+  HleRecordsFrame();
   Capture& capture = g_capture;
   if (g_recording.load(std::memory_order_relaxed)) {
     std::lock_guard lock(capture.mutex);
@@ -511,6 +542,10 @@ void HleCaptureFrame() {
       g_recording = false;
       std::fclose(capture.file);
       capture.file = nullptr;
+      if (capture.records_file) {
+        std::fclose(capture.records_file);
+        capture.records_file = nullptr;
+      }
       REXLOG_WARN("[HLE] game side: {} draws in {} frames ({} calls without a parsed packet; {} dwords and {} draws "
                   "between hooked calls) written to {}",
                   capture.draws, capture.frame, capture.unparsed_calls, capture.gap_dwords, capture.gap_draws,
@@ -540,13 +575,25 @@ void HleCaptureFrame() {
     REXLOG_ERROR("[HLE] cannot open {}", capture.path.string());
     return;
   }
-  std::setvbuf(capture.file, nullptr, _IOFBF, 1 << 20);
-  std::fwrite("GDTR", 4, 1, capture.file);
-  WriteU32(capture.file, kTraceVersion);
-  WriteU32(capture.file, uint32_t(std::size(kBlocks)));
-  for (const Block& block : kBlocks) {
-    WriteU32(capture.file, block.first);
-    WriteU32(capture.file, block.count);
+  auto write_header = [](std::FILE* file) {
+    std::setvbuf(file, nullptr, _IOFBF, 1 << 20);
+    std::fwrite("GDTR", 4, 1, file);
+    WriteU32(file, kTraceVersion);
+    WriteU32(file, uint32_t(std::size(kBlocks)));
+    for (const Block& block : kBlocks) {
+      WriteU32(file, block.first);
+      WriteU32(file, block.count);
+    }
+  };
+  write_header(capture.file);
+  if (HleRecordsEnabled()) {
+    const std::filesystem::path records_path = folder / ("hle_rec_" + std::to_string(index) + ".bin");
+#if defined(_WIN32)
+    if (_wfopen_s(&capture.records_file, records_path.c_str(), L"wb") != 0) capture.records_file = nullptr;
+#else
+    capture.records_file = std::fopen(records_path.c_str(), "wb");
+#endif
+    if (capture.records_file) write_header(capture.records_file);
   }
   const int gpu_frames = std::max(1, REXCVAR_GET(crackdown_hle_capture_frames));
   // The game submits ahead of the GPU: record two more frames on this side so every GPU frame has its draws.
@@ -573,12 +620,12 @@ void HleCaptureFrame() {
 // BeginIndexedVertices.
 void crackdown::hooks::D3dDrawIndexedVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); });
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::RecordKind::kDrawIndexed);
 }
 
 void crackdown::hooks::D3dDrawVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); });
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::RecordKind::kDraw);
 }
 
 void crackdown::hooks::D3dBeginVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
@@ -587,12 +634,12 @@ void crackdown::hooks::D3dBeginVertices(PPCContext& ctx, uint8_t* base, GuestFun
     ctx.r3.u64 = 0;
     return;
   }
-  crackdown::CaptureDraw(ctx, base, true, [&] { original(ctx, base); });
+  crackdown::CaptureDraw(ctx, base, true, [&] { original(ctx, base); }, crackdown::RecordKind::kBeginVertices);
 }
 
 void crackdown::hooks::D3dBeginIndexedVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, true, [&] { original(ctx, base); });
+  crackdown::CaptureDraw(ctx, base, true, [&] { original(ctx, base); }, crackdown::RecordKind::kBeginIndexedVertices);
 }
 
 // D3D calls that draw with their own state written straight into the ring (the walk applies it): the clear
@@ -600,16 +647,19 @@ void crackdown::hooks::D3dBeginIndexedVertices(PPCContext& ctx, uint8_t* base, G
 // INDIRECT_BUFFERs into the device's static block: setup, SQ_GPR_MANAGEMENT, 24 invisible points).
 void crackdown::hooks::D3dClear(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::Source::kClear);
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::RecordKind::kClear,
+                         crackdown::Source::kClear);
 }
 
 void crackdown::hooks::D3dResolve(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::Source::kResolve);
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::RecordKind::kResolve,
+                         crackdown::Source::kResolve);
 }
 
 void crackdown::hooks::D3dSetShaderGprAllocation(PPCContext& ctx, uint8_t* base, GuestFunction original) {
-  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::Source::kGprFlush);
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::RecordKind::kGprFlush,
+                         crackdown::Source::kGprFlush);
 }
 
 // RunCommandBuffer(r3 = device, r4 = command buffer, r5 = predicate select).
@@ -618,7 +668,7 @@ void crackdown::hooks::D3dRunCommandBuffer(PPCContext& ctx, uint8_t* base, Guest
   const uint32_t pre = crackdown::guest::Load32(base, device + crackdown::kWritePointer);
   const uint32_t segment_end = crackdown::guest::Load32(base, device + crackdown::kSegmentEnd);
   if (!crackdown::g_recording.load(std::memory_order_relaxed)) {
-    original(ctx, base);
+    crackdown::CallWithRecord(ctx, base, crackdown::RecordKind::kCommandBuffer, [&] { original(ctx, base); });
     crackdown::SingleTileCommandBuffer(base, device, pre, segment_end);
     return;
   }
@@ -627,7 +677,7 @@ void crackdown::hooks::D3dRunCommandBuffer(PPCContext& ctx, uint8_t* base, Guest
     std::lock_guard lock(crackdown::g_capture.mutex);
     if (crackdown::g_capture.file) crackdown::WalkGap(base, device, pre, segment_end);
   }
-  original(ctx, base);
+  crackdown::CallWithRecord(ctx, base, crackdown::RecordKind::kCommandBuffer, [&] { original(ctx, base); });
   crackdown::SingleTileCommandBuffer(base, device, pre, segment_end);
   std::lock_guard lock(crackdown::g_capture.mutex);
   if (crackdown::g_capture.file) {
