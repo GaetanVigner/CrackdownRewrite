@@ -138,7 +138,10 @@ they became full NPCs near the player. `src/crowd_step_fixes.cpp` scales the wal
 in the steering update and at spawn, the 0.05 displacement blend per update, and the 30 updates a second that turn
 the step into a velocity at the hand-off to a full NPC. The far traffic (crowd cars) gets the same treatment: their distance and heading blend per update, and
 the per-update distance that counts the updates to the next road node. A twin of the ragdoll threshold window (`0x822B9EFC`) keeps
-its 30 FPS length like the one at `0x822BA48C`.
+its 30 FPS length like the one at `0x822BA48C`. Two props use the same per-update step: the Agency garage door adds
+1/30 to its seconds timer every update (`0x8252EDE8`), and above 30 FPS its 5 s window for the player to reach the
+picked vehicle ran out while the door was still opening, so it closed again; the lift light fades by 2/30 per update
+(`0x8253130C`). Both now advance by their step per original 1/30 s update.
 
 The title's frame timer (`sub_823263D8`, hooked in `src/frame_pacing.cpp`) keeps the fixed step's minimum frame, so with
 the fixed step off it published 0 ms at `0x82D99128` on almost every other 60 FPS frame; a camera mode change on such a

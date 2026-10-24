@@ -175,3 +175,5 @@ site-base,crackdown_crowd_blend,82333580,,,,,,base only: added after v0.6.1 mapp
 site-base,crackdown_crowd_step,823335A0,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet
 site-base,crackdown_crowd_step,8234417C,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet
 site-base,crackdown_ragdoll_tick_window,822B9EFC,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet
+site-base,crackdown_crowd_step,8252EDE8,,,,,,base only: garage door timer step; no Title Update 6 target yet
+site-base,crackdown_crowd_step,8253130C,,,,,,base only: lift light fade step; no Title Update 6 target yet

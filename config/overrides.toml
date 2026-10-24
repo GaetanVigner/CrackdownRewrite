@@ -362,3 +362,21 @@ address = 0x822B9EFC
 name = "crackdown_ragdoll_tick_window"
 registers = ["r11"]
 after_instruction = true
+
+# cAgencyGarageDoor's update (sub_8252EDA0, vtable slot 22) adds 1/30 to its seconds timer (+2404) once per update: the
+# door keeps opening for the vehicle the player picked for 5 s before the player is within 7 m, so above 30 FPS it
+# closed while still opening (0.6 s at 240 FPS). The added step (f0, after the `lfs` of 1/30) becomes 1/30 per
+# original step.
+[[midasm_hook]]
+address = 0x8252EDE8
+name = "crackdown_crowd_step"
+registers = ["f0"]
+after_instruction = true
+
+# cLift's light (sub_82531228, from the cLift update sub_82531880) fades its colour toward 0 or 1 by 2/30 per update
+# (f13, after the `lfs`); it becomes 2/30 per original step.
+[[midasm_hook]]
+address = 0x8253130C
+name = "crackdown_crowd_step"
+registers = ["f13"]
+after_instruction = true
