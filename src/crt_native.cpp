@@ -7,6 +7,8 @@
 #include <rex/hook.h>
 #include <rex/system/xmemory.h>
 
+#include "guest_hooks.h"
+
 namespace {
 
 // A forward copy equals memmove unless the destination starts inside the source, where it repeats
@@ -26,13 +28,12 @@ bool IsNativeRange(uint32_t address, uint32_t size) {
 }  // namespace
 
 // memcpy: r3 destination, r4 source, r5 size; returns the destination, which it also leaves at r1 - 8.
-REX_EXTERN(__imp__sub_82ABDF90);
-REX_HOOK_RAW(sub_82ABDF90) {
+void crackdown::hooks::CrtMemcpy(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t dest = ctx.r3.u32;
   const uint32_t source = ctx.r4.u32;
   const uint32_t size = ctx.r5.u32;
   if (!IsPlainForwardCopy(dest, source, size) || !IsNativeRange(dest, size) || !IsNativeRange(source, size)) {
-    __imp__sub_82ABDF90(ctx, base);
+    original(ctx, base);
     return;
   }
   const uint64_t saved = std::byteswap(ctx.r3.u64);
@@ -42,8 +43,7 @@ REX_HOOK_RAW(sub_82ABDF90) {
 
 // memmove: r3 destination, r4 source, r5 size; returns the destination. Below the source (signed compare) it tail-calls
 // memcpy, which leaves the destination at r1 - 8; otherwise it copies backward.
-REX_EXTERN(__imp__sub_82AB5F10);
-REX_HOOK_RAW(sub_82AB5F10) {
+void crackdown::hooks::CrtMemmove(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t dest = ctx.r3.u32;
   const uint32_t source = ctx.r4.u32;
   const uint32_t size = ctx.r5.u32;
@@ -51,7 +51,7 @@ REX_HOOK_RAW(sub_82AB5F10) {
     return;
   }
   if (!IsNativeRange(dest, size) || !IsNativeRange(source, size)) {
-    __imp__sub_82AB5F10(ctx, base);
+    original(ctx, base);
     return;
   }
   if (ctx.r3.s32 < ctx.r4.s32) {
@@ -62,12 +62,11 @@ REX_HOOK_RAW(sub_82AB5F10) {
 }
 
 // memset: r3 destination, r4 fill byte, r5 size; returns the destination.
-REX_EXTERN(__imp__sub_82ABDE40);
-REX_HOOK_RAW(sub_82ABDE40) {
+void crackdown::hooks::CrtMemset(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t dest = ctx.r3.u32;
   const uint32_t size = ctx.r5.u32;
   if (!IsNativeRange(dest, size)) {
-    __imp__sub_82ABDE40(ctx, base);
+    original(ctx, base);
     return;
   }
   std::memset(rex::memory::GuestPtr<uint8_t*>(base, dest), int(ctx.r4.u32 & 0xFF), size);

@@ -1,0 +1,1 @@
+crackdown_add_test(vehicle_action_step_tests SOURCES vehicle_action_step_tests.cpp)

@@ -1,26 +1,44 @@
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 
-namespace crackdown::nan_guard {
+#include "guest_layout.h"
 
-// The camera update writes through the target matrix and the follow state up to +7140.
-inline constexpr uint32_t kCameraBytes = 7152;
+namespace crackdown::nan_guard {
 
 struct CameraField {
   uint32_t offset;
   const char* name;
 };
 
-inline constexpr CameraField kCameraFields[] = {{272, "basis x"},        {288, "basis y"},
-                                                {304, "basis z"},        {320, "position"},
-                                                {6336, "velocity"},      {6352, "target"},
-                                                {6368, "previous target"}, {6384, "listener point"}};
+inline constexpr std::size_t kCameraFieldCount = 8;
 
-inline constexpr std::size_t kCameraFieldCount = sizeof(kCameraFields) / sizeof(kCameraFields[0]);
-static_assert(kCameraFields[kCameraFieldCount - 1].offset + 12 <= kCameraBytes);
+// The basis and position sit at the start of the camera in every guest; the follow state after them moves.
+constexpr std::array<CameraField, kCameraFieldCount> CameraFields(const GuestLayout& layout) {
+  return {{{272, "basis x"},
+           {288, "basis y"},
+           {304, "basis z"},
+           {320, "position"},
+           {layout.camera_velocity, "velocity"},
+           {layout.camera_target, "target"},
+           {layout.camera_previous_target, "previous target"},
+           {layout.camera_listener_point, "listener point"}}};
+}
+
+// The camera update writes through the target matrix and the follow state; the layout's size covers them.
+inline constexpr uint32_t kMaxCameraBytes = std::max(kLayoutBase.camera_bytes, kLayoutTitleUpdate6.camera_bytes);
+
+constexpr bool CameraFieldsFit(const GuestLayout& layout) {
+  const auto fields = CameraFields(layout);
+  return fields.back().offset + 12 <= layout.camera_bytes && layout.camera_bytes <= kMaxCameraBytes;
+}
+
+static_assert(CameraFieldsFit(kLayoutBase));
+static_assert(CameraFieldsFit(kLayoutTitleUpdate6));
 
 inline bool XyzFinite(const float* xyz) {
   return std::isfinite(xyz[0]) && std::isfinite(xyz[1]) && std::isfinite(xyz[2]);

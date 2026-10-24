@@ -2,6 +2,7 @@
 
 #include <filesystem>
 #include <functional>
+#include <string>
 
 #include "user_data.h"
 
@@ -30,6 +31,7 @@ struct LauncherPaths {
   std::filesystem::path settings_file;
   std::filesystem::path logs_dir;
   UserDataOutcome user_data_outcome = UserDataOutcome::kPortable;
+  std::string save_error;  // why the saves could not be switched to the selected game version; empty when they could
 };
 
 // Empty when the launcher opens before the runtime exists, which is only when the game files are not installed.
@@ -55,8 +57,8 @@ void LoadLauncherFonts(ImFontAtlas* atlas, float density);
 // Re-rasterizes the launcher fonts in place when the window moves to a display with another scale.
 void UpdateLauncherFonts(rex::ui::ImGuiDrawer* drawer, rex::ui::ImmediateDrawer* immediate_drawer, float density);
 
-// Game files that are not ready always show the launcher: it is the only way to install them, so neither the
-// player's "off" choice nor the relaunch flag can hide it.
+// Game files that are not ready, or DLC that the build to run cannot use, always show the launcher: it is the only
+// way to fix them, so neither the player's "off" choice nor the relaunch flag can hide it.
 inline bool LauncherWanted(bool game_ready, bool skip_once, bool shift_held, bool enabled) {
   if (!game_ready) {
     return true;
@@ -66,7 +68,7 @@ inline bool LauncherWanted(bool game_ready, bool skip_once, bool shift_held, boo
 
 // Shown when the game files are not ready, when Shift is held, or unless the player turned it off. Not shown on the
 // relaunch that follows a window change.
-bool ShouldShowLauncher(const std::filesystem::path& game_dir);
+bool ShouldShowLauncher(const std::filesystem::path& game_dir, bool content_ready = true);
 
 // Linux: SDL sees Shift only once the window has focus, so it is checked again then. Always false on Windows, where
 // ShouldShowLauncher already saw it.

@@ -25,7 +25,7 @@ Crackdown Recompiled is a native PC recompilation of Crackdown for Xbox 360, wit
 - **Native Aspect Ratio**: 16:9 Original, 16:10, **21:9 Ultrawide**, **32:9 Super Ultrawide**, 4:3 and 5:4. The game renders in the chosen format, so wider formats show more of the scene to the sides. Menus and videos made for 16:9 are not redesigned for every format.
 - **Presentation**: Letterbox keeps the picture's proportions in a window of another shape; Stretch fills the window.
 - **Windowed or Borderless Fullscreen**, with **F11** to switch while playing, and monitor selection.
-- **Graphics card selection** (Windows): Automatic (recommended) or a specific compatible GPU.
+- **Graphics card selection** (Windows): choose which compatible GPU renders the game.
 
 ### Graphics fixes
 - **Modern button prompts**: the HUD's old Xbox 360 button glyphs are replaced by sharp modern ones, and the HUD text is
@@ -45,7 +45,7 @@ Crackdown Recompiled is a native PC recompilation of Crackdown for Xbox 360, wit
 
 ### Quality of Life
 - **Offline achievements** with the original icons and Gamerscore: an **Achievements** page in the launcher and an in-game overlay on **F7**, usable with keyboard or controller.
-- **Cheats**: 7 optional cheats set on the launcher's **Cheats** page, and changed for the session with the in-game menu on **F10**.
+- **Cheats**: 9 optional cheats set on the launcher's **Cheats** page, and changed for the session with the in-game menu on **F10**, including markers for the agility and hidden orbs you have not collected yet on the minimap and the pause menu's map.
 - **Save-load fix**: the crash that could happen after Loading Saved Game is fixed.
 - **High frame rate fixes**: above 30 FPS, no more launches on slopes or off ledges, no speed build-up running down
   stairs and slopes, fewer characters stuck in walls, rockets and grenade rounds explode on impact again, and the
@@ -82,7 +82,7 @@ The launcher accepts the disc image (`.iso`) or a folder holding the files extra
 
 ### Windows
 
-1. Download **Crackdown-v0.5.0-windows-x64.zip** from the [latest release](https://github.com/saulob/crackdown-xbox360-recompiled/releases/latest) and extract it anywhere you can write to.
+1. Download **Crackdown-v0.6.1-windows-x64.zip** from the [latest release](https://github.com/saulob/crackdown-xbox360-recompiled/releases/latest) and extract it anywhere you can write to.
 2. Run **crackdown.exe**. The launcher opens.
 3. On the **Play** page click **Install from disc image...** and pick your Crackdown `.iso`, or click **Install from folder...** for extracted disc files. You can also drop either on the launcher window.
 4. Wait until **Ready to play** appears. The game files are copied into the `game` folder next to the program.
@@ -96,7 +96,7 @@ Windows may warn the first time you run the program, because the release is not 
 
 **Experimental.** Crackdown Recompiled includes a native Linux x86_64 build using ReXGlue's Vulkan backend. It does not use Proton or Wine, and the AppImage contains the same platform-neutral game and launcher features as the Windows build, including the keyboard and mouse implementation. It is built and checked by automated scripts and tests, but this release has not yet been fully validated on real Linux PCs or Steam Deck hardware, and keyboard and mouse input has been tested manually on Windows only. Reports are welcome.
 
-1. Download **CrackdownRecompiled-v0.5.0-x86_64.AppImage** from the release and mark it executable (right-click > **Properties** > **Permissions** > **Is executable**, or `chmod +x`).
+1. Download **CrackdownRecompiled-v0.6.1-x86_64.AppImage** from the release and mark it executable (right-click > **Properties** > **Permissions** > **Is executable**, or `chmod +x`).
 2. Run it, then install your disc image from the **Play** page as on Windows. The game files go in a `game` folder next to the AppImage.
 3. On a Steam Deck, do this in **Desktop Mode**, then add the AppImage with **Games > Add a Non-Steam Game to My Library** and play it from **Game Mode**.
 
@@ -132,7 +132,7 @@ The launcher opens before the game. Your choices are saved to `settings.toml` in
 Window size, monitor, VSync and graphics card take effect when you press **PLAY**. If one differs from the launcher's window, the game restarts once in a new window.
 
 ### Graphics
-- **Graphics card** (Windows): Automatic (recommended) or a specific GPU
+- **Graphics card** (Windows): the GPU that renders the game; the first detected one is the default
 - **Render resolution**: Original (1280x720 at 16:9), 2x (recommended for 1440p), 3x or 4x
 - **Internal render resolution**: 100% Native, 75% Performance or 50% Low-end
 - **Anti-aliasing**: Off, FXAA or FXAA Extreme
@@ -152,6 +152,7 @@ Optional gameplay modifiers, all off by default. They start with the values save
 - **Infinite Health**, **No Fall Damage**, **Infinite Ammo** and **Infinite Vehicle Health** (the vehicle you drive): Off or On
 - **Movement Speed** and **Jump Height**: Off, 2x, 4x, 6x, 8x or 10x
 - **Vehicle Speed**: Off, 2x, 4x or 6x
+- **Agility Orbs on Map** and **Hidden Orbs on Map**: Off, Minimap, or Minimap + World. Marks the orbs you have not collected yet, green for agility and magenta for hidden, on the minimap and, with Minimap + World, on the pause menu's city and district maps.
 
 ### Controls
 - Xbox and XInput controllers work without setup; any connected pad can press Start

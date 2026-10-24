@@ -1,0 +1,96 @@
+// Which guest function of the base guest (title update 0) each host replacement takes over.
+#include "guest_binding.h"
+
+CRACKDOWN_BIND(82743798, FilterPadState)
+CRACKDOWN_BIND(822846A0, CameraConstructed)
+CRACKDOWN_BIND(82A50000, AudioBarrier)
+CRACKDOWN_BIND_REPLACEMENT(82A4FA70, AudioResetEvent)
+CRACKDOWN_BIND(82A4BEF8, AudioMixerCallback)
+CRACKDOWN_BIND(8225AB30, WaveInstanceSetup)
+CRACKDOWN_BIND(82A49908, AudioReleaseHandle)
+CRACKDOWN_BIND(822A38D0, DamageEntry)
+CRACKDOWN_BIND(823597F8, FireWeaponTracked)
+CRACKDOWN_BIND(8235D570, FireWeaponTracked)
+CRACKDOWN_BIND(824C9E08, VehicleDamage)
+CRACKDOWN_BIND(824BB950, VehicleDamage)
+CRACKDOWN_BIND(824C1A10, VehicleDamage)
+CRACKDOWN_BIND(824D51B8, VehicleDamage)
+CRACKDOWN_BIND(8249E808, EngineTorque)
+CRACKDOWN_BIND(824FC190, WalkVelocity)
+CRACKDOWN_BIND(822ECED0, JumpLaunch)
+CRACKDOWN_BIND(82ABDF90, CrtMemcpy)
+CRACKDOWN_BIND(82AB5F10, CrtMemmove)
+CRACKDOWN_BIND(82ABDE40, CrtMemset)
+CRACKDOWN_BIND(824EC668, EntityDestroyed)
+CRACKDOWN_BIND(826A7698, FrameLoop)
+CRACKDOWN_BIND(826A6B50, SimulationUpdate)
+CRACKDOWN_BIND_REPLACEMENT(8254C568, FrameDelta)
+CRACKDOWN_BIND(82324938, TimingUpdate)
+CRACKDOWN_BIND(823263D8, FrameTimer)
+CRACKDOWN_BIND(826B1150, PresentInterval)
+CRACKDOWN_BIND(826BC568, SwapPacket)
+CRACKDOWN_BIND(826BC3D0, SwapCallback)
+CRACKDOWN_BIND(826BCA98, SwapBuilder)
+CRACKDOWN_BIND(826BB4F0, GpuFence)
+CRACKDOWN_BIND(826BBEE0, GpuPoll)
+CRACKDOWN_BIND(82678768, MenuPopupOpen)
+CRACKDOWN_BIND(826587F8, MenuPopupYes)
+CRACKDOWN_BIND(826586B0, MenuPopupNo)
+CRACKDOWN_BIND(82658560, MenuPopupDestroyed)
+CRACKDOWN_BIND(82381F28, MenuStringById)
+CRACKDOWN_BIND(82677CB8, MenuBlockDestroyed)
+CRACKDOWN_BIND(824FD840, AimUpdate)
+CRACKDOWN_BIND(82287130, CameraUpdate)
+CRACKDOWN_BIND(826A8940, EngineMovie)
+CRACKDOWN_BIND(82624A30, PlayVideo)
+CRACKDOWN_BIND(82653FC0, SequenceFrame)
+CRACKDOWN_BIND(823819A0, ApplyLanguage)
+CRACKDOWN_BIND(824A1708, VehicleAction)
+
+CRACKDOWN_BIND(824EFD98, OrbConstructed)
+CRACKDOWN_BIND(824EFE68, OrbDestroyed)
+CRACKDOWN_BIND(826400D8, OrbMapViewConstructed)
+CRACKDOWN_BIND(82640A50, OrbMapViewDestroyed)
+CRACKDOWN_BIND(82627528, OrbFrontendScreenConstructed)
+CRACKDOWN_BIND(82627640, OrbFrontendScreenDestroyed)
+CRACKDOWN_BIND(823E9490, OrbListDescriptorShown)
+CRACKDOWN_BIND(823E96F8, OrbListDescriptorPosition)
+CRACKDOWN_BIND(823E9C30, OrbMinimapProjection)
+
+CRACKDOWN_BIND(826B9FF8, D3dDrawIndexedVertices)
+CRACKDOWN_BIND(826B9C08, D3dDrawVertices)
+CRACKDOWN_BIND(826B91E0, D3dBeginVertices)
+CRACKDOWN_BIND(826B96D0, D3dBeginIndexedVertices)
+CRACKDOWN_BIND(826C04A0, D3dClear)
+CRACKDOWN_BIND(826BE578, D3dResolve)
+CRACKDOWN_BIND(826B3C48, D3dSetShaderGprAllocation)
+CRACKDOWN_BIND(826C3750, D3dRunCommandBuffer)
+CRACKDOWN_BIND(82326728, SceneTargetsCreate)
+CRACKDOWN_BIND(825A76E0, PostProcessConstructed)
+CRACKDOWN_BIND(826AED90, D3dCreateRenderTarget)
+CRACKDOWN_BIND(826BD488, D3dBeginTiling)
+CRACKDOWN_BIND(826BDA38, D3dEndTiling)
+CRACKDOWN_BIND(826BD300, D3dSetPredication)
+CRACKDOWN_BIND(826C3D90, CommandBufferFixup)
+CRACKDOWN_BIND(826C6A50, D3dBindShaderLiterals)
+
+// The title's entry point is named xstart, not sub_<address>.
+REX_EXTERN(CRACKDOWN_GUEST_JOIN(__imp__, xstart));
+REX_HOOK_RAW(xstart) { crackdown::hooks::TitleEntry(ctx, base, CRACKDOWN_GUEST_JOIN(__imp__, xstart)); }
+
+CRACKDOWN_GUEST_CALL(8232EA18)
+CRACKDOWN_GUEST_CALL(826544E0)
+
+namespace {
+const crackdown::hooks::GuestCalls kCalls = {
+    CRACKDOWN_GUEST_ORIGINAL(8232EA18),
+    CRACKDOWN_GUEST_ORIGINAL(826544E0),
+};
+}  // namespace
+
+const crackdown::GuestImage crackdown::guests::kBase = {
+    crackdown::content::GuestBuild::kBase,
+    "base game",
+    &PPCImageConfig,
+    &kCalls,
+};

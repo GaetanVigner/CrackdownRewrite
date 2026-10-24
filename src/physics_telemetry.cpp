@@ -14,6 +14,7 @@
 #include <rex/cvar.h>
 #include <rex/logging.h>
 
+#include "guest_layout.h"
 #include "guest_memory.h"
 #include "hang_watchdog.h"
 #include "platform.h"
@@ -27,13 +28,10 @@ namespace {
 using crackdown::guest::Load32;
 using crackdown::guest::Plausible;
 
-// Same as cheat_hooks.cpp: the local player controller, and its +292 holding the Character plus 32.
-constexpr uint32_t kPlayerControllerGlobal = 0x82DE3F3C;
+// Same as cheat_hooks.cpp: the local player controller (Layout().player_controller), and its +292 holding the
+// Character plus 32.
 constexpr uint32_t kCharacterOffsetInController = 292;
 constexpr uint32_t kCharacterBase = 32;
-constexpr uint32_t kPositionOffset = 0x140;
-constexpr uint32_t kVehicleOffset = 5580;
-constexpr uint32_t kVehicleFlagsOffset = 5457;
 constexpr uint8_t kDrivingFlags = 0x18;
 
 struct TelemetryFrame {
@@ -116,7 +114,7 @@ void crackdown::RecordPhysicsStep(uint8_t* base, double step_seconds) {
   if (!REXCVAR_GET(crackdown_physics_telemetry)) {
     return;
   }
-  const uint32_t controller = Load32(base, kPlayerControllerGlobal);
+  const uint32_t controller = Load32(base, crackdown::Layout().player_controller);
   const uint32_t subobject = Plausible(controller) ? Load32(base, controller + kCharacterOffsetInController) : 0;
   const uint32_t character = Plausible(subobject) ? subobject - kCharacterBase : 0;
   if (Plausible(controller) && Plausible(character)) {
@@ -130,15 +128,15 @@ void crackdown::RecordPhysicsStep(uint8_t* base, double step_seconds) {
     frame.controller = controller;
     CopyGuest(base, character, frame.character_bytes.data(), frame.character_bytes.size());
     CopyGuest(base, controller, frame.controller_bytes.data(), frame.controller_bytes.size());
-    const uint8_t flags = crackdown::guest::Load8(base, character + kVehicleFlagsOffset);
+    const uint8_t flags = crackdown::guest::Load8(base, character + crackdown::Layout().character_vehicle_flags);
     const bool driving = (flags & kDrivingFlags) == kDrivingFlags;
-    frame.vehicle = driving ? Load32(base, character + kVehicleOffset) : 0;
+    frame.vehicle = driving ? Load32(base, character + crackdown::Layout().character_vehicle) : 0;
     CopyGuest(base, frame.vehicle, frame.vehicle_bytes.data(), frame.vehicle_bytes.size());
     g_next = (g_next + 1) % kTelemetryFrames;
     g_count = std::min(g_count + 1, kTelemetryFrames);
     // The first non-finite position keeps the seconds that produced it.
     static bool dumped_nan = false;
-    if (!dumped_nan && !std::isfinite(crackdown::guest::LoadFloat(base, character + kPositionOffset))) {
+    if (!dumped_nan && !std::isfinite(crackdown::guest::LoadFloat(base, character + crackdown::kCharacterPositionOffset))) {
       dumped_nan = true;
       REXLOG_WARN("[TELEMETRY] the player's position is not finite");
       RequestTelemetryDump();

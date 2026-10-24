@@ -39,6 +39,8 @@ REXCVAR_DECLARE(bool, cheat_no_fall_damage);
 REXCVAR_DECLARE(bool, cheat_infinite_ammo);
 REXCVAR_DECLARE(bool, cheat_infinite_vehicle_health);
 REXCVAR_DECLARE(int32_t, cheat_vehicle_speed);
+REXCVAR_DECLARE(int32_t, cheat_agility_orbs_on_map);
+REXCVAR_DECLARE(int32_t, cheat_hidden_orbs_on_map);
 
 namespace crackdown {
 
@@ -73,8 +75,8 @@ void ApplyAspectRatio();
 // the launcher choices are applied and before the command processor is created.
 void ApplyInternalRenderPath();
 
-// Sets d3d12_adapter from the launcher's Graphics card choice. Call once the player settings are loaded and before the
-// graphics device is created; Automatic leaves the SDK's own preference alone.
+// Sets d3d12_adapter from the launcher's Graphics card choice, which becomes the first adapter when it names none that
+// is present. Call once the player settings are loaded and before the graphics device is created.
 void ApplyGraphicsAdapter();
 
 // Caps the requested window size to the display the `monitor` setting names. Call before the window exists.

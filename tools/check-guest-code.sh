@@ -1,19 +1,27 @@
 #!/usr/bin/env bash
 # Checks that generated/default was written by tools/codegen.ps1 from the files in this tree: the codegen record
 # generated/codegen-inputs.stamp must match the manifest, the XEX, the manifest's includes and the codegen patches.
+# With `tu6` it checks generated/tu6 from tools/codegen-tu6.ps1 instead: its record also names the update's patch.
 # Codegen itself only runs on Windows. Exit status: 0 current, 2 stale or unverifiable.
 #
-#   tools/check-guest-code.sh [ROOT]
+#   tools/check-guest-code.sh [ROOT [tu6]]
 set -euo pipefail
 
 ROOT="$(cd "${1:-$(dirname "$0")/..}" && pwd)"
-STAMP="$ROOT/generated/codegen-inputs.stamp"
+BUILD="${2:-default}"
+case "$BUILD" in
+  default) MANIFEST=crackdown_manifest.toml; STAMP="$ROOT/generated/codegen-inputs.stamp"; OUTPUT=generated/default
+    SCRIPT='tools\codegen.ps1' ;;
+  tu6) MANIFEST=crackdown_tu6_manifest.toml; STAMP="$ROOT/generated/codegen-inputs-tu6.stamp"; OUTPUT=generated/tu6
+    SCRIPT='tools\codegen-tu6.ps1' ;;
+  *) echo "Unknown build: $BUILD" >&2; exit 2 ;;
+esac
 PATCH_DIR="$ROOT/patches/rexglue-sdk"
 
-stale() { echo "Guest code: stale ($*)" >&2; echo "Run tools\\codegen.ps1 on Windows, then build again." >&2; exit 2; }
+stale() { echo "Guest code: stale ($*)" >&2; echo "Run $SCRIPT on Windows, then build again." >&2; exit 2; }
 sha_upper() { sha256sum "$1" | cut -d' ' -f1 | tr 'a-f' 'A-F'; }
 
-[ -f "$ROOT/generated/default/sources.cmake" ] || stale "generated/default is missing"
+[ -f "$ROOT/$OUTPUT/sources.cmake" ] || stale "$OUTPUT is missing"
 [ -f "$STAMP" ] || stale "no successful codegen record"
 
 # The codegen tool: stock, or built from the patches that touch src/codegen (the Windows patch set).
@@ -37,11 +45,14 @@ expected_first="rexglue  $sdk_version"
 [ "$(head -n 1 "$STAMP" | tr -d '\r')" = "$expected_first" ] || stale "the codegen tool or the SDK version changed"
 
 # The recorded inputs: the manifest, the XEX, then the manifest's includes, each at the recorded hash.
-includes="$(sed -n 's/^[[:space:]]*includes[[:space:]]*=[[:space:]]*\[\(.*\)\].*/\1/p' "$ROOT/crackdown_manifest.toml" |
+includes="$(sed -n 's/^[[:space:]]*includes[[:space:]]*=[[:space:]]*\[\(.*\)\].*/\1/p' "$ROOT/$MANIFEST" |
   grep -o '"[^"]*"' | tr -d '"' || true)"
-expected_keys="crackdown_manifest.toml"
+expected_keys="$MANIFEST"
 xex_key="$(sed -n '3p' "$STAMP" | sed 's/^[0-9A-F]*  //' | tr -d '\r')"
 expected_keys+=$'\n'"$xex_key"
+if [ "$BUILD" = tu6 ]; then
+  expected_keys+=$'\n'"$(sed -n '4p' "$STAMP" | sed 's/^[0-9A-F]*  //' | tr -d '\r')"
+fi
 [ -n "$includes" ] && expected_keys+=$'\n'"$includes"
 recorded_keys="$(tail -n +2 "$STAMP" | sed 's/^[0-9A-Fa-f]*  //' | tr -d '\r')"
 [ "$recorded_keys" = "$expected_keys" ] || stale "the manifest's inputs changed"

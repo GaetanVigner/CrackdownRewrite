@@ -8,6 +8,8 @@
 #include <rex/ppc/func.h>
 #include <rex/system/thread_state.h>
 
+#include "guest_image.h"
+
 #if defined(_WIN32)
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -17,8 +19,6 @@
 #endif
 #include <windows.h>
 #endif
-
-extern PPCFuncMapping PPCFuncMappings[];
 
 namespace crackdown {
 namespace {
@@ -34,7 +34,7 @@ std::atomic<int> g_logged{0};
 // The generated function that starts closest below the host address.
 bool GuestFunctionAt(uintptr_t host, uint32_t& guest, uintptr_t& start) {
   bool found = false;
-  for (const PPCFuncMapping* m = PPCFuncMappings; m->guest != 0; ++m) {
+  for (const PPCFuncMapping* m = SelectedGuest().image->func_mappings; m->guest != 0; ++m) {
     const uintptr_t candidate = reinterpret_cast<uintptr_t>(m->host);
     if (candidate <= host && host - candidate < kMaxFunctionSpan && (!found || candidate > start)) {
       found = true;

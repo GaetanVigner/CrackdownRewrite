@@ -1,0 +1,250 @@
+# Manual analysis fixes for the Title Update 6 image (default.xex patched with Default.xexp).
+
+[functions]
+# Branch targets the analyzer does not reach; codegen Validate fails without them.
+0x824D2920 = {}
+0x82AA6D90 = {}
+0x8243A658 = {}
+
+[[midasm_hook]]
+address = 0x82AD8F94
+name = "crackdown_audio_barrier_escape"
+registers = []
+after_instruction = false
+return_on_true = true
+
+[[midasm_hook]]
+address = 0x82B2A274
+name = "crackdown_massive_server_count_guard"
+registers = ["r1"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x82278C6C
+name = "crackdown_visibility_grid_guard"
+registers = ["r11", "r10", "r27", "r29"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x82276BC4
+name = "crackdown_audio_listener_guard"
+registers = ["r3", "r4"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822C90D0
+name = "crackdown_look_target_guard"
+registers = ["r31"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822CB8F0
+name = "crackdown_look_target_guard"
+registers = ["r31"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822DBB30
+name = "crackdown_ledge_snap_down"
+registers = ["f0"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822CBA70
+name = "crackdown_ground_snap_decay"
+registers = ["f13"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x822CBAE4
+name = "crackdown_ground_snap_lerp"
+registers = ["f13"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x822D31EC
+name = "crackdown_first_gravity_step"
+registers = ["f0", "f13"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x822E72B8
+name = "crackdown_ragdoll_pose_dt"
+registers = ["f1", "r30"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x823128E0
+name = "crackdown_hit_merge_window"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x822E74F8
+name = "crackdown_ragdoll_tick_window"
+registers = ["r10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8239E708
+name = "crackdown_projectile_probe_dt"
+registers = ["r1"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x82365AA4
+name = "crackdown_crowd_anim_step"
+registers = ["f0"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8244D8D4
+name = "crackdown_cosmetic_timer_step"
+registers = ["f13"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x822B763C
+name = "crackdown_camera_lift_divisor"
+registers = ["f13"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x8255EC60
+name = "crackdown_mouse_look_camera_a"
+registers = ["f22", "f30"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x8255D588
+name = "crackdown_mouse_look_camera_b"
+registers = ["f28", "f31"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x82AD4EC8
+name = "crackdown_audio_pcm_firewall"
+registers = ["r4"]
+after_instruction = false
+
+[[midasm_hook]]
+address = 0x8227FFC4
+name = "crackdown_audio_wave_timeout_tick"
+registers = ["r11", "r30"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x822AE244
+name = "crackdown_variable_step_frame_ms"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x823C9008
+name = "crackdown_variable_step_frame_ms"
+registers = ["r9"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8243AE48
+name = "crackdown_variable_step_frame_ms"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x824E2110
+name = "crackdown_variable_step_frame_ms"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8255C6B4
+name = "crackdown_variable_step_frame_ms"
+registers = ["r10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8255DE48
+name = "crackdown_variable_step_frame_ms"
+registers = ["r10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82569B14
+name = "crackdown_variable_step_frame_ms"
+registers = ["r9"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x825E5520
+name = "crackdown_variable_step_frame_ms"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82605B1C
+name = "crackdown_variable_step_frame_ms"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82652F90
+name = "crackdown_variable_step_frame_ms"
+registers = ["r27"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x826C9DFC
+name = "crackdown_variable_step_frame_ms"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x826C9E60
+name = "crackdown_variable_step_frame_ms"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x8272FA40
+name = "crackdown_variable_step_frame_ms"
+registers = ["r11"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x82559028
+name = "crackdown_variable_step_frame_ms"
+registers = ["r10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x823867BC
+name = "crackdown_variable_step_frame_ms"
+registers = ["r10"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x826F4B74
+name = "crackdown_main_menu_quit_use_handler"
+registers = []
+after_instruction = false
+jump_address = 0x826F4B78
+
+[[midasm_hook]]
+address = 0x826F4B8C
+name = "crackdown_main_menu_quit_handler_attached"
+registers = []
+after_instruction = false
+jump_address = 0x826F4B90
+
+[[midasm_hook]]
+address = 0x826F4B90
+name = "crackdown_main_menu_quit_enable"
+registers = ["r4", "r11", "r31"]
+after_instruction = true
+
+[[midasm_hook]]
+address = 0x826F5260
+name = "crackdown_main_menu_quit_popup_state"
+registers = ["r11"]
+after_instruction = true

@@ -68,8 +68,8 @@ class ProfileKey final : public rex::ui::WindowInputListener {
 };
 
 // With crackdown_debug_profiler on, F5 cycles the HLE renderer's milestone 3 switches for an A/B/C at one spot: off,
-// gpu_cached_indirect_buffers (SDK patch 0107) with gpu_fetch_constant_caches (0109), then also
-// gpu_edram_bookkeeping_memo (0110). The GPU log notes the indirect buffer cache's switches. The game never sees the
+// gpu_cached_indirect_buffers (SDK patch 0109) with gpu_fetch_constant_caches (0111), then also
+// gpu_edram_bookkeeping_memo (0112). The GPU log notes the indirect buffer cache's switches. The game never sees the
 // key.
 class IndirectBufferCacheKey final : public rex::ui::WindowInputListener {
  public:

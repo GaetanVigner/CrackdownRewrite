@@ -5,6 +5,8 @@
 #include <cstdint>
 #include <span>
 
+#include "guest_layout.h"
+
 namespace crackdown::cheats {
 
 enum class Cheat : uint8_t {
@@ -15,16 +17,24 @@ enum class Cheat : uint8_t {
   InfiniteAmmo,
   InfiniteVehicleHealth,
   VehicleSpeed,
+  AgilityOrbsOnMap,
+  HiddenOrbsOnMap,
 };
 
-enum class Section : uint8_t { Player, Weapons, Vehicle };
+enum class Section : uint8_t { Player, Weapons, Vehicle, Map };
 
-// A toggle is Off or On. A multiplier is Off or one of its listed factors.
-enum class Kind : uint8_t { Toggle, Multiplier };
+// A toggle is Off or On. A multiplier is Off or one of its listed factors. A map display is Off, the minimap, or the
+// minimap and the world map.
+enum class Kind : uint8_t { Toggle, Multiplier, MapDisplay };
+
+inline constexpr int kMapOff = 0;
+inline constexpr int kMapMinimap = 1;
+inline constexpr int kMapMinimapAndWorld = 2;
 
 inline constexpr std::array kToggleValues = {0, 1};
 inline constexpr std::array kMovementValues = {0, 2, 4, 6, 8, 10};
 inline constexpr std::array kVehicleValues = {0, 2, 4, 6};
+inline constexpr std::array kMapValues = {kMapOff, kMapMinimap, kMapMinimapAndWorld};
 
 struct CheatInfo {
   Cheat cheat;
@@ -50,6 +60,10 @@ inline constexpr std::array kCheats = {
               "cheat_infinite_vehicle_health", kToggleValues},
     CheatInfo{Cheat::VehicleSpeed, Section::Vehicle, Kind::Multiplier, "Vehicle Speed", "cheat_vehicle_speed",
               kVehicleValues},
+    CheatInfo{Cheat::AgilityOrbsOnMap, Section::Map, Kind::MapDisplay, "Agility Orbs on Map",
+              "cheat_agility_orbs_on_map", kMapValues},
+    CheatInfo{Cheat::HiddenOrbsOnMap, Section::Map, Kind::MapDisplay, "Hidden Orbs on Map",
+              "cheat_hidden_orbs_on_map", kMapValues},
 };
 
 inline constexpr size_t kCheatCount = kCheats.size();
@@ -62,11 +76,16 @@ inline constexpr const char* SectionLabel(Section section) {
       return "WEAPONS";
     case Section::Vehicle:
       return "VEHICLE";
+    case Section::Map:
+      return "MAP";
   }
   return "";
 }
 
 inline constexpr const CheatInfo& InfoOf(Cheat cheat) { return kCheats[static_cast<size_t>(cheat)]; }
+
+// Whether this build's guest has what the cheat needs. An unsupported cheat is always Off.
+inline bool Supported(Cheat cheat) { return cheat != Cheat::JumpHeight || Layout().jump_height_cheat; }
 
 // The value after `value` in the cheat's list, wrapping to Off after the last one.
 constexpr int NextValue(const CheatInfo& info, int value) {
@@ -78,7 +97,7 @@ constexpr int NextValue(const CheatInfo& info, int value) {
   return info.values.front();
 }
 
-// Off, On for a toggle, or the factor as "2x" for a multiplier.
+// Off, On for a toggle, the factor as "2x" for a multiplier, or Minimap / Minimap + World for a map display.
 const char* ValueLabel(Kind kind, int value);
 
 // The value in effect: this session's change, or else the launcher's saved value.

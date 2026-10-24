@@ -12,6 +12,10 @@
 #include <rex/hook.h>
 #include <rex/logging.h>
 
+#include "guest_hooks.h"
+#include "guest_image.h"
+#include "guest_layout.h"
+
 REXCVAR_DEFINE_BOOL(crackdown_skip_intro, false, "Crackdown", "Start directly at the title screen");
 
 namespace {
@@ -19,15 +23,13 @@ namespace {
 constexpr uint32_t kGuestLowAddress = 0x10000;
 constexpr uint32_t kGuestHighAddress = 0xFFFF0000;
 constexpr uint32_t kMovieNameLimit = 128;
-// Singleton byte read by sub_82624A30: zero selects the disabled-video branch, which finishes the video at once.
+// Singleton byte read by the video player: zero selects the disabled-video branch, which finishes the video at once.
 constexpr uint32_t kVideosEnabledOffset = 152;
-// Sequence object state at +272; the per-frame callback receives the object at +136.
-constexpr uint32_t kFrameObjectStateOffset = 136;
+// The per-frame callback receives the sequence object's address plus this offset.
+constexpr uint32_t kSequenceObjectOffset = 136;
 constexpr uint32_t kSequenceStateStartPrompt = 10;
 constexpr uint32_t kSplashFirstState = 6;
 constexpr uint32_t kSplashLastState = 8;
-// Global byte at 17674 set while the startup presentation runs; the frontend start branch requires it to be zero.
-constexpr uint32_t kPresentationFlagAddress = 0x82DE450A;
 
 std::atomic<bool> g_start_reached{false};
 
@@ -83,24 +85,22 @@ void InstallSkipIntro() {
   REXLOG_INFO("Skip intro: {}", REXCVAR_GET(crackdown_skip_intro) ? "on" : "off");
 }
 
-REX_EXTERN(__imp__sub_826A8940);
-REX_HOOK_RAW(sub_826A8940) {
+// The engine logo movies: index 0 and 1.
+void crackdown::hooks::EngineMovie(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (REXCVAR_GET(crackdown_skip_intro) && ctx.r3.u32 <= 1) {
     return;
   }
-  __imp__sub_826A8940(ctx, base);
+  original(ctx, base);
 }
 
-REX_EXTERN(__imp__sub_8232EA18);
-REX_EXTERN(__imp__sub_82624A30);
-REX_HOOK_RAW(sub_82624A30) {
+void crackdown::hooks::PlayVideo(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (!REXCVAR_GET(crackdown_skip_intro) || !IsPreTitleMovie(base, ctx.r4.u32)) {
-    __imp__sub_82624A30(ctx, base);
+    original(ctx, base);
     return;
   }
   const uint64_t r3 = ctx.r3.u64, r4 = ctx.r4.u64, r5 = ctx.r5.u64, r6 = ctx.r6.u64, r7 = ctx.r7.u64;
   const uint64_t lr = ctx.lr;
-  __imp__sub_8232EA18(ctx, base);
+  crackdown::SelectedGuest().calls->movie_singleton(ctx, base);
   const uint32_t singleton = ctx.r3.u32;
   ctx.r3.u64 = r3;
   ctx.r4.u64 = r4;
@@ -110,32 +110,31 @@ REX_HOOK_RAW(sub_82624A30) {
   ctx.lr = lr;
 
   if (!IsGuestAddress(singleton)) {
-    __imp__sub_82624A30(ctx, base);
+    original(ctx, base);
     return;
   }
   const uint8_t enabled = ReadByte(base, singleton + kVideosEnabledOffset);
   WriteByte(base, singleton + kVideosEnabledOffset, 0);
-  __imp__sub_82624A30(ctx, base);
+  original(ctx, base);
   WriteByte(base, singleton + kVideosEnabledOffset, enabled);
 }
 
-REX_EXTERN(__imp__sub_826544E0);
-REX_EXTERN(__imp__sub_82653FC0);
-REX_HOOK_RAW(sub_82653FC0) {
+// The sequence's per-frame callback; its timer completion advances the sequence one step.
+void crackdown::hooks::SequenceFrame(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (!REXCVAR_GET(crackdown_skip_intro) || g_start_reached.load()) {
-    __imp__sub_82653FC0(ctx, base);
+    original(ctx, base);
     return;
   }
   const uint32_t frame_object = ctx.r3.u32;
-  const uint32_t state = ReadBE32(base, frame_object + kFrameObjectStateOffset);
-  if (state == kSequenceStateStartPrompt && ReadByte(base, kPresentationFlagAddress) == 0) {
+  const uint32_t state = ReadBE32(base, frame_object + crackdown::Layout().sequence_state);
+  if (state == kSequenceStateStartPrompt && ReadByte(base, crackdown::Layout().presentation_flag) == 0) {
     g_start_reached.store(true);
   }
   const bool done = ReadByte(base, frame_object + 24) != 0;
   if (done || state < kSplashFirstState || state > kSplashLastState) {
-    __imp__sub_82653FC0(ctx, base);
+    original(ctx, base);
     return;
   }
-  ctx.r3.u64 = frame_object - kFrameObjectStateOffset;
-  __imp__sub_826544E0(ctx, base);
+  ctx.r3.u64 = frame_object - kSequenceObjectOffset;
+  crackdown::SelectedGuest().calls->sequence_advance(ctx, base);
 }

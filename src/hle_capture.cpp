@@ -24,6 +24,7 @@
 #include <rex/system/kernel_state.h>
 
 #include "guest_memory.h"
+#include "guest_hooks.h"
 #include "hang_watchdog.h"
 #include "platform.h"
 #include "single_tile_scene.h"
@@ -41,7 +42,7 @@ using guest::Load32;
 constexpr uint32_t kTraceVersion = 2;
 constexpr uint32_t kUnknownRegister = 0xCDCDCDCD;
 
-// The register blocks of SDK patch 0106, in its order.
+// The register blocks of SDK patch 0108, in its order.
 struct Block {
   uint32_t first;
   uint32_t count;
@@ -570,62 +571,54 @@ void HleCaptureFrame() {
 
 // The four D3D draw entry points (r3 = device): DrawIndexedVertices, DrawVertices, BeginVertices,
 // BeginIndexedVertices.
-REX_EXTERN(__imp__sub_826B9FF8);
-REX_HOOK_RAW(sub_826B9FF8) {
+void crackdown::hooks::D3dDrawIndexedVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { __imp__sub_826B9FF8(ctx, base); });
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); });
 }
 
-REX_EXTERN(__imp__sub_826B9C08);
-REX_HOOK_RAW(sub_826B9C08) {
+void crackdown::hooks::D3dDrawVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { __imp__sub_826B9C08(ctx, base); });
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); });
 }
 
-REX_EXTERN(__imp__sub_826B91E0);
-REX_HOOK_RAW(sub_826B91E0) {
+void crackdown::hooks::D3dBeginVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   // BeginVertices: every caller skips the vertex writes when it returns 0.
   if (crackdown::SingleTileSuppressed()) {
     ctx.r3.u64 = 0;
     return;
   }
-  crackdown::CaptureDraw(ctx, base, true, [&] { __imp__sub_826B91E0(ctx, base); });
+  crackdown::CaptureDraw(ctx, base, true, [&] { original(ctx, base); });
 }
 
-REX_EXTERN(__imp__sub_826B96D0);
-REX_HOOK_RAW(sub_826B96D0) {
+void crackdown::hooks::D3dBeginIndexedVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, true, [&] { __imp__sub_826B96D0(ctx, base); });
+  crackdown::CaptureDraw(ctx, base, true, [&] { original(ctx, base); });
 }
 
 // D3D calls that draw with their own state written straight into the ring (the walk applies it): the clear
 // (r3 = device, its rect draws are DRAW_INDX_2), the resolve (an EDRAM copy draw), and SetShaderGPRAllocation (three
 // INDIRECT_BUFFERs into the device's static block: setup, SQ_GPR_MANAGEMENT, 24 invisible points).
-REX_EXTERN(__imp__sub_826C04A0);
-REX_HOOK_RAW(sub_826C04A0) {
+void crackdown::hooks::D3dClear(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { __imp__sub_826C04A0(ctx, base); }, crackdown::Source::kClear);
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::Source::kClear);
 }
 
-REX_EXTERN(__imp__sub_826BE578);
-REX_HOOK_RAW(sub_826BE578) {
+void crackdown::hooks::D3dResolve(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { __imp__sub_826BE578(ctx, base); }, crackdown::Source::kResolve);
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::Source::kResolve);
 }
 
-REX_EXTERN(__imp__sub_826B3C48);
-REX_HOOK_RAW(sub_826B3C48) {
-  crackdown::CaptureDraw(ctx, base, false, [&] { __imp__sub_826B3C48(ctx, base); }, crackdown::Source::kGprFlush);
+void crackdown::hooks::D3dSetShaderGprAllocation(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::Source::kGprFlush);
 }
 
 // RunCommandBuffer(r3 = device, r4 = command buffer, r5 = predicate select).
-REX_EXTERN(__imp__sub_826C3750);
-REX_HOOK_RAW(sub_826C3750) {
+void crackdown::hooks::D3dRunCommandBuffer(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t device = ctx.r3.u32;
   const uint32_t pre = crackdown::guest::Load32(base, device + crackdown::kWritePointer);
   const uint32_t segment_end = crackdown::guest::Load32(base, device + crackdown::kSegmentEnd);
   if (!crackdown::g_recording.load(std::memory_order_relaxed)) {
-    __imp__sub_826C3750(ctx, base);
+    original(ctx, base);
     crackdown::SingleTileCommandBuffer(base, device, pre, segment_end);
     return;
   }
@@ -634,7 +627,7 @@ REX_HOOK_RAW(sub_826C3750) {
     std::lock_guard lock(crackdown::g_capture.mutex);
     if (crackdown::g_capture.file) crackdown::WalkGap(base, device, pre, segment_end);
   }
-  __imp__sub_826C3750(ctx, base);
+  original(ctx, base);
   crackdown::SingleTileCommandBuffer(base, device, pre, segment_end);
   std::lock_guard lock(crackdown::g_capture.mutex);
   if (crackdown::g_capture.file) {

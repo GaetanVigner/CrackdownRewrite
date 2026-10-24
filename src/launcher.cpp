@@ -36,12 +36,16 @@
 #include "frame_timing.h"
 #include "game_files.h"
 #include "graphics_adapters.h"
+#include "guest_image.h"
+#include "save_generation.h"
+#include "guest_layout.h"
 #include "internal_render_scale.h"
 #include "keybinds.h"
 #include "language_setting.h"
 #include "launcher_achievements.h"
 #include "launcher_achievements_page.h"
 #include "launcher_assets.h"
+#include "launcher_content_page.h"
 #include "launcher_pages.h"
 #include "launcher_quit.h"
 #include "log_filter.h"
@@ -201,6 +205,10 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
       SelectWindowSizeForAspect();
     }
     header_art_ = LoadHeaderArt(game_.immediate_drawer);
+    content_ = std::make_unique<ContentPage>(
+        paths_.user_dir, paths_.game_dir,
+        FindGuestImage(content::GuestBuild::kTitleUpdate6) != nullptr, paths_.save_error,
+        [this](const std::string& text, double seconds) { launcher_->SetStatus(text, seconds); });
     launcher_ = std::make_unique<trg::Launcher>(MakeConfig());
     updater_ = std::make_unique<trg::update::UpdateController>(MakeUpdateConfig(PortFolder()));
     updater_->StartCheck();
@@ -219,7 +227,12 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
   }
 
   void FileDropped(const std::filesystem::path& path) {
-    if (starting_ || install_.running()) {
+    if (starting_ || install_.running() || content_->Busy()) {
+      return;
+    }
+    if (PeekPackageKind(path) != PackageKind::kNotPackage) {
+      launcher_->GoToPage(PageIndex(LauncherPage::kDlc));
+      content_->InstallPackage(path);
       return;
     }
     StartInstall(path);
@@ -231,6 +244,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
       return;
     }
     PollInstall();
+    content_->Poll();
     PollUpdate();
     TrackPlacement();
     if (!nav_taken_) {
@@ -278,7 +292,8 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
 
   // Every PLAY (mouse, Enter, Xbox Start) ends here. The one save happens here; StartGame never saves.
   void RequestPlay() {
-    if (starting_ || install_.running() || game_files_ != GameFiles::kReady) {
+    if (starting_ || install_.running() || content_->Busy() || content_->NeedsAttention() ||
+        game_files_ != GameFiles::kReady) {
       return;
     }
     if (!launcher_->Save()) {
@@ -289,8 +304,21 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
     launcher_->SetStatus("", 0.0);
   }
 
+  // The running process carries one guest: when the installed content selects the other, Play starts a new process of
+  // this program, like a window change does.
+  bool BuildChanged() const { return content::SelectGuestBuild(content_->State()) != RunningBuild(); }
+
   void StartGame() {
-    if (cb_.window_changed && cb_.window_changed()) {
+    if ((cb_.window_changed && cb_.window_changed()) || BuildChanged()) {
+      if (BuildChanged()) {
+        const SaveSwitchResult saves = PrepareSaveGeneration(
+            paths_.user_dir, GenerationFor(content::SelectGuestBuild(content_->State())));
+        if (saves.blocks_play()) {
+          starting_ = false;
+          launcher_->SetStatus(DescribeSaveSwitch(saves), 8);
+          return;
+        }
+      }
       if (cb_.restart && cb_.restart()) {
         Finish(nullptr);
         return;
@@ -472,8 +500,16 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
       c.pages.push_back(PageFor(page));
     }
     c.can_play = [this] {
-      if (install_.running()) {
+      if (install_.running() || content_->Busy()) {
         return trg::PlayCheck{false, "Wait for the install to finish.", 0};
+      }
+      if (!content_->SaveError().empty()) {
+        return trg::PlayCheck{false, content_->SaveError(), PageIndex(LauncherPage::kDlc)};
+      }
+      if (content_->NeedsAttention()) {
+        return trg::PlayCheck{false,
+                              "Free-For-All Pack needs Title Update 6. Install Title Update 6 or remove the pack.",
+                              PageIndex(LauncherPage::kDlc)};
       }
       if (game_files_ == GameFiles::kReady) {
         return trg::PlayCheck{};
@@ -484,11 +520,18 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
     return c;
   }
 
+  static int PageIndex(LauncherPage page) {
+    return int(std::find(kLauncherPageOrder.begin(), kLauncherPageOrder.end(), page) - kLauncherPageOrder.begin());
+  }
+
   trg::Page PageFor(LauncherPage page) {
     switch (page) {
       case LauncherPage::kPlay:
         return {"Play", "Check the game files and start playing.", [this](trg::Ui& ui) { PagePlay(ui); },
                 [this] { return game_files_ != GameFiles::kReady; }};
+      case LauncherPage::kDlc:
+        return {"DLC", "Optional downloadable content and Title Update 6.", [this](trg::Ui& ui) { content_->Draw(ui); },
+                [this] { return content_->NeedsAttention(); }};
       case LauncherPage::kDisplay:
         return {"Display", "Window, monitor and how the picture fits your screen.",
                 [this](trg::Ui& ui) { PageDisplay(ui); }, nullptr};
@@ -497,11 +540,11 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
                 [this](trg::Ui& ui) { PageGraphics(ui); }, nullptr};
       case LauncherPage::kGameplay:
         return {"Gameplay", "Frame rate, and what the window shows while you play.",
-                [](trg::Ui& ui) { PageGameplay(ui); }, nullptr};
+                [this](trg::Ui& ui) { PageGameplay(ui); }, nullptr};
       case LauncherPage::kCheats:
-        return {"Cheats", "Optional gameplay modifiers", [](trg::Ui& ui) { PageCheats(ui); }, nullptr};
+        return {"Cheats", "Optional gameplay modifiers", [this](trg::Ui& ui) { PageCheats(ui); }, nullptr};
       case LauncherPage::kControls:
-        return {"Controls", "Controller, keyboard and mouse.", [](trg::Ui& ui) { PageControls(ui); }, nullptr};
+        return {"Controls", "Controller, keyboard and mouse.", [this](trg::Ui& ui) { PageControls(ui); }, nullptr};
       case LauncherPage::kAchievements:
         return {"Achievements", "Your achievements on this PC.", [this](trg::Ui& ui) { PageAchievements(ui); },
                 nullptr};
@@ -568,6 +611,9 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
         }
       }
     }
+    ui.Info("Game version", content::SelectGuestBuild(content_->State()) == content::GuestBuild::kTitleUpdate6
+                                ? "Title Update 6"
+                                : "Original release");
     ui.LauncherVisibilityRow("crackdown_launcher");
     ui.EndRows();
   }
@@ -816,16 +862,16 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
   }
 
   void PageGraphics(trg::Ui& ui) {
-    if (!graphics_adapters_.empty()) {
+    if (const std::optional<int> adapter = ResolveGraphicsAdapter(
+            settings_.Get("crackdown_graphics_adapter"), graphics_adapters_)) {
+      const std::string value = std::to_string(*adapter);
+      settings_.Set("crackdown_graphics_adapter", value);
       std::vector<trg::Option> adapters;
-      for (const auto& [value, label] : GraphicsAdapterOptions(
-               graphics_adapters_, settings_.Get("crackdown_graphics_adapter", kGraphicsAdapterAuto))) {
-        adapters.push_back({value, label});
+      for (const auto& [option_value, label] : GraphicsAdapterOptions(graphics_adapters_)) {
+        adapters.push_back({option_value, label});
       }
-      ui.Combo("Graphics card",
-               "Selects which GPU renders the game. Automatic uses the recommended high-performance GPU. "
-               "A GPU chosen here overrides automatic selection and restarts the game window.",
-               "crackdown_graphics_adapter", kGraphicsAdapterAuto, adapters);
+      ui.Combo("Graphics card", "Selects which GPU renders the game and restarts the game window.",
+               "crackdown_graphics_adapter", value.c_str(), adapters);
     }
     ui.Combo("Render resolution",
              "Draws the game at a multiple of its own picture, then scales it to the window. Higher is sharper and "
@@ -854,7 +900,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
               6);
   }
 
-  static void PageGameplay(trg::Ui& ui) {
+  void PageGameplay(trg::Ui& ui) {
     ui.Toggle("Skip intro", "Start directly at the title screen", "crackdown_skip_intro", false, "Off", "On");
     std::vector<trg::Option> languages;
     for (const GameLanguage& language : kGameLanguages) {
@@ -877,22 +923,30 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
               "crackdown_show_frame_counter", false, "Hidden", "Shown");
   }
 
-  static std::vector<trg::Option> MultiplierOptions(std::span<const int> values) {
+  static std::vector<trg::Option> CheatOptions(cheats::Kind kind, std::span<const int> values) {
     std::vector<trg::Option> options;
     for (const int value : values) {
-      options.push_back({std::to_string(value), cheats::ValueLabel(cheats::Kind::Multiplier, value)});
+      options.push_back({std::to_string(value), cheats::ValueLabel(kind, value)});
     }
     return options;
   }
 
-  static void PageCheats(trg::Ui& ui) {
+  static std::vector<trg::Option> MultiplierOptions(std::span<const int> values) {
+    return CheatOptions(cheats::Kind::Multiplier, values);
+  }
+
+  void PageCheats(trg::Ui& ui) {
     ui.Paragraph("Cheats start with these values. F10 in the game changes them for that session only.");
     ui.Heading("PLAYER");
     ui.Toggle("Infinite Health", "Your character takes no damage.", "cheat_infinite_health", false, "Off", "On");
     ui.Combo("Movement Speed", "How much faster your character moves on foot.", "cheat_movement_speed", "0",
              MultiplierOptions(cheats::kMovementValues));
-    ui.Combo("Jump Height", "How much higher your character jumps.", "cheat_jump_height", "0",
-             MultiplierOptions(cheats::kMovementValues));
+    if (LayoutFor(content::SelectGuestBuild(content_->State())).jump_height_cheat) {
+      ui.Combo("Jump Height", "How much higher your character jumps.", "cheat_jump_height", "0",
+               MultiplierOptions(cheats::kMovementValues));
+    } else {
+      ui.Info("Jump Height", "Not available with Title Update 6.");
+    }
     ui.Toggle("No Fall Damage", "Falling does not hurt your character.", "cheat_no_fall_damage", false, "Off", "On");
     ui.Heading("WEAPONS");
     ui.Toggle("Infinite Ammo", "Weapons never run out of ammunition.", "cheat_infinite_ammo", false, "Off", "On");
@@ -901,9 +955,14 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
               false, "Off", "On");
     ui.Combo("Vehicle Speed", "How much faster the vehicle you drive goes.", "cheat_vehicle_speed", "0",
              MultiplierOptions(cheats::kVehicleValues));
+    ui.Heading("MAP");
+    ui.Combo("Agility Orbs on Map", "Marks uncollected agility orbs on the minimap, and on the pause menu's map too "
+             "if you choose.", "cheat_agility_orbs_on_map", "0", CheatOptions(cheats::Kind::MapDisplay, cheats::kMapValues));
+    ui.Combo("Hidden Orbs on Map", "Marks uncollected hidden orbs on the minimap, and on the pause menu's map too if "
+             "you choose.", "cheat_hidden_orbs_on_map", "0", CheatOptions(cheats::Kind::MapDisplay, cheats::kMapValues));
   }
 
-  static void PageControls(trg::Ui& ui) {
+  void PageControls(trg::Ui& ui) {
     ui.Info("Controller", "Automatic: Xbox controllers work without setup.");
     ui.Toggle("Keyboard and mouse", "Use keyboard and mouse for gameplay controls together with the controller.",
               "mnk_mode", false, "Off", "On");
@@ -980,7 +1039,9 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
     }
     ui.Info("Port version", CRACKDOWN_PORT_VERSION);
     ui.Info("Libraries", "ReXGlue SDK " REXGLUE_VERSION_STRING "   \xC2\xB7   TRG Launcher " CRACKDOWN_TRG_VERSION);
-    ui.Info("Game", "Xbox 360 disc, title 4D5307DC, game version TU0");
+    ui.Info("Game", RunningBuild() == content::GuestBuild::kTitleUpdate6
+                        ? "Xbox 360 disc, title 4D5307DC, game version Title Update 6"
+                        : "Xbox 360 disc, title 4D5307DC, game version TU0");
     ui.Link(DisplayUrl(kRepositoryUrl).c_str(), kRepositoryUrl);
   }
 
@@ -1005,6 +1066,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
   std::vector<MonitorInfo> monitors_;
   std::vector<GraphicsAdapter> graphics_adapters_;
   std::unique_ptr<rex::ui::ImmediateTexture> header_art_;
+  std::unique_ptr<ContentPage> content_;
   std::unique_ptr<trg::Launcher> launcher_;
   LauncherGamepad gamepad_;
   bool nav_taken_ = false;
@@ -1095,11 +1157,11 @@ void UpdateLauncherFonts(rex::ui::ImGuiDrawer* drawer, rex::ui::ImmediateDrawer*
   g_font_density = density;
 }
 
-bool ShouldShowLauncher(const std::filesystem::path& game_dir) {
+bool ShouldShowLauncher(const std::filesystem::path& game_dir, bool content_ready) {
   g_skipped_once = REXCVAR_GET(crackdown_skip_launcher);
   rex::cvar::ResetToDefault("crackdown_skip_launcher");
-  return LauncherWanted(CheckAndLogGameFiles(game_dir).state == GameFiles::kReady, g_skipped_once, ShiftHeld(),
-                        REXCVAR_GET(crackdown_launcher));
+  return LauncherWanted(CheckAndLogGameFiles(game_dir).state == GameFiles::kReady && content_ready, g_skipped_once,
+                        ShiftHeld(), REXCVAR_GET(crackdown_launcher));
 }
 
 bool ShiftHeldAfterWindowOpened() {

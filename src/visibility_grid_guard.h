@@ -5,7 +5,7 @@
 
 namespace crackdown {
 
-// sub_82252150 (AudioCore) reads a 360x256-bit grid at 0x82D33F98. The title itself reads slightly past a row
+// The AudioCore visibility update reads a 360x256-bit grid. The title itself reads slightly past a row
 // (column 256 is a normal last column), so spans near the table are kept as they are. A NaN angle converts to
 // 0x80000000, which gives row -128 and a read 256 MB below the table.
 inline constexpr int32_t kVisibilityGridRows = 360;

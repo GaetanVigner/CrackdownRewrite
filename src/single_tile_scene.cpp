@@ -44,6 +44,7 @@
 #include <rex/system/kernel_state.h>
 
 #include "guest_memory.h"
+#include "guest_hooks.h"
 
 REXCVAR_DEFINE_BOOL(crackdown_single_tile_scene, false, "Crackdown",
                     "Experimental: render the main scene at 1x MSAA in one predicated tile instead of two 2x MSAA "
@@ -259,83 +260,74 @@ bool SingleTileSuppressed() {
 }  // namespace crackdown
 
 // Creates the scene's color and depth targets once (guard byte 0x82DE25C6), sized from the tile rects.
-REX_EXTERN(__imp__sub_82326728);
-REX_HOOK_RAW(sub_82326728) {
+void crackdown::hooks::SceneTargetsCreate(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   using namespace crackdown;
   Latch(base, "sub_82326728");
   g_creating_targets = true;
-  __imp__sub_82326728(ctx, base);
+  original(ctx, base);
   g_creating_targets = false;
 }
 
 // Constructor of the post-process object (stored at 0x82DE4160): tile-sized textures, half-res targets 640 x half
 // the tile height, per-tile half-res textures, all sized from the tile rects.
-REX_EXTERN(__imp__sub_825A76E0);
-REX_HOOK_RAW(sub_825A76E0) {
+void crackdown::hooks::PostProcessConstructed(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   crackdown::Latch(base, "sub_825A76E0");
-  __imp__sub_825A76E0(ctx, base);
+  original(ctx, base);
 }
 
 // The title's entry point: the tile rects are patched before any title code reads them.
-REX_EXTERN(__imp__xstart);
-REX_HOOK_RAW(xstart) {
+void crackdown::hooks::TitleEntry(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   crackdown::Latch(base, "xstart");
-  __imp__xstart(ctx, base);
+  original(ctx, base);
 }
 
 // CreateRenderTarget(r3 width, r4 height, r5 format, r6 multisample 0/1/2 = 1x/2x/4x, r7 params).
-REX_EXTERN(__imp__sub_826AED90);
-REX_HOOK_RAW(sub_826AED90) {
+void crackdown::hooks::D3dCreateRenderTarget(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   using namespace crackdown;
   if (Enabled() && g_creating_targets && ctx.r6.u32 == 1 && ctx.r3.u32 == 1280 && ctx.r4.u32 == 720 &&
       (ctx.r5.u32 == kSceneColorFormat || ctx.r5.u32 == kSceneDepthFormat)) {
     ctx.r6.u64 = 0;
   }
-  __imp__sub_826AED90(ctx, base);
+  original(ctx, base);
 }
 
 // BeginTiling(r3 device, r4 flags, r5 count, r6 rects, r7 clear color, f1 z, r9 stencil).
-REX_EXTERN(__imp__sub_826BD488);
-REX_HOOK_RAW(sub_826BD488) {
+void crackdown::hooks::D3dBeginTiling(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   using namespace crackdown;
   if (Enabled() && ctx.r5.u32 == 2 && ctx.r6.u32 == kSceneRects) {
     ctx.r5.u64 = 1;
     g_in_bracket = true;
     g_suppressed = false;
   }
-  __imp__sub_826BD488(ctx, base);
+  original(ctx, base);
 }
 
 // EndTiling(r3 device, r4 flags, r5 resolve rects, ...).
-REX_EXTERN(__imp__sub_826BDA38);
-REX_HOOK_RAW(sub_826BDA38) {
+void crackdown::hooks::D3dEndTiling(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   using namespace crackdown;
   const bool scene = g_in_bracket;
   g_suppressed = false;
-  __imp__sub_826BDA38(ctx, base);
+  original(ctx, base);
   if (scene) g_in_bracket = false;
 }
 
 // SetPredication(r3 device, r4 mask): D3DPRED_TILE(i) = 3 << 2i, D3DPRED_TILE_RENDER(i) = 2 << 2i, 0xAAAAAAAA all.
-REX_EXTERN(__imp__sub_826BD300);
-REX_HOOK_RAW(sub_826BD300) {
+void crackdown::hooks::D3dSetPredication(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   using namespace crackdown;
   if (g_in_bracket) g_suppressed = ctx.r4.u32 != 0 && (ctx.r4.u32 & kTileZeroBits) == 0;
-  __imp__sub_826BD300(ctx, base);
+  original(ctx, base);
 }
 
 // Render-target fixup of a command buffer at load (from sub_823BD140).
-REX_EXTERN(__imp__sub_826C3D90);
-REX_HOOK_RAW(sub_826C3D90) {
-  __imp__sub_826C3D90(ctx, base);
+void crackdown::hooks::CommandBufferFixup(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  original(ctx, base);
   crackdown::g_loads.fetch_add(1, std::memory_order_release);
 }
 
 // Binds a shader's literal constants (r3 device, r4 shader, r5 the shader's data base): one LOAD_ALU_CONSTANT per entry
 // of the literal table at shader + *(shader + 20) + 20 (its end at table + 16): {u16 first float4, u16 dwords,
 // u32 offset from r5}.
-REX_EXTERN(__imp__sub_826C6A50);
-REX_HOOK_RAW(sub_826C6A50) {
+void crackdown::hooks::D3dBindShaderLiterals(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   using namespace crackdown;
   const uint32_t shader = ctx.r4.u32;
   const uint32_t table_offset = Enabled() ? Load32(base, shader + 20) : 0;
@@ -354,7 +346,7 @@ REX_HOOK_RAW(sub_826C6A50) {
       }
     }
   }
-  __imp__sub_826C6A50(ctx, base);
+  original(ctx, base);
 }
 
 // Codegen midasm hooks before the `fdivs` of (tile height - overlap) by the tile height in the light pools pass:

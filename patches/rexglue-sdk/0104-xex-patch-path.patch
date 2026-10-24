@@ -1,0 +1,68 @@
+Runtime option --xex_patch: the guest path of the XEX patch to apply to the main module.
+
+The runtime applies default.xexp from next to default.xex. A port that ships a title update as a second recompiled
+executable has to apply it from a folder of its own (mounted as update: through --update_data_root): the base build
+shares the game folder and must never see the patch, and the game folder stays as the player installed it. With
+--xex_patch set, that file is the patch and a missing file fails the load. A patch file is never given a patch of its
+own, which an override would otherwise make it look up in turn. Unset, nothing changes.
+
+diff --git a/src/system/user_module.cpp b/src/system/user_module.cpp
+--- a/src/system/user_module.cpp
++++ b/src/system/user_module.cpp
+@@ -9,6 +9,7 @@
+  * @modified    Tom Clay, 2026 - Adapted for ReXGlue runtime
+  */
+ 
++#include <cctype>
+ #include <vector>
+ 
+ #include <rex/cvar.h>
+@@ -23,8 +24,29 @@
+ #include <rex/system/xfile.h>
+ #include <rex/system/xthread.h>
+ 
++REXCVAR_DEFINE_STRING(xex_patch, "", "Runtime",
++                      "Guest path of the XEX patch (.xexp) to apply to the main module; empty = the sibling of the XEX");
++
+ namespace rex::system {
+ 
++namespace {
++
++bool IsXexPatchPath(std::string_view path) {
++  constexpr std::string_view kExtension = ".xexp";
++  if (path.size() < kExtension.size()) {
++    return false;
++  }
++  const std::string_view tail = path.substr(path.size() - kExtension.size());
++  for (size_t i = 0; i < kExtension.size(); ++i) {
++    if (std::tolower(static_cast<unsigned char>(tail[i])) != kExtension[i]) {
++      return false;
++    }
++  }
++  return true;
++}
++
++}  // namespace
++
+ UserModule::UserModule(KernelState* kernel_state)
+     : XModule(kernel_state, ModuleType::kUserModule) {}
+ 
+@@ -102,8 +124,16 @@
+     return result;
+   }
+ 
+-  // Search for sibling XEX patch file
+-  auto patch_entry = kernel_state_->file_system()->ResolvePath(path_ + "p");
++  // The patch is the one --xex_patch names, else the sibling of the XEX. A patch file never gets a patch of its own.
++  if (IsXexPatchPath(path_)) {
++    return LoadXexContinue();
++  }
++  const std::string& patch_override = REXCVAR_GET(xex_patch);
++  auto patch_entry = kernel_state_->file_system()->ResolvePath(patch_override.empty() ? path_ + "p" : patch_override);
++  if (!patch_entry && !patch_override.empty()) {
++    REXSYS_ERROR("--xex_patch {} not found", patch_override);
++    return X_STATUS_UNSUCCESSFUL;
++  }
+   if (patch_entry) {
+     auto patch_path = patch_entry->absolute_path();
+ 

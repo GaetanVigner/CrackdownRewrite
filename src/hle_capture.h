@@ -12,7 +12,7 @@ namespace crackdown {
 // HLE renderer milestone 1: with crackdown_hle_capture on, F8 records the next frames twice, from the
 // two ends of the same command stream. The game side (hooks on the D3D draw functions) writes, for
 // every DRAW packet the game's D3D device emits, the device's shadow state right after the call to
-// logs/hle_game_<n>.bin; the GPU side (gpu_draw_trace, SDK patch 0106) writes the register state the
+// logs/hle_game_<n>.bin; the GPU side (gpu_draw_trace, SDK patch 0108) writes the register state the
 // command processor sees for every DRAW it executes to logs/hle_gpu_<n>.bin. Both use the same record
 // layout and are matched by the DRAW packet's guest physical address (tools/hle-trace-compare.ps1).
 

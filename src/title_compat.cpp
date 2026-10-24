@@ -6,14 +6,13 @@
 #include <rex/hook.h>
 #include <rex/system/kernel_state.h>
 
-REX_EXTERN(__imp__sub_82A49908);
+#include "guest_hooks.h"
+#include "guest_layout.h"
 
 namespace {
 
-constexpr uint32_t kNullAudioCallerSite = 0x8225D5F0;
-
-// The slot teardown at 8225D5F0 selects its no-release path through the out byte, which also skips the slot's own
-// idle reset (offsets 64, 70-73), so the reset is done here.
+// The slot teardown selects its no-release path through the out byte, which also skips the slot's own idle reset
+// (offsets 64, 70-73), so the reset is done here.
 void SkipNullAudioObject(uint8_t* base, uint32_t out_flag, uint32_t slot) {
   *rex::memory::GuestPtr<uint8_t*>(base, out_flag) = 1;
   std::memset(rex::memory::GuestPtr<uint8_t*>(base, slot + 12), 0, sizeof(uint32_t));
@@ -26,18 +25,17 @@ void SkipNullAudioObject(uint8_t* base, uint32_t out_flag, uint32_t slot) {
 
 }  // namespace
 
-// Other callers of sub_82A49908 keep the original call.
-REX_HOOK_RAW(sub_82A49908) {
-  if (!ctx.r3.u32 && uint32_t(ctx.lr) == kNullAudioCallerSite) {
+// Other callers of the handle release keep the original call.
+void crackdown::hooks::AudioReleaseHandle(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  if (!ctx.r3.u32 && uint32_t(ctx.lr) == crackdown::Layout().null_audio_return) {
     SkipNullAudioObject(base, ctx.r4.u32, ctx.r31.u32);
     ctx.r3.u64 = 0;
     return;
   }
-  __imp__sub_82A49908(ctx, base);
+  original(ctx, base);
 }
 
-// Codegen hook at the spin of sub_82A50000 (config/overrides.toml), also polled by the host rendezvous in
-// audio_guest_sync.cpp. The audio workers wait there for each other without a kernel wait, so one whose partner
+// Codegen hook at the spin of the XAudio rendezvous, also polled by the host rendezvous in audio_guest_sync.cpp. The audio workers wait there for each other without a kernel wait, so one whose partner
 // already stopped for title termination would wait forever.
 bool crackdown_audio_barrier_escape() {
   const auto* kernel = rex::system::kernel_state();

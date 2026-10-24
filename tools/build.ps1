@@ -35,6 +35,8 @@ $Root = Split-Path $PSScriptRoot -Parent
 . (Join-Path $PSScriptRoot 'rexruntime-patch.ps1')
 $BuildDir = if (-not $BuildDir) { Join-Path $Root 'build' } elseif ([IO.Path]::IsPathRooted($BuildDir)) { $BuildDir } else { Join-Path $Root $BuildDir }
 $GameData = Join-Path $Root 'game\assets'
+# generated\tu6 is made by tools\codegen-tu6.ps1; crackdown.exe carries the Title Update 6 guest only once it exists.
+$Tu6Built = Test-Path -LiteralPath (Join-Path $Root 'generated\tu6\sources.cmake')
 $UserData = Join-Path $BuildDir 'user_data'
 $Exe = Join-Path $BuildDir 'crackdown.exe'
 $Layout = Get-RexglueLayout $Root $Config
@@ -46,11 +48,11 @@ function Stop-Build([int]$Code, [string]$Message) {
     exit $Code
 }
 
-function Stop-GuestCodeStale([string[]]$Reasons) {
+function Stop-GuestCodeStale([string[]]$Reasons, [string]$Script = 'codegen.ps1') {
     Write-Host 'Guest code: stale'
     Write-Host "Reason: $($Reasons -join '; ')"
     Write-Host 'Run:'
-    Write-Host '  .\tools\codegen.ps1'
+    Write-Host "  .\tools\$Script"
     Write-Host "  .\tools\build.ps1$(if ($Run) { ' -Run' })"
     exit 2
 }
@@ -68,6 +70,10 @@ function Get-PreRunProblems {
     $problems = @()
     $guest = Get-CodegenFreshness $Root $SdkVersion
     if (-not $guest.Current) { $problems += "guest code is stale: $($guest.Reasons -join '; ')" }
+    if ($Tu6Built) {
+        $tu6 = Get-CodegenFreshness $Root $SdkVersion 'tu6'
+        if (-not $tu6.Current) { $problems += "Title Update 6 guest code is stale: $($tu6.Reasons -join '; ')" }
+    }
     $problems += @(Get-RexglueInstallProblems $Layout | ForEach-Object { "ReXGlue runtime: $_" })
     $problems += @(Get-RexglueStagingProblems $Layout $BuildDir $Config)
     $problems += @(Get-CrackdownOutputProblems)
@@ -88,6 +94,11 @@ if (-not (Test-Path (Join-Path $Root 'generated\default\sources.cmake'))) { Stop
 $guest = Get-CodegenFreshness $Root $SdkVersion
 if (-not $guest.Current) { Stop-GuestCodeStale $guest.Reasons }
 Write-Host 'Guest code: current'
+if ($Tu6Built) {
+    $tu6 = Get-CodegenFreshness $Root $SdkVersion 'tu6'
+    if (-not $tu6.Current) { Stop-GuestCodeStale $tu6.Reasons 'codegen-tu6.ps1' }
+    Write-Host 'Title Update 6 guest code: current'
+}
 
 try { $Toolchain = Get-BuildToolchain } catch { Stop-Build 2 $_.Exception.Message }
 try { Update-RexglueRuntime $Layout $Jobs } catch { Stop-Build 1 $_.Exception.Message }

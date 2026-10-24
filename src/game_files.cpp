@@ -19,6 +19,7 @@
 #include <windows.h>
 #endif
 
+#include "content_fs.h"
 #include "game_manifest.h"
 #include "sha256.h"
 #include "xdvdfs.h"
@@ -27,6 +28,7 @@ namespace crackdown {
 namespace {
 
 namespace fs = std::filesystem;
+using namespace content_fs;
 
 constexpr uint64_t kSpaceMargin = 64ull << 20;
 constexpr size_t kChunkBytes = 1 << 20;
@@ -49,15 +51,6 @@ std::string Utf8(const fs::path& path) {
 
 // ---- Paths ----
 
-fs::path::string_type LowerNative(fs::path::string_type text) {
-  for (auto& c : text) {
-    if (c >= 'A' && c <= 'Z') {
-      c = static_cast<fs::path::value_type>(c - 'A' + 'a');
-    }
-  }
-  return text;
-}
-
 std::vector<std::string_view> SplitPath(std::string_view path) {
   std::vector<std::string_view> parts;
   while (!path.empty()) {
@@ -76,85 +69,6 @@ fs::path FromPortable(std::string_view path) {
     out /= fs::path(std::string(part));
   }
   return out;
-}
-
-bool IsLink(const fs::path& path) {
-#if defined(_WIN32)
-  const DWORD attributes = GetFileAttributesW(path.c_str());
-  if (attributes == INVALID_FILE_ATTRIBUTES || !(attributes & FILE_ATTRIBUTE_REPARSE_POINT)) {
-    return false;
-  }
-  // Cloud placeholders are reparse points too but redirect nothing; symlinks and junctions set the name-surrogate bit.
-  WIN32_FIND_DATAW data;
-  const HANDLE found = FindFirstFileW(path.c_str(), &data);
-  if (found == INVALID_HANDLE_VALUE) {
-    return true;
-  }
-  FindClose(found);
-  return (data.dwReserved0 & 0x20000000u) != 0;
-#else
-  std::error_code ec;
-  return fs::is_symlink(path, ec);
-#endif
-}
-
-bool IsAbsent(const fs::path& path) {
-  std::error_code ec;
-  return fs::symlink_status(path, ec).type() == fs::file_type::not_found;
-}
-
-// Recursive deletion must not follow a link, so a link anywhere under `dir` makes the folder unsafe to delete.
-bool ContainsLink(const fs::path& dir) {
-  std::error_code ec;
-  for (fs::recursive_directory_iterator it(dir, ec), end; !ec && it != end; it.increment(ec)) {
-    if (IsLink(it->path())) {
-      return true;
-    }
-  }
-  return static_cast<bool>(ec);
-}
-
-bool IsPlainFolder(const fs::path& path) {
-  std::error_code ec;
-  return !IsLink(path) && fs::is_directory(fs::symlink_status(path, ec)) && !ContainsLink(path);
-}
-
-bool SameComponent(const fs::path& a, const fs::path& b) {
-#if defined(_WIN32)
-  return LowerNative(a.native()) == LowerNative(b.native());
-#else
-  return a == b;
-#endif
-}
-
-fs::path Resolved(const fs::path& path) {
-  std::error_code ec;
-  fs::path absolute = fs::absolute(path, ec);
-  fs::path out = fs::weakly_canonical(absolute, ec);
-  if (ec) {
-    out = absolute;
-  }
-  out = out.lexically_normal();
-  if (!out.has_filename() && out.has_relative_path()) {
-    out = out.parent_path();
-  }
-  return out;
-}
-
-bool IsSameOrInside(const fs::path& outer, const fs::path& inner) {
-  auto o = outer.begin();
-  auto i = inner.begin();
-  for (; o != outer.end(); ++o, ++i) {
-    if (i == inner.end() || !SameComponent(*o, *i)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-bool IsInside(const fs::path& root, const fs::path& path) {
-  const fs::path relative = path.lexically_relative(root);
-  return !relative.empty() && relative != "." && *relative.begin() != "..";
 }
 
 std::optional<fs::path> FindEntry(const fs::path& dir, std::string_view name) {
@@ -367,63 +281,6 @@ std::optional<WorkPaths> ResolveWorkPaths(const fs::path& game_dir) {
   paths.backup += kBackupSuffix;
   return paths;
 }
-
-// The antivirus scanner can hold a freshly written folder for a moment.
-bool RenameWithRetry(const fs::path& from, const fs::path& to, const FileOps& ops, std::error_code& last) {
-  const int attempts = std::max(1, ops.rename_attempts);
-  for (int attempt = 0; attempt < attempts; ++attempt) {
-    last.clear();
-    if (ops.rename) {
-      ops.rename(from, to, last);
-    } else {
-      fs::rename(from, to, last);
-    }
-    if (!last) {
-      return true;
-    }
-    if (attempt + 1 < attempts && ops.retry_delay.count() > 0) {
-      std::this_thread::sleep_for(ops.retry_delay);
-    }
-  }
-  return false;
-}
-
-enum class Removal { kGone, kUnsafe, kFailed };
-
-// Deletes a work folder only when no link is at or under it.
-Removal RemoveWorkFolder(const fs::path& dir, const FileOps& ops) {
-  if (IsAbsent(dir)) {
-    return Removal::kGone;
-  }
-  if (!IsPlainFolder(dir)) {
-    return Removal::kUnsafe;
-  }
-  std::error_code ec;
-  if (ops.remove_all) {
-    ops.remove_all(dir, ec);
-  } else {
-    fs::remove_all(dir, ec);
-  }
-  return !ec && IsAbsent(dir) ? Removal::kGone : Removal::kFailed;
-}
-
-class WorkFolderGuard {
- public:
-  WorkFolderGuard(fs::path dir, const FileOps& ops) : dir_(std::move(dir)), ops_(ops) {}
-  WorkFolderGuard(const WorkFolderGuard&) = delete;
-  WorkFolderGuard& operator=(const WorkFolderGuard&) = delete;
-  ~WorkFolderGuard() {
-    if (armed_) {
-      RemoveWorkFolder(dir_, ops_);
-    }
-  }
-  void Release() { armed_ = false; }
-
- private:
-  fs::path dir_;
-  const FileOps& ops_;
-  bool armed_ = true;
-};
 
 // The previous install survives an interrupted swap as the backup folder; this puts it back.
 bool RestoreBackup(const WorkPaths& paths, const GameDescriptor& game, const FileOps& ops, std::error_code& error) {

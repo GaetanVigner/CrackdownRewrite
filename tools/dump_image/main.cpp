@@ -1,12 +1,16 @@
 // Writes the decrypted, decompressed guest image of an Xbox 360 XEX to a file,
 // loading it the same way `rexglue codegen` does (runtime in tool mode).
-//   dump_image <game_root> <xex name> <out.bin>
+//   dump_image <game_root> <xex name> <out.bin> [<update_root>]
+// With <update_root> the image is patched with <update_root>/Default.xexp, applied the way the Title Update 6
+// executable applies it: --update_data_root and --xex_patch=update:\Default.xexp.
 // Prints "base size" so analysis scripts know where the image starts.
 #include <cstdio>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
 
+#include <rex/cvar.h>
 #include <rex/kernel/init.h>
 #include <rex/runtime.h>
 #include <rex/system/kernel_state.h>
@@ -16,11 +20,16 @@
 using rex::X_STATUS;
 
 int main(int argc, char** argv) {
-  if (argc != 4) {
-    std::fprintf(stderr, "usage: dump_image <game_root> <xex name> <out.bin>\n");
+  if (argc != 4 && argc != 5) {
+    std::fprintf(stderr, "usage: dump_image <game_root> <xex name> <out.bin> [<update_root>]\n");
     return 2;
   }
-  auto runtime = std::make_unique<rex::Runtime>(argv[1]);
+  std::filesystem::path update_root;
+  if (argc == 5) {
+    update_root = argv[4];
+    rex::cvar::SetFlagByName("xex_patch", "update:\\Default.xexp");
+  }
+  auto runtime = std::make_unique<rex::Runtime>(argv[1], std::filesystem::path(), update_root);
   if (runtime->Setup(rex::RuntimeConfig{.kernel_init = rex::kernel::InitializeKernel, .tool_mode = true}) !=
       X_STATUS_SUCCESS) {
     std::fprintf(stderr, "runtime setup failed\n");

@@ -133,7 +133,7 @@ void FinalizeSessionLog() {
   }
 }
 
-void BeginSessionLogHandoff() {
+void BeginSessionLogHandoff(bool same_process) {
   const std::filesystem::path file = ActiveLogFile();
   if (file.empty()) {
     return;
@@ -142,13 +142,15 @@ void BeginSessionLogHandoff() {
   rex::FlushLogging();
   g_handed_off.store(true, std::memory_order_release);
 #if defined(_WIN32)
+  (void)same_process;  // Windows starts a new process; it never replaces this one
   const std::wstring path = file.wstring();
   const std::wstring parent = std::to_wstring(GetCurrentProcessId());
   SetEnvironmentVariableW(kSessionLogVariable, path.c_str());
   SetEnvironmentVariableW(kSessionParentVariable, parent.c_str());
 #else
   const std::string path = file.string();
-  const std::string parent = std::to_string(getpid());
+  // A process that replaces itself has no previous process to wait for.
+  const std::string parent = same_process ? "0" : std::to_string(getpid());
   setenv(kSessionLogVariable, path.c_str(), 1);
   setenv(kSessionParentVariable, parent.c_str(), 1);
 #endif

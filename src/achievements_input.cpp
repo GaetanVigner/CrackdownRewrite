@@ -13,6 +13,7 @@
 #include "achievements_overlay_rules.h"
 #include "cheat_hooks.h"
 #include "cheat_menu_input.h"
+#include "guest_hooks.h"
 
 namespace crackdown {
 namespace {
@@ -72,11 +73,10 @@ float AchievementsScrollAxis() { return g_scroll_axis.load(std::memory_order_rel
 }  // namespace crackdown
 
 // The game's XInputGetState wrapper: r3 is the user, r4 the state, and it passes flags 0 to XamInputGetState.
-REX_EXTERN(__imp__sub_82743798);
-REX_HOOK_RAW(sub_82743798) {
+void crackdown::hooks::FilterPadState(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t user = ctx.r3.u32;
   const uint32_t state = ctx.r4.u32;
-  __imp__sub_82743798(ctx, base);
+  original(ctx, base);
   if (state && ctx.r3.u32 == 0) {
     crackdown::cheats::FilterMenuInput(base, user, state);
   }

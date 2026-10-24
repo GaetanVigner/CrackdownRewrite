@@ -43,7 +43,7 @@ REXCVAR_DEFINE_BOOL(crackdown_msaa_compatibility, false, "Crackdown",
                     "Draw the game's 2x MSAA render targets with 4x MSAA, for GPUs or drivers whose native 2x "
                     "MSAA misrenders (sets native_2x_msaa)");
 REXCVAR_DEFINE_STRING(crackdown_graphics_adapter, "auto", "Crackdown",
-                      "Graphics card: auto, or the index d3d12_adapter takes (applied at start)");
+                      "Graphics card: the index d3d12_adapter takes; anything else uses the first adapter (applied at start)");
 REXCVAR_DEFINE_STRING(crackdown_aspect_ratio, "16:9", "Crackdown",
                       "Aspect ratio the game renders in: 16:9, 16:10, 21:9, 32:9, 4:3 or 5:4 (applied at start)");
 REXCVAR_DEFINE_STRING(crackdown_language, "en-US", "Crackdown",
@@ -62,6 +62,10 @@ REXCVAR_DEFINE_BOOL(cheat_no_fall_damage, false, "Crackdown", "No Fall Damage ch
 REXCVAR_DEFINE_BOOL(cheat_infinite_ammo, false, "Crackdown", "Infinite Ammo cheat");
 REXCVAR_DEFINE_BOOL(cheat_infinite_vehicle_health, false, "Crackdown", "Infinite Vehicle Health cheat");
 REXCVAR_DEFINE_INT32(cheat_vehicle_speed, 0, "Crackdown", "Vehicle Speed cheat: 0 (Off), 2, 4 or 6");
+REXCVAR_DEFINE_INT32(cheat_agility_orbs_on_map, 0, "Crackdown",
+                     "Uncollected agility orbs: 0 (Off), 1 (Minimap) or 2 (Minimap and world map)");
+REXCVAR_DEFINE_INT32(cheat_hidden_orbs_on_map, 0, "Crackdown",
+                     "Uncollected hidden orbs: 0 (Off), 1 (Minimap) or 2 (Minimap and world map)");
 REXCVAR_DEFINE_BOOL(crackdown_launcher_fullscreen, false, "Crackdown",
                     "Launcher was left in its own F11 fullscreen, written by the launcher");
 
@@ -100,6 +104,8 @@ const std::vector<std::string> kGameSettingKeys = [] {
       "cheat_infinite_ammo",
       "cheat_infinite_vehicle_health",
       "cheat_vehicle_speed",
+      "cheat_agility_orbs_on_map",
+      "cheat_hidden_orbs_on_map",
   };
   for (const KeyboardAction& action : kKeyboardActions) {
     keys.emplace_back(action.key);
@@ -224,6 +230,8 @@ void SyncSavedCheats() {
   cheats::SetSavedValue(Cheat::InfiniteAmmo, REXCVAR_GET(cheat_infinite_ammo) ? 1 : 0);
   cheats::SetSavedValue(Cheat::InfiniteVehicleHealth, REXCVAR_GET(cheat_infinite_vehicle_health) ? 1 : 0);
   cheats::SetSavedValue(Cheat::VehicleSpeed, REXCVAR_GET(cheat_vehicle_speed));
+  cheats::SetSavedValue(Cheat::AgilityOrbsOnMap, REXCVAR_GET(cheat_agility_orbs_on_map));
+  cheats::SetSavedValue(Cheat::HiddenOrbsOnMap, REXCVAR_GET(cheat_hidden_orbs_on_map));
 }
 
 WindowPlacement SavedLauncherPlacement() {
@@ -432,22 +440,21 @@ void ApplyInternalRenderPath() {
 void ApplyGraphicsAdapter() {
 #if defined(_WIN32)
   const std::string setting = REXCVAR_GET(crackdown_graphics_adapter);
-  if (!ParseGraphicsAdapter(setting)) {
-    REXLOG_INFO("Graphics card: Automatic");
-    return;
-  }
   const std::vector<GraphicsAdapter> adapters = ListGraphicsAdapters();
-  const int index = ResolveGraphicsAdapter(setting, adapters);
-  if (index < 0) {
-    REXLOG_WARN("Graphics card {} is not available, using Automatic", setting);
+  const std::optional<int> index = ResolveGraphicsAdapter(setting, adapters);
+  if (!index) {
+    REXLOG_WARN("No usable Direct3D 12 graphics card found");
     return;
   }
-  rex::cvar::SetFlagByName("d3d12_adapter", std::to_string(index));
-  for (const GraphicsAdapter& adapter : adapters) {
-    if (adapter.index == index) {
-      REXLOG_INFO("Graphics card: {} (adapter {})", adapter.name, index);
-    }
+  const auto chosen = std::find_if(adapters.begin(), adapters.end(),
+                                   [&](const GraphicsAdapter& adapter) { return adapter.index == *index; });
+  if (ParseGraphicsAdapter(setting) && ParseGraphicsAdapter(setting) != index) {
+    REXLOG_WARN("Graphics card {} is not available, using {} (adapter {})", setting, chosen->name, *index);
+  } else {
+    REXLOG_INFO("Graphics card: {} (adapter {})", chosen->name, *index);
   }
+  rex::cvar::SetFlagByName("d3d12_adapter", std::to_string(*index));
+  rex::cvar::SetFlagByName("crackdown_graphics_adapter", std::to_string(*index));
 #endif
 }
 
