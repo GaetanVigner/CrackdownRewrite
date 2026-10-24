@@ -47,7 +47,7 @@ struct Block {
   uint32_t first;
   uint32_t count;
 };
-constexpr Block kBlocks[] = {{0x2000, 0x300}, {0x4000, 2048}, {0x4800, 192}, {0x4900, 40}};
+constexpr Block kBlocks[] = {{0x2000, 0x400}, {0x4000, 2048}, {0x4800, 192}, {0x4900, 40}};
 
 // Shadow groups of the render-state block: register range -> device offset (the flush emitters' map).
 struct ShadowGroup {

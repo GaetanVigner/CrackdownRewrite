@@ -279,6 +279,13 @@ name = "crackdown_single_tile_light_rows"
 registers = ["f10"]
 after_instruction = false
 
+# Without the tiling flag the ratio is 1 (fmr f12,f30) and only the second texcoord row keeps the 720 / 480 literal.
+[[midasm_hook]]
+address = 0x825A5FFC
+name = "crackdown_single_tile_light_ratio"
+registers = ["f12"]
+after_instruction = true
+
 [[midasm_hook]]
 address = 0x825A0EA8
 name = "crackdown_single_tile_light_rows"

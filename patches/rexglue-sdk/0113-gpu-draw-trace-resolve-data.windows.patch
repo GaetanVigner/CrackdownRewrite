@@ -1,0 +1,163 @@
+gpu_draw_trace_resolve_data (off by default, hot reload): while gpu_draw_trace records, every resolve is read back
+synchronously (readback_resolve full) and its guest memory bytes are written to <trace>_resolves.bin with the
+sequence of its trace record, so the passes of a frame can be looked at image by image. Guest memory is left as
+the configured readback mode would leave it.
+
+diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
+index 81d2bb0..7a5bdd2 100644
+--- a/include/rex/graphics/command_processor.h
++++ b/include/rex/graphics/command_processor.h
+@@ -147,6 +147,14 @@ class CommandProcessor {
+   void DrawTraceSwap();
+   void DrawTraceDraw(uint32_t packet, uint32_t draw_initiator,
+                      const IndexBufferInfo* index_buffer_info, bool killed);
++  // gpu_draw_trace_resolve_data: whether the trace records resolve contents, and the record of the
++  // last resolve's guest memory bytes (read back by the backend).
++  bool DrawTraceResolveDataWanted() const;
++  void DrawTraceResolveData(uint32_t address, const void* data, uint32_t length);
++  // The readback mode set by the cvars, ignoring the one gpu_draw_trace_resolve_data forces, and
++  // whether that mode copies a resolve of `length` bytes back to guest memory.
++  ReadbackResolveMode GetConfiguredReadbackResolveMode(bool legacy_readback_resolve_enabled) const;
++  bool ConfiguredReadbackCopies(bool legacy_readback_resolve_enabled, uint32_t length) const;
+   virtual bool SetupContext() = 0;
+   virtual void ShutdownContext() = 0;
+ 
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+index 5f7b851..06e4774 100644
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -100,6 +100,10 @@ REXCVAR_DEFINE_STRING(gpu_draw_trace, "", "GPU",
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ REXCVAR_DEFINE_INT32(gpu_draw_trace_frames, 1, "GPU", "Frames a gpu_draw_trace records")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DEFINE_BOOL(gpu_draw_trace_resolve_data, false, "GPU",
++                    "Developer diagnostics: with gpu_draw_trace, also write the guest memory bytes of "
++                    "every resolve (read back synchronously while recording) to <trace>_resolves.bin")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ REXCVAR_DEFINE_BOOL(gpu_frame_stats, false, "GPU",
+                     "Log every 10 s what the guest command stream asked per frame: draws, "
+                     "resolves, packets, constant registers, shader loads and texture lookups")
+@@ -261,6 +265,10 @@ struct DrawTrace {
+   // Guest physical address of the type-3 packet being executed (set while recording).
+   uint32_t packet_physical = 0;
+   std::string path;
++  // gpu_draw_trace_resolve_data: "GDRD", then per resolve u32 frame, u32 sequence of its kind-2
++  // record, u32 guest physical address, u32 byte length, u32 RB_COPY_DEST_INFO, u32
++  // RB_COPY_DEST_PITCH, then the bytes as the guest sees them (tiled, guest endianness).
++  std::FILE* resolve_file = nullptr;
+ };
+ DrawTrace g_draw_trace;
+ 
+@@ -287,6 +295,10 @@ void CommandProcessor::DrawTraceSwap() {
+     if (--trace.frames_left == 0) {
+       std::fclose(trace.file);
+       trace.file = nullptr;
++      if (trace.resolve_file) {
++        std::fclose(trace.resolve_file);
++        trace.resolve_file = nullptr;
++      }
+       REXGPU_INFO("Draw trace: {} frame(s) written to {}", trace.frame, trace.path);
+     }
+     return;
+@@ -313,9 +325,44 @@ void CommandProcessor::DrawTraceSwap() {
+     WriteU32(trace.file, block.first);
+     WriteU32(trace.file, block.count);
+   }
++  if (REXCVAR_GET(gpu_draw_trace_resolve_data)) {
++    std::string resolve_path = path;
++    const size_t dot = resolve_path.rfind('.');
++    const size_t slash = resolve_path.find_last_of("/\\");
++    resolve_path.insert(dot != std::string::npos && (slash == std::string::npos || dot > slash)
++                            ? dot
++                            : resolve_path.size(),
++                        "_resolves");
++    trace.resolve_file = std::fopen(resolve_path.c_str(), "wb");
++    if (trace.resolve_file) {
++      std::setvbuf(trace.resolve_file, nullptr, _IOFBF, 1 << 20);
++      std::fwrite("GDRD", 4, 1, trace.resolve_file);
++    } else {
++      REXGPU_ERROR("Draw trace: cannot open {}", resolve_path);
++    }
++  }
+   REXGPU_INFO("Draw trace: recording {} frame(s) to {}", trace.frames_left, path);
+ }
+ 
++bool CommandProcessor::DrawTraceResolveDataWanted() const {
++  return g_draw_trace.resolve_file != nullptr;
++}
++
++void CommandProcessor::DrawTraceResolveData(uint32_t address, const void* data, uint32_t length) {
++  DrawTrace& trace = g_draw_trace;
++  if (!trace.resolve_file) {
++    return;
++  }
++  std::FILE* file = trace.resolve_file;
++  WriteU32(file, trace.frame);
++  WriteU32(file, trace.sequence - 1);
++  WriteU32(file, address);
++  WriteU32(file, length);
++  WriteU32(file, register_file_->values[XE_GPU_REG_RB_COPY_DEST_INFO]);
++  WriteU32(file, register_file_->values[XE_GPU_REG_RB_COPY_DEST_PITCH]);
++  std::fwrite(data, 1, length, file);
++}
++
+ void CommandProcessor::DrawTraceDraw(uint32_t packet, uint32_t draw_initiator,
+                                      const IndexBufferInfo* index_buffer_info, bool killed) {
+   DrawTrace& trace = g_draw_trace;
+@@ -1019,6 +1066,15 @@ void CommandProcessor::InvalidateGpuMemory() {}
+ 
+ ReadbackResolveMode CommandProcessor::GetReadbackResolveMode(
+     bool legacy_readback_resolve_enabled) const {
++  // gpu_draw_trace_resolve_data reads every resolve back, synchronously, while it records.
++  if (g_draw_trace.resolve_file) {
++    return ReadbackResolveMode::kFull;
++  }
++  return GetConfiguredReadbackResolveMode(legacy_readback_resolve_enabled);
++}
++
++ReadbackResolveMode CommandProcessor::GetConfiguredReadbackResolveMode(
++    bool legacy_readback_resolve_enabled) const {
+   ReadbackResolveMode shared_mode = ParseReadbackResolveMode(REXCVAR_GET(readback_resolve));
+   bool shared_mode_overrides_legacy = shared_mode != ReadbackResolveMode::kDisabled ||
+                                       rex::cvar::HasNonDefaultValue("readback_resolve");
+@@ -1033,10 +1089,23 @@ uint32_t CommandProcessor::GetReadbackResolveSizeLimit(ReadbackResolveMode mode)
+   if (mode == ReadbackResolveMode::kDisabled) {
+     return 0;
+   }
++  if (g_draw_trace.resolve_file) {
++    return UINT32_MAX;
++  }
+   int32_t max_bytes = REXCVAR_GET(readback_resolve_max_bytes);
+   return max_bytes > 0 ? uint32_t(max_bytes) : UINT32_MAX;
+ }
+ 
++bool CommandProcessor::ConfiguredReadbackCopies(bool legacy_readback_resolve_enabled,
++                                                uint32_t length) const {
++  if (GetConfiguredReadbackResolveMode(legacy_readback_resolve_enabled) ==
++      ReadbackResolveMode::kDisabled) {
++    return false;
++  }
++  int32_t max_bytes = REXCVAR_GET(readback_resolve_max_bytes);
++  return max_bytes <= 0 || length <= uint32_t(max_bytes);
++}
++
+ bool CommandProcessor::IsReadbackMemexportEnabled(bool legacy_backend_flag) const {
+   if (legacy_readback_memexport_cvar_name_ &&
+       rex::cvar::HasNonDefaultValue(legacy_readback_memexport_cvar_name_)) {
+diff --git a/src/graphics/d3d12/command_processor.cpp b/src/graphics/d3d12/command_processor.cpp
+index 6413ff7..ac5bbd3 100644
+--- a/src/graphics/d3d12/command_processor.cpp
++++ b/src/graphics/d3d12/command_processor.cpp
+@@ -3467,6 +3467,12 @@ bool D3D12CommandProcessor::IssueCopy_ReadbackResolvePath() {
+   }
+ 
+   bool should_copy = (readback_mode == ReadbackResolveMode::kSome) ? is_cache_miss : true;
++  if (DrawTraceResolveDataWanted() && rb.buffers[read_index] &&
++      written_length <= rb.sizes[read_index] && rb.mapped_data[read_index]) {
++    DrawTraceResolveData(written_address, rb.mapped_data[read_index], written_length);
++    // Leave guest memory as the configured readback mode would.
++    should_copy &= ConfiguredReadbackCopies(REXCVAR_GET(d3d12_readback_resolve), written_length);
++  }
+   if (should_copy && rb.buffers[read_index] && written_length <= rb.sizes[read_index] &&
+       rb.mapped_data[read_index]) {
+     uint8_t* destination = memory_->TranslatePhysical(written_address);

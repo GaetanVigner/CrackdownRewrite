@@ -162,6 +162,7 @@ fn-base,d3d SetPredication,826BD300,,,,,,base only: single-tile scene; no Title 
 fn-base,command buffer fixup,826C3D90,,,,,,base only: single-tile scene; no Title Update 6 target yet
 fn-base,d3d bind shader literals,826C6A50,,,,,,base only: single-tile scene; no Title Update 6 target yet
 site-base,crackdown_single_tile_light_rows,825A606C,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet
+site-base,crackdown_single_tile_light_ratio,825A5FFC,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet
 site-base,crackdown_single_tile_light_rows,825A0EA8,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet
 site-base,crackdown_single_tile_light_rows,825A2B44,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet
 site-base,crackdown_crowd_step,82338390,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet

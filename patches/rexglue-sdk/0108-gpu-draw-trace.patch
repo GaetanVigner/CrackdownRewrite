@@ -65,7 +65,7 @@ diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor
 +  uint32_t count;
 +};
 +constexpr DrawTraceBlock kDrawTraceBlocks[] = {
-+    {0x2000, 0x300},  // render state
++    {0x2000, 0x400},  // render state (with the resolve and polygon offset registers)
 +    {XE_GPU_REG_SHADER_CONSTANT_000_X, 2048},
 +    {XE_GPU_REG_SHADER_CONSTANT_FETCH_00_0, 192},
 +    {XE_GPU_REG_SHADER_CONSTANT_BOOL_000_031, 40},

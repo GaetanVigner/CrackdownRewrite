@@ -357,3 +357,13 @@ void crackdown_single_tile_light_rows(PPCRegister& rows) {
     rows.f64 = 480.0;
   }
 }
+
+// Codegen midasm hook after 825A5FFC (`fmr f12,f30` in sub_825A53C0): without the tiling flag the ratio is 1, and the
+// second screen-space texcoord (VS c35, the normal texture's row) is still scaled by the 1.5 / -0.75 literals of the
+// two-tile layout. The vehicle shadow decals read the normals with it, so in one 720-row tile they sampled row 1.5 * y
+// and the characters' normals cut their silhouette out of the shadow above them. 480 / 720 makes c35 equal c21.
+void crackdown_single_tile_light_ratio(PPCRegister& ratio) {
+  if (crackdown::Enabled() && float(ratio.f64) == 1.0f) {
+    ratio.f64 = double(480.0f / 720.0f);
+  }
+}
