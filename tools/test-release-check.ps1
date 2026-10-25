@@ -24,6 +24,11 @@ $Cases = [ordered]@{
     'installed update' = 'user_data\title_update\4D5307DC\Default.xexp'
     'installed DLC'    = 'user_data\0000000000000000\4D5307DC\00000002\AA10729E62721B4EAF674486684E31CD9B94AC4F\Digest2.txt'
     'DLC header'       = 'AA10729E62721B4EAF674486684E31CD9B94AC4F.header'
+    'updater pdb'      = 'trg-updater.pdb'
+    'debug file'       = 'trg-updater.debug'
+    'renderdoc'        = 'renderdoc.dll'
+    'vulkan layer'     = 'VkLayer_test.json'
+    'vulkan loader'    = 'vulkan-1.dll'
 }
 $failures = 0
 try {

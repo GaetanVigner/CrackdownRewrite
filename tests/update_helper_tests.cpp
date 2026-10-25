@@ -1,6 +1,7 @@
 // Real trg-updater flow from a temporary helper directory: parent wait, install, restart quoting and child
 // environment cleanup.
 
+#include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
@@ -8,6 +9,7 @@
 #include <iterator>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -18,6 +20,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#include <shellapi.h>
 
 namespace {
 
@@ -148,14 +151,135 @@ bool WaitForMarker(const std::filesystem::path& path) {
   return false;
 }
 
+std::vector<std::string> ImportedLibraries(const std::filesystem::path& executable) {
+  std::vector<std::string> names;
+  const std::string image = ReadFile(executable);
+  const auto* base = reinterpret_cast<const unsigned char*>(image.data());
+  if (image.size() < sizeof(IMAGE_DOS_HEADER)) {
+    return names;
+  }
+  const auto* dos = reinterpret_cast<const IMAGE_DOS_HEADER*>(base);
+  if (dos->e_magic != IMAGE_DOS_SIGNATURE || size_t(dos->e_lfanew) + sizeof(IMAGE_NT_HEADERS64) > image.size()) {
+    return names;
+  }
+  const auto* nt = reinterpret_cast<const IMAGE_NT_HEADERS64*>(base + dos->e_lfanew);
+  const IMAGE_DATA_DIRECTORY imports = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+  const IMAGE_SECTION_HEADER* sections = IMAGE_FIRST_SECTION(nt);
+  auto to_offset = [&](DWORD rva) -> size_t {
+    for (WORD i = 0; i < nt->FileHeader.NumberOfSections; ++i) {
+      const IMAGE_SECTION_HEADER& section = sections[i];
+      if (rva >= section.VirtualAddress && rva < section.VirtualAddress + section.Misc.VirtualSize) {
+        return size_t(section.PointerToRawData + (rva - section.VirtualAddress));
+      }
+    }
+    return image.size();
+  };
+  for (size_t at = to_offset(imports.VirtualAddress); imports.Size && at + sizeof(IMAGE_IMPORT_DESCRIPTOR) <= image.size();
+       at += sizeof(IMAGE_IMPORT_DESCRIPTOR)) {
+    const auto* descriptor = reinterpret_cast<const IMAGE_IMPORT_DESCRIPTOR*>(base + at);
+    if (descriptor->Name == 0) {
+      break;
+    }
+    const size_t name = to_offset(descriptor->Name);
+    if (name < image.size()) {
+      names.emplace_back(image.c_str() + name);
+    }
+  }
+  return names;
+}
+
+bool IsSystemLibrary(std::string name) {
+  for (char& c : name) {
+    c = char(std::tolower(static_cast<unsigned char>(c)));
+  }
+  static const char* kSystem[] = {"kernel32.dll", "shell32.dll", "user32.dll", "advapi32.dll", "ntdll.dll",
+                                  "shlwapi.dll", "ole32.dll", "bcrypt.dll"};
+  if (name.rfind("api-ms-win-", 0) == 0) {
+    return true;
+  }
+  for (const char* system : kSystem) {
+    if (name == system) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool SameFile(const std::filesystem::path& left, const std::filesystem::path& right) {
   return ReadFile(left) == ReadFile(right);
 }
 
+std::filesystem::path CurrentExecutable() {
+  std::wstring path(MAX_PATH, L'\0');
+  for (;;) {
+    const DWORD length = GetModuleFileNameW(nullptr, path.data(), DWORD(path.size()));
+    if (length < path.size()) {
+      path.resize(length);
+      return path;
+    }
+    path.resize(path.size() * 2);
+  }
+}
+
+std::string Utf8(const wchar_t* text) {
+  const int length = WideCharToMultiByte(CP_UTF8, 0, text, -1, nullptr, 0, nullptr, nullptr);
+  if (length <= 1) {
+    return {};
+  }
+  std::string result(size_t(length), '\0');
+  WideCharToMultiByte(CP_UTF8, 0, text, -1, result.data(), length, nullptr, nullptr);
+  result.resize(size_t(length - 1));
+  return result;
+}
+
+bool Present(const wchar_t* name) {
+  return GetEnvironmentVariableW(name, nullptr, 0) > 0;
+}
+
+// --restart-marker [--hold <ms>] <output> [args...]: the stand-in parent and the program the helper restarts.
+int RunRestartMarker() {
+  int count = 0;
+  wchar_t** arguments = CommandLineToArgvW(GetCommandLineW(), &count);
+  if (!arguments) {
+    return 2;
+  }
+  const bool hold = count >= 5 && std::wstring_view(arguments[2]) == L"--hold";
+  const int output_index = hold ? 4 : 2;
+  if (count <= output_index) {
+    LocalFree(arguments);
+    return 2;
+  }
+  std::ofstream out(std::filesystem::path(arguments[output_index]), std::ios::binary | std::ios::trunc);
+  if (!out) {
+    LocalFree(arguments);
+    return 3;
+  }
+  out << "argc=" << count - 1 << '\n';
+  for (int i = 2; i < count; ++i) {
+    out << "arg" << i - 1 << '=' << Utf8(arguments[i]) << '\n';
+  }
+  for (const wchar_t* name : {L"CD_UPDATE_TEST", L"CD_UPDATE_TEST_CURRENT_VERSION", L"CD_UPDATE_TEST_RELEASE_JSON",
+                              L"CD_UPDATE_TEST_ASSET_SHA256"}) {
+    out << "env_" << Utf8(name) << '=' << (Present(name) ? "present" : "absent") << '\n';
+  }
+  out << "done=1\n";
+  out.close();
+  if (hold) {
+    Sleep(static_cast<DWORD>(std::wcstoul(arguments[3], nullptr, 10)));
+  }
+  LocalFree(arguments);
+  return 0;
+}
+
 }  // namespace
 
-int main() {
+int main(int argc, char** argv) {
+  if (argc > 1 && std::string_view(argv[1]) == "--restart-marker") {
+    return RunRestartMarker();
+  }
   std::setvbuf(stdout, nullptr, _IONBF, 0);
+  const std::filesystem::path updater =
+      argc > 1 ? std::filesystem::path(argv[1]) : std::filesystem::path(CRACKDOWN_UPDATER_EXE);
   ScopedEnvironment environment;
   TempDir temp;
   const std::filesystem::path helper_dir = temp.path / "helper dir";
@@ -170,15 +294,25 @@ int main() {
   const std::filesystem::path log = workspace / "trg-updater.log";
   const std::filesystem::path marker_output = temp.path / "marker output.txt";
   const std::filesystem::path parent_output = temp.path / "parent output.txt";
-  const std::filesystem::path marker = CRACKDOWN_RESTART_MARKER_EXE;
+  const std::filesystem::path marker = CurrentExecutable();
+  const std::filesystem::path program = marker.filename();
 
   std::error_code ec;
   std::filesystem::create_directories(helper_dir, ec);
-  std::filesystem::copy_file(CRACKDOWN_UPDATER_EXE, helper, std::filesystem::copy_options::overwrite_existing, ec);
+  std::filesystem::copy_file(updater, helper, std::filesystem::copy_options::overwrite_existing, ec);
   CHECK(!ec);
   for (const auto& entry : std::filesystem::directory_iterator(helper_dir, ec)) {
     CHECK(entry.is_regular_file());
     CHECK(entry.path().extension() == ".exe");
+  }
+
+  const std::vector<std::string> imports = ImportedLibraries(helper);
+  CHECK(!imports.empty());
+  for (const std::string& library : imports) {
+    if (!IsSystemLibrary(library)) {
+      std::printf("  helper imports %s\n", library.c_str());
+    }
+    CHECK(IsSystemLibrary(library));
   }
 
   std::filesystem::create_directories(standalone, ec);
@@ -191,7 +325,8 @@ int main() {
   CHECK(standalone_log.find("job read failed") != std::string::npos);
   CHECK(standalone_log.find("exit code: 2") != std::string::npos);
 
-  std::wstring parent_command = Quote(marker.wstring()) + L" --hold 750 " + Quote(parent_output.wstring());
+  std::wstring parent_command =
+      Quote(marker.wstring()) + L" --restart-marker --hold 750 " + Quote(parent_output.wstring());
   STARTUPINFOW parent_startup{};
   parent_startup.cb = sizeof(parent_startup);
   PROCESS_INFORMATION parent{};
@@ -202,15 +337,15 @@ int main() {
   std::filesystem::create_directories(workspace);
   std::filesystem::create_directories(install);
   std::filesystem::create_directories(staging);
-  WriteFile(install / "app.exe", "DEVELOPMENT_BUILD");
+  WriteFile(install / program, "DEVELOPMENT_BUILD");
   WriteFile(install / "user_data" / "settings.toml", "player settings");
   WriteFile(install / "game" / "default.xex", "game files");
   WriteFile(install / "game" / "dlc" / "Four-Play Pack" / "content.bin", "dlc");
   WriteFile(install / "logs" / "session.log", "log");
   WriteFile(install / "notes.txt", "keep me");
-  std::filesystem::copy_file(marker, staging / "app.exe", std::filesystem::copy_options::overwrite_existing, ec);
+  std::filesystem::copy_file(marker, staging / program, std::filesystem::copy_options::overwrite_existing, ec);
   CHECK(!ec);
-  WriteFile(manifest, "app.exe\n");
+  WriteFile(manifest, program.string() + "\n");
 
   std::string job_text = "format=1\n";
   job_text += "parent_pid=" + std::to_string(parent.dwProcessId) + "\n";
@@ -218,8 +353,9 @@ int main() {
   job_text += "staging_dir=" + staging.string() + "\n";
   job_text += "backup_dir=" + backup.string() + "\n";
   job_text += "manifest=" + manifest.string() + "\n";
-  job_text += "restart=" + (install / "app.exe").string() + "\n";
+  job_text += "restart=" + (install / program).string() + "\n";
   job_text += "log=" + log.string() + "\n";
+  job_text += "arg=--restart-marker\n";
   job_text += "arg=" + marker_output.string() + "\n";
   job_text += "arg=--flag=with space\n";
   job_text += "arg=--launcher\n";
@@ -236,7 +372,7 @@ int main() {
   CloseHandle(parent.hProcess);
   CHECK(exit_code == 0);
   CHECK(WaitForMarker(marker_output));
-  CHECK(SameFile(install / "app.exe", marker));
+  CHECK(SameFile(install / program, marker));
 
   const std::string marker_text = ReadFile(marker_output);
   CHECK(marker_text.find("arg1=" + marker_output.string()) != std::string::npos);
@@ -263,7 +399,7 @@ int main() {
   CHECK(helper_log.find("backup complete") != std::string::npos);
   CHECK(helper_log.find("replacement complete") != std::string::npos);
   CHECK(helper_log.find("verification complete") != std::string::npos);
-  CHECK(helper_log.find("restart executable: " + (install / "app.exe").string()) != std::string::npos);
+  CHECK(helper_log.find("restart executable: " + (install / program).string()) != std::string::npos);
   CHECK(helper_log.find("restart complete") != std::string::npos);
   CHECK(helper_log.find("exit code: 0") != std::string::npos);
 

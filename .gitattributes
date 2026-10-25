@@ -1,5 +1,6 @@
-# rexglue codegen rewrites the manifest with LF endings on every run.
+# rexglue codegen rewrites the manifests with LF endings on every run.
 crackdown_manifest.toml text eol=lf
+crackdown_tu6_manifest.toml text eol=lf
 
 # The runtime patches and baseline are hashed; their bytes must be the same on every checkout.
 patches/rexglue-sdk/* text eol=lf

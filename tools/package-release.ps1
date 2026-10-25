@@ -8,22 +8,26 @@
   to continue if the staging folder holds game or user files, then writes dist\Crackdown-v<version>-windows-x64.zip
   and its .sha256 file. The version is the project VERSION in CMakeLists.txt. The build rebuilds the patched ReXGlue
   runtime and GPU plugin first when they do not match patches\rexglue-sdk; the packaging stops unless they do.
+  The update helper, trg-updater.exe, is built with MSYS2 CLANG64 by build-updater.ps1; its debug information,
+  trg-updater.debug, goes to dist\Crackdown-v<version>-windows-x64-symbols\, which is not packaged.
+  The ZIP holds one top-level folder named after it; it is extracted again and checked.
 
 .EXAMPLE
   .\tools\package-release.ps1              # incremental Release build, then package
   .\tools\package-release.ps1 -Clean       # clean Release build first
   .\tools\package-release.ps1 -SkipBuild   # package the existing build-release\ output
-  .\tools\package-release.ps1 -VerifyOnly dist\Crackdown-v0.4.0-windows-x64
+  .\tools\package-release.ps1 -VerifyOnly dist\Crackdown-v0.6.2-windows-x64.zip   # check a staged folder or a ZIP
 #>
 param(
     [switch]$Clean,
     [switch]$SkipBuild,
-    [string]$VerifyOnly  # only check a staged folder for game or user files, then exit
+    [string]$VerifyOnly  # only check a staged folder or a release ZIP for game or user files, then exit
 )
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path $PSScriptRoot -Parent
 $ReleaseBuild = Join-Path $Root 'build-release'
+$UpdaterBuild = Join-Path $ReleaseBuild 'trg-updater-clang64'
 $Packaging = Join-Path $Root 'packaging'
 . (Join-Path $PSScriptRoot 'build-common.ps1')
 . (Join-Path $PSScriptRoot 'rexruntime-patch.ps1')
@@ -36,9 +40,10 @@ $GlyphFiles = @('button_glyphs.dds', 'button_glyphs.toml')
 $AssetFiles = @('assets\launcher\header-art.png')
 # Names that mean game data, saves, settings, caches or logs, and the retired second executable (both guests are in crackdown.exe).
 $ForbiddenNames = @('crackdown_tu6.exe', 'save-versions', 'default.xex', 'Default.xexp', 'GameStrings_DLC.str', 'game', 'game-install-temp', 'game-install-backup',
-    'user_data', 'title_update', 'dlc-install-temp', 'cache', 'logs', 'settings.toml', '4D5307DC', '$SystemUpdate')
+    'user_data', 'title_update', 'dlc-install-temp', 'cache', 'logs', 'settings.toml', '4D5307DC', '$SystemUpdate', 'vulkan-1.dll')
 $ForbiddenPatterns = @('*.xex', '*.xexp', '*.str', '*.header', '*.iso', '*.dvd', '*.dff', '*.xwb', '*.xzp', '*.bik', '*.tpk', '*.spk', '*.log', '*.dmp',
-    '*.pdb', '*.xsh', '*.xpso', '*.bak', '*.tmp', '*.sav', '*.invalid', 'settings.toml.*', 'trg-update-*', '.switch-*')
+    '*.pdb', '*.debug', '*.xsh', '*.xpso', '*.bak', '*.tmp', '*.sav', '*.invalid', 'settings.toml.*', 'trg-update-*', '.switch-*', 'VkLayer_*',
+    'renderdoc*')
 # First bytes of an Xbox 360 package or executable.
 $ForbiddenMagic = @('LIVE', 'PIRS', 'CON ', 'XEX2')
 
@@ -109,8 +114,38 @@ function Write-Problems($problems) {
     foreach ($problem in $problems) { Write-Host "  $problem" -ForegroundColor Red }
 }
 
+function Expand-ReleaseZip([string]$Zip) {
+    Add-Type -AssemblyName System.IO.Compression, System.IO.Compression.FileSystem
+    $target = Join-Path ([IO.Path]::GetTempPath()) ('crackdown_release_zip_' + [Guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory $target | Out-Null
+    $archive = [IO.Compression.ZipFile]::OpenRead($Zip)
+    try {
+        foreach ($entry in $archive.Entries) {
+            if ($entry.FullName -match '^[\\/]|\.\.|:|\\') { throw "The ZIP holds an unsafe entry name: $($entry.FullName)" }
+            if (-not $entry.Name) { throw "The ZIP holds a folder entry: $($entry.FullName)" }
+            $path = Join-Path $target $entry.FullName
+            New-Item -ItemType Directory -Force (Split-Path $path) | Out-Null
+            [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $path)
+        }
+    } finally { $archive.Dispose() }
+    return $target
+}
+
+# The updater installs the files at the root or inside one top-level folder.
+function Get-ZipContentRoot([string]$Folder) {
+    $items = @(Get-ChildItem -LiteralPath $Folder -Force)
+    if ($items.Count -eq 1 -and $items[0].PSIsContainer) { return $items[0].FullName }
+    return $Folder
+}
+
 if ($VerifyOnly) {
-    $problems = Test-ReleaseFolder $VerifyOnly
+    $path = (Resolve-Path -LiteralPath $VerifyOnly).Path
+    if (Test-Path -LiteralPath $path -PathType Leaf) {
+        $folder = Expand-ReleaseZip $path
+        try { $problems = Test-ReleaseFolder (Get-ZipContentRoot $folder) } finally { Remove-Item -LiteralPath $folder -Recurse -Force -ErrorAction SilentlyContinue }
+    } else {
+        $problems = Test-ReleaseFolder $path
+    }
     if ($problems.Count) { Write-Problems $problems; exit 1 }
     Write-Host "Release folder is clean: $VerifyOnly"
     return
@@ -122,6 +157,7 @@ $Version = $Matches[1]
 $Name = "Crackdown-v$Version-windows-x64"
 $Dist = Join-Path $Root 'dist'
 $Stage = Join-Path $Dist $Name
+$Symbols = Join-Path $Dist "$Name-symbols"
 $Zip = Join-Path $Dist "$Name.zip"
 $ShaFile = Join-Path $Dist "$Name.sha256"
 
@@ -133,6 +169,7 @@ if (-not $SkipBuild) {
     if ($Clean) { $build.Clean = $true }
     & (Join-Path $PSScriptRoot 'build.ps1') @build
     if ($LASTEXITCODE) { throw "The Release build failed ($LASTEXITCODE)" }
+    & (Join-Path $PSScriptRoot 'build-updater.ps1') -OutDir $UpdaterBuild
 }
 
 # rexruntime.dll and rexgpu-xenos.dll must be the project's patched builds of the current patches.
@@ -144,19 +181,30 @@ if ($runtimeProblems.Count) { Write-Problems $runtimeProblems; throw 'tools\rexg
 if (-not (Test-Path -LiteralPath (Join-Path $Root 'generated\tu6\sources.cmake'))) {
     throw 'generated\tu6 is missing, so crackdown.exe would carry no Title Update 6 guest: run tools\codegen-tu6.ps1'
 }
-foreach ($leaf in @('crackdown.exe', 'trg-updater.exe', 'rexruntime.dll', 'rexgpu-xenos.dll', 'crackdown.toml')) {
+foreach ($leaf in @('crackdown.exe', 'rexruntime.dll', 'rexgpu-xenos.dll', 'crackdown.toml')) {
     if (-not (Test-Path (Join-Path $ReleaseBuild $leaf))) {
         throw "Release build output is missing $leaf (run without -SkipBuild)"
     }
 }
+$Updater = Join-Path $UpdaterBuild 'trg-updater.exe'
+$UpdaterDebug = Join-Path $UpdaterBuild 'trg-updater.debug'
+foreach ($file in $Updater, $UpdaterDebug) {
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { throw "Missing $file (run without -SkipBuild)" }
+}
+$updaterTime = (Get-Item -LiteralPath $Updater).LastWriteTimeUtc
+$updaterInputs = @(Get-ChildItem -LiteralPath (Join-Path $Root 'src\updater') -Recurse -File) + @(Get-Item -LiteralPath (Join-Path $PSScriptRoot 'build-updater.ps1'))
+$newer = @($updaterInputs | Where-Object { $_.LastWriteTimeUtc -gt $updaterTime })
+if ($newer.Count) { throw "$Updater is older than $($newer[0].FullName) (run without -SkipBuild)" }
 
 New-Item -ItemType Directory -Force $Dist | Out-Null
-if (Test-Path -LiteralPath $Stage) { Remove-Item -LiteralPath $Stage -Recurse -Force }
-New-Item -ItemType Directory $Stage, (Join-Path $Stage 'licenses'), (Join-Path $Stage 'glyphs') | Out-Null
+foreach ($old in $Stage, $Symbols) { if (Test-Path -LiteralPath $old) { Remove-Item -LiteralPath $old -Recurse -Force } }
+New-Item -ItemType Directory $Stage, (Join-Path $Stage 'licenses'), (Join-Path $Stage 'glyphs'), $Symbols | Out-Null
+Copy-Item -LiteralPath $UpdaterDebug $Symbols
 
-foreach ($leaf in @('crackdown.exe', 'trg-updater.exe', 'rexruntime.dll', 'rexgpu-xenos.dll', 'crackdown.toml')) {
+foreach ($leaf in @('crackdown.exe', 'rexruntime.dll', 'rexgpu-xenos.dll', 'crackdown.toml')) {
     Copy-Item (Join-Path $ReleaseBuild $leaf) $Stage
 }
+Copy-Item -LiteralPath $Updater $Stage
 foreach ($leaf in $GlyphFiles) {
     Copy-Item (Join-Path $ReleaseBuild "glyphs\$leaf") (Join-Path $Stage 'glyphs')
 }
@@ -184,6 +232,17 @@ foreach ($leaf in $LicenseFiles) {
 $readme = (Get-Content (Join-Path $Packaging 'README.txt') -Raw).Replace('@VERSION@', $Version) -replace "\r?\n", "`r`n"
 [IO.File]::WriteAllText((Join-Path $Stage 'README.txt'), $readme, $Utf8NoBom)
 
+# The update helper runs alone from a temporary folder, so it must not need any runtime library from the installation.
+$helperText = $Latin1.GetString([IO.File]::ReadAllBytes((Join-Path $Stage 'trg-updater.exe')))
+$helper = @()
+foreach ($dependency in 'vcruntime140.dll', 'vcruntime140_1.dll', 'msvcp140.dll', 'ucrtbase.dll', 'libc++.dll', 'rexruntime.dll', 'crackdown.exe') {
+    if ($helperText.IndexOf($dependency, [StringComparison]::OrdinalIgnoreCase) -ge 0) { $helper += "trg-updater.exe refers to $dependency" }
+}
+if ($helper.Count) { Write-Problems $helper; throw 'trg-updater.exe is not self-contained' }
+if ($helperText.IndexOf('.debug_', [StringComparison]::Ordinal) -ge 0 -or $helperText.IndexOf('trg-updater.debug', [StringComparison]::Ordinal) -lt 0) {
+    throw 'trg-updater.exe is not the build-updater.ps1 build without debug information (run without -SkipBuild)'
+}
+
 $problems = Test-ReleaseFolder $Stage
 if ($problems.Count) { Write-Problems $problems; throw 'The staging folder holds files that must not be released' }
 
@@ -195,19 +254,25 @@ try {
     $archive = New-Object IO.Compression.ZipArchive($stream, [IO.Compression.ZipArchiveMode]::Create)
     try {
         foreach ($file in $files) {
-            $entry = $file.FullName.Substring($Stage.Length + 1).Replace('\', '/')
+            $entry = "$Name/" + $file.FullName.Substring($Stage.Length + 1).Replace('\', '/')
             [void][IO.Compression.ZipFileExtensions]::CreateEntryFromFile($archive, $file.FullName, $entry, [IO.Compression.CompressionLevel]::Optimal)
         }
     } finally { $archive.Dispose() }
 } finally { $stream.Dispose() }
 
-$archive = [IO.Compression.ZipFile]::OpenRead($Zip)
+$entries = @($files | ForEach-Object { $_.FullName.Substring($Stage.Length + 1).Replace('\', '/') })
+$extracted = Expand-ReleaseZip $Zip
 try {
-    $entries = @($archive.Entries | ForEach-Object { $_.FullName })
-} finally { $archive.Dispose() }
-$expected = @($files | ForEach-Object { $_.FullName.Substring($Stage.Length + 1).Replace('\', '/') })
-if (Compare-Object $expected $entries) { throw 'The ZIP does not hold exactly the staged files' }
-if ($entries | Where-Object { $_ -match '^[\\/]|\.\.|:|\\' }) { throw 'The ZIP holds an unsafe entry name' }
+    $listed = @(Get-ChildItem -LiteralPath $extracted -Recurse -File | ForEach-Object { $_.FullName.Substring($extracted.Length + 1).Replace('\', '/') } | Sort-Object)
+    if (Compare-Object @($entries | ForEach-Object { "$Name/$_" }) $listed) { throw "The ZIP does not hold exactly the staged files inside $Name/" }
+    $content = Join-Path $extracted $Name
+    foreach ($entry in $entries) {
+        $relative = $entry.Replace('/', '\')
+        if ((Get-FileSha256 (Join-Path $Stage $relative)) -ne (Get-FileSha256 (Join-Path $content $relative))) { throw "$entry in the ZIP differs from the staged file" }
+    }
+    $problems = Test-ReleaseFolder $content
+    if ($problems.Count) { Write-Problems $problems; throw 'The ZIP holds files that must not be released' }
+} finally { Remove-Item -LiteralPath $extracted -Recurse -Force -ErrorAction SilentlyContinue }
 
 $hash = (Get-FileSha256 $Zip).ToLowerInvariant()
 [IO.File]::WriteAllText($ShaFile, "$hash  $Name.zip`n", $Utf8NoBom)
@@ -219,6 +284,7 @@ Write-Host '===================================================='
 Write-Host "  ZIP:     $Zip ($([math]::Round((Get-Item $Zip).Length / 1MB, 1)) MB)"
 Write-Host "  SHA-256: $hash"
 Write-Host "  Hash file: $ShaFile"
-Write-Host '  Contents:'
+Write-Host "  Symbols: $Symbols (not in the package)"
+Write-Host "  Contents (inside $Name/):"
 foreach ($entry in $entries) { Write-Host "    $entry" }
 Write-Host ''

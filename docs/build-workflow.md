@@ -59,6 +59,8 @@ clone at the same path as the one it was made in; member and other external func
 
 `package-release.ps1` builds into `build-release\`, stages only the allow-listed files and refuses to continue if
 the staging folder holds game files, saves, logs, settings or local paths. Nothing is published or uploaded.
+The packaged `trg-updater.exe` is built by `tools\build-updater.ps1` with MSYS2 CLANG64 (static, Windows system DLLs
+only); its `trg-updater.debug` goes to `dist\Crackdown-v<version>-windows-x64-symbols\`, outside the ZIP.
 
 The launcher is the TRG library in `third_party/trg-launcher` (git submodule, pinned commit). CMake copies it to
 `<build dir>/trg-launcher-patched`, applies `patches/trg-launcher` to that copy, and builds it there, so the submodule
