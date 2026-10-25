@@ -1,6 +1,7 @@
 <#
 .SYNOPSIS
   Builds and runs the pure-logic tests in tests\ (no game files, no ReXGlue runtime) with Visual Studio's clang++.
+  The updater helper test also runs against the release CLANG64 trg-updater.exe when build-updater.ps1 has made one.
 
 .EXAMPLE
   .\tools\test.ps1                      # build and run every test
@@ -32,6 +33,12 @@ try {
     if ($Filter) { $ctestArgs += @('-R', $Filter) }
     & $ctest @ctestArgs | Out-Host
     if ($LASTEXITCODE) { throw "Tests failed ($LASTEXITCODE)" }
+    $releaseUpdater = Join-Path $Root 'build-release\trg-updater-clang64\trg-updater.exe'
+    if ((Test-Path -LiteralPath $releaseUpdater) -and 'update_helper_tests' -match $Filter) {
+        Write-Host "update_helper_tests (release CLANG64 build: $releaseUpdater)"
+        & (Join-Path $BuildDir 'update_helper_tests.exe') $releaseUpdater | Out-Host
+        if ($LASTEXITCODE) { throw "Updater helper tests failed against the release CLANG64 build ($LASTEXITCODE)" }
+    }
 } catch {
     $Failure = $_.Exception.Message
 } finally {

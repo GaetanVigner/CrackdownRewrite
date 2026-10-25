@@ -32,14 +32,11 @@ if(WIN32)
     set_property(TARGET trg-updater PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     target_compile_options(trg-updater PRIVATE -Wall -Wextra)
 
-    add_executable(update_restart_marker WIN32 update_restart_marker.cpp)
-    target_link_libraries(update_restart_marker PRIVATE shell32)
-    target_link_options(update_restart_marker PRIVATE -static)
-    target_compile_options(update_restart_marker PRIVATE -Wall -Wextra)
-
+    # The test is also the program the helper restarts, which the helper starts without a console.
     crackdown_add_test(update_helper_tests SOURCES update_helper_tests.cpp)
-    target_compile_definitions(update_helper_tests PRIVATE
-        CRACKDOWN_UPDATER_EXE="$<TARGET_FILE:trg-updater>"
-        CRACKDOWN_RESTART_MARKER_EXE="$<TARGET_FILE:update_restart_marker>")
-    add_dependencies(update_helper_tests trg-updater update_restart_marker)
+    set_target_properties(update_helper_tests PROPERTIES WIN32_EXECUTABLE ON)
+    target_link_options(update_helper_tests PRIVATE "-Wl,/entry:mainCRTStartup")
+    target_link_libraries(update_helper_tests PRIVATE shell32)
+    target_compile_definitions(update_helper_tests PRIVATE CRACKDOWN_UPDATER_EXE="$<TARGET_FILE:trg-updater>")
+    add_dependencies(update_helper_tests trg-updater)
 endif()

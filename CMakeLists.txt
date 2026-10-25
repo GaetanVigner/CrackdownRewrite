@@ -4,7 +4,7 @@
 # cmake/crackdown_guests.cmake.
 
 cmake_minimum_required(VERSION 3.25)
-project(crackdown VERSION 0.6.1 LANGUAGES C CXX)
+project(crackdown VERSION 0.6.2 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -383,7 +383,7 @@ crackdown_enable_thinlto(crackdown)
 include(cmake/crackdown_guests.cmake)
 
 # The update helper runs from the temporary update workspace, away from the installation, so it keeps its runtime
-# inside the executable.
+# inside the executable. Release packages ship the MSYS2 CLANG64 build of these sources (tools/build-updater.ps1).
 if(WIN32)
     add_executable(trg-updater WIN32
         src/updater/helper_main.cpp
@@ -399,7 +399,6 @@ if(WIN32)
     set_property(TARGET trg-updater PROPERTY MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
     target_compile_options(trg-updater PRIVATE -Wall -Wextra)
     set_target_properties(trg-updater PROPERTIES OUTPUT_NAME "trg-updater")
-    crackdown_enable_thinlto(trg-updater)
 endif()
 
 # The runtime reads its cvars from <exe dir>/crackdown.toml.
