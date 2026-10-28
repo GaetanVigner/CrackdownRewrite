@@ -1,0 +1,201 @@
+{
+  "d3d_entry_points": 209,
+  "days": [
+    {
+      "date": "2026-10-12",
+      "commit": "8894818e2",
+      "hooked": 0,
+      "functions": []
+    },
+    {
+      "date": "2026-10-15",
+      "commit": "dc92d18fc",
+      "hooked": 0,
+      "functions": []
+    },
+    {
+      "date": "2026-10-16",
+      "commit": "c6dc1c46c",
+      "hooked": 1,
+      "functions": [
+        "826BB4F0"
+      ]
+    },
+    {
+      "date": "2026-10-17",
+      "commit": "46e94cc3b",
+      "hooked": 1,
+      "functions": [
+        "826BB4F0"
+      ]
+    },
+    {
+      "date": "2026-10-18",
+      "commit": "5d69a49d5",
+      "hooked": 2,
+      "functions": [
+        "826BB4F0",
+        "826BCA98"
+      ]
+    },
+    {
+      "date": "2026-10-19",
+      "commit": "268490451",
+      "hooked": 2,
+      "functions": [
+        "826BB4F0",
+        "826BCA98"
+      ]
+    },
+    {
+      "date": "2026-10-20",
+      "commit": "5b3c23ef9",
+      "hooked": 2,
+      "functions": [
+        "826BB4F0",
+        "826BCA98"
+      ]
+    },
+    {
+      "date": "2026-10-21",
+      "commit": "34f46c68a",
+      "hooked": 2,
+      "functions": [
+        "826BB4F0",
+        "826BCA98"
+      ]
+    },
+    {
+      "date": "2026-10-22",
+      "commit": "2ec3b0982",
+      "hooked": 7,
+      "functions": [
+        "826B91E0",
+        "826B96D0",
+        "826B9C08",
+        "826B9FF8",
+        "826BB4F0",
+        "826BCA98",
+        "826C3750"
+      ]
+    },
+    {
+      "date": "2026-10-23",
+      "commit": "6b3c1d0d5",
+      "hooked": 15,
+      "functions": [
+        "826AED90",
+        "826B3C48",
+        "826B91E0",
+        "826B96D0",
+        "826B9C08",
+        "826B9FF8",
+        "826BB4F0",
+        "826BCA98",
+        "826BD300",
+        "826BD488",
+        "826BDA38",
+        "826BE578",
+        "826C04A0",
+        "826C3750",
+        "826C3D90"
+      ]
+    },
+    {
+      "date": "2026-10-24",
+      "commit": "cd534697e",
+      "hooked": 15,
+      "functions": [
+        "826AED90",
+        "826B3C48",
+        "826B91E0",
+        "826B96D0",
+        "826B9C08",
+        "826B9FF8",
+        "826BB4F0",
+        "826BCA98",
+        "826BD300",
+        "826BD488",
+        "826BDA38",
+        "826BE578",
+        "826C04A0",
+        "826C3750",
+        "826C3D90"
+      ]
+    },
+    {
+      "date": "2026-10-25",
+      "commit": "23994c8a7",
+      "hooked": 15,
+      "functions": [
+        "826AED90",
+        "826B3C48",
+        "826B91E0",
+        "826B96D0",
+        "826B9C08",
+        "826B9FF8",
+        "826BB4F0",
+        "826BCA98",
+        "826BD300",
+        "826BD488",
+        "826BDA38",
+        "826BE578",
+        "826C04A0",
+        "826C3750",
+        "826C3D90"
+      ]
+    },
+    {
+      "date": "2026-10-28",
+      "commit": "worktree",
+      "hooked": 16,
+      "functions": [
+        "826AED90",
+        "826B3C48",
+        "826B91E0",
+        "826B96D0",
+        "826B9C08",
+        "826B9FF8",
+        "826BB408",
+        "826BB4F0",
+        "826BCA98",
+        "826BD300",
+        "826BD488",
+        "826BDA38",
+        "826BE578",
+        "826C04A0",
+        "826C3750",
+        "826C3D90"
+      ]
+    }
+  ],
+  "captures": [
+    {
+      "date": "2026-10-25",
+      "capture": 31,
+      "draws_exact_percent": 71.7
+    },
+    {
+      "date": "2026-10-25",
+      "capture": 35,
+      "draws_exact_percent": 87.5
+    },
+    {
+      "date": "2026-10-25",
+      "capture": 37,
+      "draws_exact_percent": 88.9
+    },
+    {
+      "date": "2026-10-28",
+      "capture": 43,
+      "draws_exact_percent": 84.2
+    },
+    {
+      "date": "2026-10-28",
+      "capture": 46,
+      "draws_exact_percent": 86.2,
+      "passes_exact": 12,
+      "passes_native": 0
+    }
+  ]
+}
