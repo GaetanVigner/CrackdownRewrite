@@ -397,6 +397,7 @@ void GameSettings::Apply() const {
   ApplyAspectRatio();
   ApplyInternalRenderPath();
   ApplyMultisampling();
+  ApplyVulkanDepth();
   mouse_look::Configure();
   SyncSavedCheats();
 }
@@ -438,6 +439,20 @@ void ApplyInternalRenderPath() {
     REXLOG_INFO("Internal render resolution: using D3D12 host render targets");
   }
 #endif
+}
+
+void ApplyVulkanDepth() {
+  if (std::string_view(GraphicsBackendName()) != "Vulkan") {
+    return;
+  }
+  // With host render targets the Vulkan backend drops parts of the Agency garage's parking markers against float24
+  // depth unless the pixel shader converts it (checked in game; rounding alone does not help, and the fragment shader
+  // interlock path is right but halves the frame rate). The flag lives in the GPU plugin, so it only exists once the
+  // plugin is loaded: before that SetFlagByName rejects it.
+  constexpr const char* kKey = "depth_float24_convert_in_pixel_shader";
+  if (rex::cvar::GetFlagByName(kKey) != "true" && rex::cvar::SetFlagByName(kKey, "true")) {
+    REXLOG_INFO("Vulkan: float24 depth converted in the pixel shader");
+  }
 }
 
 void ApplyGraphicsAdapter() {

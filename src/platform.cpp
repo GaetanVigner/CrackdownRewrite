@@ -24,6 +24,7 @@
 #include <fmt/format.h>
 #include <imgui.h>
 
+#include <rex/cvar.h>
 #include <rex/filesystem.h>
 #include <rex/logging.h>
 
@@ -300,7 +301,8 @@ const char* ArchitectureName() {
 
 const char* GraphicsBackendName() {
 #if defined(_WIN32)
-  return "Direct3D 12";
+  // The plugin carries both backends here (patch 0114); gpu_backend = "vulkan" picks Vulkan.
+  return rex::cvar::GetFlagByName("gpu_backend") == "vulkan" ? "Vulkan" : "Direct3D 12";
 #else
   return "Vulkan";
 #endif

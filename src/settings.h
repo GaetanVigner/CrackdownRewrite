@@ -76,6 +76,11 @@ void ApplyAspectRatio();
 // the launcher choices are applied and before the command processor is created.
 void ApplyInternalRenderPath();
 
+// Vulkan backend: converts float24 depth in the pixel shader, which the host render target path needs to draw the
+// game's depth-tested markers right. Call with ApplyMultisampling: once the GPU plugin is loaded (it defines the flag)
+// and before the command processor is created.
+void ApplyVulkanDepth();
+
 // Sets d3d12_adapter from the launcher's Graphics card choice, which becomes the first adapter when it names none that
 // is present. Call once the player settings are loaded and before the graphics device is created.
 void ApplyGraphicsAdapter();

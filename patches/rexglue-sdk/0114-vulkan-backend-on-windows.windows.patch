@@ -1,0 +1,54 @@
+REXGLUE_USE_VULKAN is on by default on Windows too, so the GPU plugin carries the Vulkan backend next to D3D12
+(D3D12 stays the one "any" selects first). The new cvar gpu_backend ("any", "d3d12" or "vulkan") names the
+backend the plugin creates, so the whole game can run on Vulkan under Windows. The native renderer that replaces
+the GPU emulation is written in Vulkan for every platform, with the Steam Deck as the primary target, and is
+developed and compared on Windows.
+
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -34,10 +34,11 @@ endif()
+ 
+ # Graphics backend selection
+ # D3D12: Windows only, ON by default.
+-# Vulkan: Cross-platform, ON by default on Linux, OFF by default on Windows.
++# Vulkan: Cross-platform, ON by default (the native renderer is Vulkan on every platform).
+ if(WIN32)
+     option(REXGLUE_USE_D3D12  "Enable D3D12 graphics backend" ON)
+-    option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" OFF)
++    # Forced, so that a build tree configured before keeps no cached OFF.
++    set(REXGLUE_USE_VULKAN ON CACHE BOOL "Enable Vulkan graphics backend" FORCE)
+ else()
+     set(REXGLUE_USE_D3D12 OFF)
+     option(REXGLUE_USE_VULKAN "Enable Vulkan graphics backend" ON)
+diff --git a/src/system/gpu_plugin_loader.cpp b/src/system/gpu_plugin_loader.cpp
+--- a/src/system/gpu_plugin_loader.cpp
++++ b/src/system/gpu_plugin_loader.cpp
+@@ -17,11 +17,17 @@
+ 
+ #include <fmt/format.h>
+ 
++#include <rex/cvar.h>
+ #include <rex/filesystem.h>
+ #include <rex/logging.h>
+ #include <rex/platform.h>
+ #include <rex/platform/dynlib.h>
+ 
++REXCVAR_DEFINE_STRING(gpu_backend, "any", "GPU",
++                      "Graphics backend the GPU plugin creates: 'any' (D3D12 first where it is "
++                      "compiled in), 'd3d12' or 'vulkan'")
++    .lifecycle(rex::cvar::Lifecycle::kInitOnly);
++
+ namespace rex::system {
+ 
+ namespace {
+@@ -85,7 +91,8 @@ std::unique_ptr<IGraphicsSystem> LoadGpuPlugin(std::string_view name, std::strin
+     return nullptr;
+   }
+ 
+-  std::string backend_str(backend);
++  // gpu_backend names the backend when the host leaves the choice to the plugin.
++  std::string backend_str(backend == "any" ? REXCVAR_GET(gpu_backend) : std::string(backend));
+   GpuCreateInfo info{};
+   info.struct_size = sizeof(GpuCreateInfo);
+   info.backend = backend_str.c_str();

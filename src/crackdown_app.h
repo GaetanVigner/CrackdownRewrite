@@ -188,6 +188,7 @@ class CrackdownApp : public rex::ReXApp {
       crackdown::ApplyAspectRatio();
       crackdown::ApplyInternalRenderPath();
       crackdown::ApplyMultisampling();
+      crackdown::ApplyVulkanDepth();
       return defaults;
     }
     if (!imgui_drawer()) {
@@ -199,6 +200,7 @@ class CrackdownApp : public rex::ReXApp {
       crackdown::ApplyAspectRatio();
       crackdown::ApplyInternalRenderPath();
       crackdown::ApplyMultisampling();
+      crackdown::ApplyVulkanDepth();
       return defaults;
     }
     REXLOG_INFO("Launcher shown");
