@@ -10,10 +10,18 @@
 #include <bit>
 #include <chrono>
 #include <cstring>
+#include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
+#if defined(_WIN32)
 #include <intrin.h>
+#else
+#include <x86intrin.h>
+#endif
 
+#include <fmt/format.h>
 #include <rex/cvar.h>
 #include <rex/logging.h>
 
@@ -31,6 +39,8 @@ using guest::Load32;
 
 constexpr uint32_t kDirtyVsConstants = 0;
 constexpr uint32_t kDirtyPsConstants = 8;
+constexpr uint32_t kDirtyFetch = 24;  // low 32 bits: fetch slots, slot 0 the most significant
+constexpr uint32_t kDirtyState = 32;  // low 38 bits: registers 0x2300-0x2325, 0x2300 the most significant
 constexpr uint32_t kVsConstants = 0x700;   // float4 c0-c255, big-endian dwords
 constexpr uint32_t kPsConstants = 0x1700;  // float4 c256-c511
 constexpr uint32_t kFetch = 1024;          // 32 slots of 6 dwords
@@ -40,6 +50,13 @@ constexpr uint32_t kVertexShader = 12416;
 constexpr uint32_t kFetchDwords = 192;
 constexpr uint32_t kBoolLoopDwords = 40;
 constexpr uint32_t kPageDwords = 64;  // 16 float4
+// The overlay's index space: float constants (VS c0-c255 then PS, in dwords), the fetch constants, then the resolve
+// registers 0x2318-0x2327 (the device zeroes its copy after a resolve; the GPU keeps the values).
+constexpr uint32_t kOverlayFetch = 2048;
+constexpr uint32_t kOverlayRegisters = kOverlayFetch + kFetchDwords;
+constexpr uint32_t kOverlayFirstRegister = 0x2318;
+constexpr uint32_t kOverlayRegisterCount = 16;
+constexpr uint32_t kOverlayDwords = kOverlayRegisters + kOverlayRegisterCount;
 // Block arena capacity: a frame appends ~2 MB in the city, so it is compacted every frame or two without reallocating.
 constexpr size_t kArenaDwords = size_t(4) << 20;
 
@@ -68,13 +85,25 @@ constexpr uint32_t kTraceBoolLoop = kTraceFetch + 192;
 
 struct Counters {
   uint64_t records = 0;
+  uint64_t by_pass[kRenderPassCount + 1] = {};
   uint64_t by_kind[9] = {};
   uint64_t render_state_blocks = 0;
   uint64_t fetch_blocks = 0;
   uint64_t bool_loop_blocks = 0;
   uint64_t constant_pages = 0;
+  uint64_t overlay_writes = 0;
+  uint64_t segments = 0;
+  uint64_t new_segments = 0;
+  uint64_t decoded_hits = 0;
+  uint64_t decoded_misses = 0;
+  uint64_t predicated_run = 0;
+  uint64_t predicated_skipped = 0;
+  uint64_t last_bin_mask = 0;
+  uint64_t last_bin_select = 0;
   uint64_t block_bytes = 0;
   uint64_t cycles = 0;
+  // Cycles by step: overlay (writes queued by the walks), render state, fetch, float constant pages.
+  uint64_t step_cycles[4] = {};
   uint64_t frames = 0;
 };
 
@@ -89,12 +118,31 @@ struct State {
   uint32_t vs_pages[DrawRecord::kConstantPages];
   uint32_t ps_pages[DrawRecord::kConstantPages];
   bool pages_valid = false;
+  // Float and fetch constants the GPU holds from writes that are not the device's flush, since a flush last wrote
+  // those registers: shader literal loads (sub_826C6A50), PM4 written between hooked calls (the engine's prebaked
+  // binds), BeginVertices' vertex fetch. Big-endian like the device. Writes wait in `pending_before` (written before
+  // the call) or `pending_after` (during it, after its flush) until the call's record applies them.
+  bool overlay[kOverlayDwords] = {};
+  // Which fetch slots and resolve registers have overlay values, and whether the fetch overlay changed since the
+  // fetch block was last built: the per-record merges only look where the overlay holds something.
+  uint32_t fetch_overlay_slots = 0;
+  uint32_t page_overlay = 0;  // float pages that may hold overlay values (bit p: VS page p, 16 + p: PS page p)
+  uint32_t register_overlay = 0;
+  bool fetch_changed = true;
+  uint32_t overlay_values[kOverlayDwords];
+  std::vector<uint32_t> pending_before;  // {first, count, values...} in the overlay's index space
+  std::vector<uint32_t> pending_after;
+  // Command buffer segments seen so far ((address << 20) | dwords): how many a decoded-segment cache would hold.
+  std::unordered_set<uint64_t> segments_seen;
+  std::unordered_map<uint32_t, uint64_t> untagged_callers;  // diagnostics, per log window
   Counters counters;
   std::chrono::steady_clock::time_point window_start = std::chrono::steady_clock::now();
   uint64_t window_tsc = __rdtsc();
 };
 State g_state;
 thread_local DrawRecord t_record;
+thread_local uint32_t t_pass = 0;
+constexpr const char* kRenderPassNames[kRenderPassCount + 1] = {"other", "early target", "shadow map", "shadow helper a", "shadow helper b", "shadow atlas", "opaque scene", "depth resolve", "normal resolve", "half-res", "screen space", "colour a", "colour b", "query effects a", "query effects b", "light apply", "light pools", "particles", "late draw", "post-processing", "late a", "late b", "late c", "late d", "late e", "late f", "objects a", "objects b", "objects c", "hud"};
 
 class SpinLock {
  public:
@@ -126,12 +174,127 @@ uint32_t Refresh(State& state, uint32_t current, const uint8_t* source, uint32_t
   return Append(state.arena, source, dwords);
 }
 
-// Float constant pages: only the ones whose dirty bits are set are compared (a page is four mask bits).
-void RefreshPages(State& state, uint32_t* pages, const uint8_t* source, uint64_t dirty, bool all) {
+// Applies queued writes to the overlay. Returns the float pages they touched (bit p: VS page p, bit 16 + p: PS page
+// p).
+uint32_t ApplyPending(State& state, std::vector<uint32_t>& pending) {
+  uint32_t touched = 0;
+  for (size_t i = 0; i + 2 <= pending.size();) {
+    const uint32_t first = pending[i];
+    const uint32_t count = pending[i + 1];
+    for (uint32_t k = 0; k < count && first + k < kOverlayDwords; ++k) {
+      const uint32_t index = first + k;
+      state.overlay[index] = true;
+      state.overlay_values[index] = pending[i + 2 + k];
+      if (index < kOverlayFetch) {
+        touched |= 1u << (index / kPageDwords);
+        state.page_overlay |= 1u << (index / kPageDwords);
+      } else if (index < kOverlayRegisters) {
+        state.fetch_overlay_slots |= 1u << ((index - kOverlayFetch) / 6);
+        state.fetch_changed = true;
+      } else {
+        state.register_overlay |= 1u << (index - kOverlayRegisters);
+      }
+    }
+    i += 2 + count;
+    ++state.counters.overlay_writes;
+  }
+  pending.clear();
+  return touched;
+}
+
+// The overlay around a call's flush: writes made before it, then the flush replaces the dirty float constants (4
+// float4 a mask bit, most significant first) and fetch slots (one bit each) with the device's values, then the writes
+// made during the call.
+uint32_t ApplyOverlay(State& state, const HleRecordMasks& masks) {
+  uint32_t touched = ApplyPending(state, state.pending_before);
+  for (uint32_t stage = 0; stage < 2; ++stage) {
+    uint64_t dirty = stage ? masks.ps : masks.vs;
+    while (dirty) {
+      const uint32_t bit = uint32_t(std::countl_zero(dirty));
+      dirty &= ~(uint64_t(1) << (63 - bit));
+      std::fill_n(state.overlay + stage * 1024 + bit * 16, 16, false);
+    }
+  }
+  // Fetch slots flushed from the device (slot 0 the most significant mask bit).
+  uint32_t fetch = 0;
+  for (uint32_t slots = state.fetch_overlay_slots; slots;) {
+    const uint32_t slot = uint32_t(std::countr_zero(slots));
+    slots &= slots - 1;
+    if ((masks.fetch >> (31 - slot)) & 1) fetch |= 1u << slot;
+  }
+  for (uint32_t slots = fetch; slots;) {
+    const uint32_t slot = uint32_t(std::countr_zero(slots));
+    slots &= slots - 1;
+    std::fill_n(state.overlay + kOverlayFetch + slot * 6, 6, false);
+    state.fetch_overlay_slots &= ~(1u << slot);
+    state.fetch_changed = true;
+  }
+  // The resolve registers the flush rewrites from the device (which zeroes them after a resolve).
+  for (uint32_t registers = state.register_overlay; registers;) {
+    const uint32_t index = uint32_t(std::countr_zero(registers));
+    registers &= registers - 1;
+    const uint32_t k = kOverlayFirstRegister + index - 0x2300;
+    if (k < 38 && ((masks.state >> (37 - k)) & 1)) {
+      state.overlay[kOverlayRegisters + index] = false;
+      state.register_overlay &= ~(1u << index);
+    }
+  }
+  touched |= ApplyPending(state, state.pending_after);
+  return touched;
+}
+
+// The fetch constants the GPU holds: the device's with the overlay over them.
+// `dirty`: the fetch slot mask of the call (0 and an unchanged overlay keep the current block).
+void RefreshFetch(State& state, const uint8_t* dev, uint32_t dirty) {
+  if (!dirty && !state.fetch_changed && state.fetch != UINT32_MAX) {
+    return;
+  }
+  state.fetch_changed = false;
+  uint32_t values[kFetchDwords];
+  std::memcpy(values, dev + kFetch, sizeof(values));
+  for (uint32_t slots = state.fetch_overlay_slots; slots;) {
+    const uint32_t slot = uint32_t(std::countr_zero(slots));
+    slots &= slots - 1;
+    for (uint32_t k = slot * 6; k < slot * 6 + 6; ++k) {
+      if (state.overlay[kOverlayFetch + k]) values[k] = state.overlay_values[kOverlayFetch + k];
+    }
+  }
+  state.fetch = Refresh(state, state.fetch, reinterpret_cast<const uint8_t*>(values), kFetchDwords,
+                        state.counters.fetch_blocks);
+}
+
+void Queue(std::vector<uint32_t>& pending, uint32_t first, uint32_t dwords, const uint8_t* values) {
+  pending.push_back(first);
+  pending.push_back(dwords);
+  const size_t at = pending.size();
+  pending.resize(at + dwords);
+  std::memcpy(pending.data() + at, values, dwords * 4);
+}
+
+// Float constant pages: the device's values with the GPU's literal values over them. Only pages whose dirty bits are
+// set or that literal loads touched are compared (a page is four mask bits).
+void RefreshPages(State& state, uint32_t stage, uint32_t* pages, const uint8_t* source, uint64_t dirty,
+                  uint32_t touched, bool all) {
   for (uint32_t page = 0; page < DrawRecord::kConstantPages; ++page) {
     const uint64_t bits = (dirty << (4 * page)) >> 60;
-    if (!all && !bits) continue;
-    pages[page] = Refresh(state, all ? UINT32_MAX : pages[page], source + page * kPageDwords * 4, kPageDwords,
+    if (!all && !bits && !(touched & (1u << (stage * 16 + page)))) continue;
+    const uint32_t current = all ? UINT32_MAX : pages[page];
+    const uint32_t first = stage * 1024 + page * kPageDwords;
+    if (!(state.page_overlay & (1u << (stage * 16 + page)))) {
+      pages[page] = Refresh(state, current, source + page * kPageDwords * 4, kPageDwords, state.counters.constant_pages);
+      continue;
+    }
+    uint32_t values[kPageDwords];
+    std::memcpy(values, source + page * kPageDwords * 4, sizeof(values));
+    bool any = false;
+    for (uint32_t k = 0; k < kPageDwords; ++k) {
+      if (state.overlay[first + k]) {
+        values[k] = state.overlay_values[first + k];
+        any = true;
+      }
+    }
+    if (!any) state.page_overlay &= ~(1u << (stage * 16 + page));
+    pages[page] = Refresh(state, current, reinterpret_cast<const uint8_t*>(values), kPageDwords,
                           state.counters.constant_pages);
   }
 }
@@ -148,19 +311,64 @@ void LogWindow(State& state) {
     REXLOG_INFO(
         "[HLE records] per frame: {:.0f} records (draw {:.0f}, indexed {:.0f}, begin {:.0f}, cb {:.0f}, clear "
         "{:.0f}, resolve {:.0f}, gpr {:.0f}); new blocks: render state {:.0f}, fetch {:.0f}, bool/loop {:.0f}, "
-        "constant pages {:.0f}, {:.1f} KB; {:.0f} ns a record",
+        "constant pages {:.0f}, {:.1f} KB; overlay writes {:.0f}; command buffer segments {:.0f} ({:.1f} new, {} known); {:.0f} ns a record",
         double(c.records) / frames, double(c.by_kind[1]) / frames, double(c.by_kind[2]) / frames,
         double(c.by_kind[3] + c.by_kind[4]) / frames, double(c.by_kind[5]) / frames, double(c.by_kind[6]) / frames,
         double(c.by_kind[7]) / frames, double(c.by_kind[8]) / frames, double(c.render_state_blocks) / frames,
         double(c.fetch_blocks) / frames, double(c.bool_loop_blocks) / frames, double(c.constant_pages) / frames,
-        double(c.block_bytes) / frames / 1024.0, double(c.cycles) * ns_per_cycle / double(c.records));
+        double(c.block_bytes) / frames / 1024.0, double(c.overlay_writes) / frames, double(c.segments) / frames,
+        double(c.new_segments) / frames, state.segments_seen.size(),
+        double(c.cycles) * ns_per_cycle / double(c.records));
+    REXLOG_INFO("[HLE records] predicated packets per frame: {:.0f} run, {:.0f} skipped; last bin mask {:016X} select {:016X}; "
+                "decoded buffers per frame: {:.0f} cached, {:.1f} decoded; ns a record: overlay {:.0f}, render state "
+                "{:.0f}, fetch {:.0f}, constant pages {:.0f}",
+                double(c.predicated_run) / frames, double(c.predicated_skipped) / frames, c.last_bin_mask,
+                c.last_bin_select, double(c.decoded_hits) / frames, double(c.decoded_misses) / frames,
+                double(c.step_cycles[0]) * ns_per_cycle / double(c.records),
+                double(c.step_cycles[1]) * ns_per_cycle / double(c.records),
+                double(c.step_cycles[2]) * ns_per_cycle / double(c.records),
+                double(c.step_cycles[3]) * ns_per_cycle / double(c.records));
+  }
+  if (c.frames && c.records) {
+    std::string passes;
+    for (uint32_t pass = 0; pass <= kRenderPassCount; ++pass) {
+      if (c.by_pass[pass]) passes += fmt::format(" {} {:.0f},", RenderPassName(pass), double(c.by_pass[pass]) / c.frames);
+    }
+    REXLOG_INFO("[HLE records] records per frame by pass:{}", passes);
+    std::vector<std::pair<uint64_t, uint32_t>> callers;
+    for (const auto& [caller, count] : state.untagged_callers) callers.push_back({count, caller});
+    std::sort(callers.rbegin(), callers.rend());
+    std::string top;
+    for (size_t i = 0; i < callers.size() && i < 16; ++i) {
+      top += fmt::format(" {:08X} {:.0f},", callers[i].second, double(callers[i].first) / c.frames);
+    }
+    REXLOG_INFO("[HLE records] untagged records per frame by caller:{}", top);
   }
   state.counters = {};
+  state.untagged_callers.clear();
   state.window_start = now;
   state.window_tsc = tsc;
 }
 
 }  // namespace
+
+const char* RenderPassName(uint32_t pass) {
+  return pass <= kRenderPassCount ? kRenderPassNames[pass] : "?";
+}
+
+uint32_t HleEnterRenderPass(uint32_t pass) {
+  const uint32_t previous = t_pass;
+  t_pass = pass;
+  return previous;
+}
+
+uint32_t HleCurrentRenderPass() {
+  return t_pass;
+}
+
+void HleLeaveRenderPass(uint32_t previous) {
+  t_pass = previous;
+}
 
 bool HleRecordsEnabled() {
   return REXCVAR_GET(crackdown_hle_records);
@@ -173,6 +381,11 @@ HleRecordMasks HleReadRecordMasks(uint8_t* base, uint32_t device) {
     std::memcpy(&masks.ps, base + device + kDirtyPsConstants, 8);
     masks.vs = std::byteswap(masks.vs);
     masks.ps = std::byteswap(masks.ps);
+    uint64_t fetch;
+    std::memcpy(&fetch, base + device + kDirtyFetch, 8);
+    masks.fetch = uint32_t(std::byteswap(fetch));
+    std::memcpy(&masks.state, base + device + kDirtyState, 8);
+    masks.state = std::byteswap(masks.state);
   }
   return masks;
 }
@@ -188,10 +401,16 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
   const uint8_t* dev = base + device;
   DrawRecord& record = t_record;
   record.kind = kind;
+  record.pass = t_pass;
   std::copy(args, args + 4, record.args);
+  record.up_vertices = 0;
+  record.up_dwords = 0;
+  record.segment_count = 0;
   record.vertex_shader = Load32(base, device + kVertexShader);
   record.pixel_shader = Load32(base, device + kPixelShader);
 
+  const uint32_t touched = ApplyOverlay(state, masks);
+  const uint64_t after_overlay = __rdtsc();
   // The render-state groups are not contiguous in the device: gather them, then share or append.
   uint8_t gathered[kRenderStateDwords * 4];
   uint32_t position = 0;
@@ -199,13 +418,25 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
     std::memcpy(gathered + position, dev + group.device_offset, group.count * 4);
     position += group.count * 4;
   }
+  // The resolve registers the GPU holds from a resolve's own writes (all in the 0x2300 group, gathered 7th).
+  constexpr uint32_t kResolveGroupPosition = (16 + 3 + 21 + 5 + 12 + 21) * 4;
+  for (uint32_t registers = state.register_overlay; registers;) {
+    const uint32_t index = uint32_t(std::countr_zero(registers));
+    registers &= registers - 1;
+    const uint32_t k = kOverlayFirstRegister + index - 0x2300;
+    if (k < 38) {
+      std::memcpy(gathered + kResolveGroupPosition + 4 * k, &state.overlay_values[kOverlayRegisters + index], 4);
+    }
+  }
   state.render_state =
       Refresh(state, state.render_state, gathered, kRenderStateDwords, state.counters.render_state_blocks);
-  state.fetch = Refresh(state, state.fetch, dev + kFetch, kFetchDwords, state.counters.fetch_blocks);
+  const uint64_t after_render_state = __rdtsc();
+  RefreshFetch(state, dev, masks.fetch);
+  const uint64_t after_fetch = __rdtsc();
   state.bool_loop = Refresh(state, state.bool_loop, dev + kBoolLoop, kBoolLoopDwords, state.counters.bool_loop_blocks);
   const bool all = !state.pages_valid;
-  RefreshPages(state, state.vs_pages, dev + kVsConstants, masks.vs, all);
-  RefreshPages(state, state.ps_pages, dev + kPsConstants, masks.ps, all);
+  RefreshPages(state, 0, state.vs_pages, dev + kVsConstants, masks.vs, touched, all);
+  RefreshPages(state, 1, state.ps_pages, dev + kPsConstants, masks.ps, touched, all);
   state.pages_valid = true;
 
   record.render_state = state.render_state;
@@ -216,7 +447,13 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
 
   ++state.counters.records;
   ++state.counters.by_kind[uint32_t(kind)];
-  state.counters.cycles += __rdtsc() - start;
+  ++state.counters.by_pass[t_pass];
+  const uint64_t end = __rdtsc();
+  state.counters.cycles += end - start;
+  state.counters.step_cycles[0] += after_overlay - start;
+  state.counters.step_cycles[1] += after_render_state - after_overlay;
+  state.counters.step_cycles[2] += after_fetch - after_render_state;
+  state.counters.step_cycles[3] += end - after_fetch;
   return &record;
 }
 
@@ -238,6 +475,85 @@ void HleExpandRecord(const DrawRecord& record, uint32_t* values) {
       values[kTraceFloats + 1024 + page * kPageDwords + i] = host(arena[record.ps_pages[page] + i]);
     }
   }
+}
+
+void HleNoteStateWrite(HleStateSpace space, uint32_t first, uint32_t dwords, const uint8_t* values,
+                       HleWritePhase phase) {
+  uint32_t base_index = space == HleStateSpace::kFloat ? 0 : kOverlayFetch;
+  uint32_t limit = space == HleStateSpace::kFloat ? 2048 : kFetchDwords;
+  if (space == HleStateSpace::kRegister) {
+    // Only the resolve registers are kept: clip the run to them.
+    const uint32_t first_register = 0x2000 + first;
+    const uint32_t end = std::min(first_register + dwords, kOverlayFirstRegister + kOverlayRegisterCount);
+    if (first_register >= end || end <= kOverlayFirstRegister) return;
+    const uint32_t skip = first_register < kOverlayFirstRegister ? kOverlayFirstRegister - first_register : 0;
+    values += skip * 4;
+    first = first_register + skip - kOverlayFirstRegister;
+    dwords = end - (first_register + skip);
+    base_index = kOverlayRegisters;
+    limit = kOverlayRegisterCount;
+  }
+  if (!HleRecordsEnabled() || first >= limit) {
+    return;
+  }
+  State& state = g_state;
+  SpinLock lock(state.lock);
+  std::vector<uint32_t>& pending = phase == HleWritePhase::kBeforeFlush ? state.pending_before : state.pending_after;
+  Queue(pending, base_index + first, std::min(dwords, limit - first), values);
+  if (phase == HleWritePhase::kAfterRecord) {
+    // The record is built: the next one sees these values unless its flush replaces them, like any earlier write.
+    ApplyPending(state, state.pending_after);
+  }
+}
+
+void HleNoteUpVertices(uint8_t* base, uint32_t device, uint32_t physical, uint32_t dwords) {
+  DrawRecord& record = t_record;
+  record.up_vertices = physical;
+  record.up_dwords = dwords;
+  // BeginVertices clears vertex fetch constant 94 (slot 31, second) and points 95 (third) at the vertices the game
+  // writes after the call; the GPU keeps both until slot 31 is flushed again.
+  const uint32_t words[6] = {0, 0, std::byteswap(1u), 0, std::byteswap(physical | 3),
+                             std::byteswap(0x10000000u | (dwords << 2) | 2)};
+  State& state = g_state;
+  SpinLock lock(state.lock);
+  for (uint32_t k : {2u, 3u, 4u, 5u}) {
+    state.overlay[kOverlayFetch + 31 * 6 + k] = true;
+    state.overlay_values[kOverlayFetch + 31 * 6 + k] = words[k];
+  }
+  state.fetch_overlay_slots |= 1u << 31;
+  state.fetch_changed = true;
+  RefreshFetch(state, base + device, 0);
+  record.fetch = state.fetch;
+}
+
+void HleNoteUntaggedCaller(uint32_t caller) {
+  State& state = g_state;
+  SpinLock lock(state.lock);
+  ++state.untagged_callers[caller];
+}
+
+void HleNoteDecodedBuffer(bool hit) {
+  ++(hit ? g_state.counters.decoded_hits : g_state.counters.decoded_misses);
+}
+
+void HleNotePredicated(bool passes, uint64_t bin_mask, uint64_t bin_select) {
+  Counters& counters = g_state.counters;
+  ++(passes ? counters.predicated_run : counters.predicated_skipped);
+  counters.last_bin_mask = bin_mask;
+  counters.last_bin_select = bin_select;
+}
+
+void HleNoteSegment(uint32_t physical, uint32_t dwords) {
+  DrawRecord& record = t_record;
+  if (record.segment_count < DrawRecord::kMaxSegments) {
+    record.segments[record.segment_count][0] = physical;
+    record.segments[record.segment_count][1] = dwords;
+  }
+  ++record.segment_count;
+  State& state = g_state;
+  ++state.counters.segments;
+  SpinLock lock(state.lock);
+  if (state.segments_seen.insert((uint64_t(physical) << 20) | dwords).second) ++state.counters.new_segments;
 }
 
 void HleRecordsFrame() {

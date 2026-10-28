@@ -45,6 +45,7 @@
 
 #include "guest_memory.h"
 #include "guest_hooks.h"
+#include "hle_capture.h"
 
 REXCVAR_DEFINE_BOOL(crackdown_single_tile_scene, false, "Crackdown",
                     "Experimental: render the main scene at 1x MSAA in one predicated tile instead of two 2x MSAA "
@@ -247,6 +248,10 @@ void SingleTileCommandBuffer(uint8_t* base, uint32_t device, uint32_t pre, uint3
 }
 
 
+uint32_t CommandBufferLoads() {
+  return g_loads.load(std::memory_order_acquire);
+}
+
 bool SingleTileSuppressed() {
   if (!g_suppressed) {
     return false;
@@ -346,7 +351,11 @@ void crackdown::hooks::D3dBindShaderLiterals(PPCContext& ctx, uint8_t* base, Gue
       }
     }
   }
+  const uint32_t device = ctx.r3.u32;
+  const uint32_t pre = Load32(base, device + 48);
+  const uint32_t segment_end = Load32(base, device + 56);
   original(ctx, base);
+  HleNoteLiteralPackets(base, device, pre, segment_end);
 }
 
 // Codegen midasm hooks before the `fdivs` of (tile height - overlap) by the tile height in the light pools pass:

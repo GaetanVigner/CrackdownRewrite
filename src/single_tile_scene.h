@@ -10,6 +10,9 @@ namespace crackdown {
 // mask with no tile-0 bit) must be skipped.
 bool SingleTileSuppressed();
 
+// Command buffer loads (relocations and fixups, sub_823BD140) so far: any change means buffers may hold new PM4.
+uint32_t CommandBufferLoads();
+
 // Called after every RunCommandBuffer (sub_826C3750) with the device, its ring write pointer and segment end before the
 // call: patches the tile-0 window scissor and the 1/484 shader literals of the command buffer segments it replays,
 // once per segment.

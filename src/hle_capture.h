@@ -25,6 +25,10 @@ bool StartHleCapture();
 // Called at every main-loop frame of the title.
 void HleCaptureFrame();
 
+// H1a records: decodes the LOAD_ALU_CONSTANT packets a shader bind (sub_826C6A50, r3 = device) wrote to the ring
+// since `pre` (the write pointer before it; `segment_end` the ring segment's end then) into literal loads.
+void HleNoteLiteralPackets(uint8_t* base, uint32_t device, uint32_t pre, uint32_t segment_end);
+
 // F8 starts a capture when crackdown_hle_capture is on. A held key is one press, and the game never sees it.
 class HleCaptureKey final : public rex::ui::WindowInputListener {
  public:

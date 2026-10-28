@@ -91,6 +91,16 @@ void D3dEndTiling(PPCContext&, uint8_t*, GuestFunction original);
 void D3dSetPredication(PPCContext&, uint8_t*, GuestFunction original);
 void CommandBufferFixup(PPCContext&, uint8_t*, GuestFunction original);
 void D3dBindShaderLiterals(PPCContext&, uint8_t*, GuestFunction original);
+void D3dRingSegmentSwitch(PPCContext&, uint8_t*, GuestFunction original);
+
+// HLE records: the scene's render passes (hle_records.h), one handler per pass function.
+#define CRACKDOWN_RENDER_PASSES(X) X(1) X(2) X(3) X(4) X(5) X(6) X(7) X(8) X(9) X(10) X(11) X(12) X(13) X(14) X(15) X(16) X(17) X(18) X(19) X(20) X(21) X(22) X(23) X(24) X(25)
+#define CRACKDOWN_DECLARE_RENDER_PASS(n) void RenderPass##n(PPCContext&, uint8_t*, GuestFunction original);
+CRACKDOWN_RENDER_PASSES(CRACKDOWN_DECLARE_RENDER_PASS)
+#undef CRACKDOWN_DECLARE_RENDER_PASS
+// Generic object drawing and the HUD, tagged only when no pass above is running.
+void RenderObjects(PPCContext&, uint8_t*, GuestFunction original);
+void RenderHud(PPCContext&, uint8_t*, GuestFunction original);
 void TitleEntry(PPCContext&, uint8_t*, GuestFunction original);
 
 // Guest functions the hooks call that no hook replaces; each build's bindings supply their own (GuestImage::calls).

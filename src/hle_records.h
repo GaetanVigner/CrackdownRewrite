@@ -26,6 +26,7 @@ struct DrawRecord {
   static constexpr uint32_t kConstantPages = 16;  // 16 pages of 16 float4 per shader stage
 
   RecordKind kind;
+  uint32_t pass;
   uint32_t args[4];  // r4-r7 of the call
   uint32_t vertex_shader;
   uint32_t pixel_shader;
@@ -35,7 +36,22 @@ struct DrawRecord {
   uint32_t bool_loop;
   uint32_t vs_pages[kConstantPages];
   uint32_t ps_pages[kConstantPages];
+  // BeginVertices: the vertices the game writes into the ring after the call (guest physical address, dwords).
+  uint32_t up_vertices;
+  uint32_t up_dwords;
+  // RunCommandBuffer: the buffer's segments the call replays (INDIRECT_BUFFER guest physical address, dwords).
+  static constexpr uint32_t kMaxSegments = 8;
+  uint32_t segment_count;
+  uint32_t segments[kMaxSegments][2];
 };
+
+// The render pass each record belongs to (0: none of the tagged passes), set by the pass hooks for the duration of the
+// pass function; nested passes tag their own records.
+inline constexpr uint32_t kRenderPassCount = 29;
+const char* RenderPassName(uint32_t pass);
+uint32_t HleEnterRenderPass(uint32_t pass);  // returns the pass to restore
+uint32_t HleCurrentRenderPass();
+void HleLeaveRenderPass(uint32_t previous);
 
 // Whether crackdown_hle_records is on.
 bool HleRecordsEnabled();
@@ -44,6 +60,8 @@ bool HleRecordsEnabled();
 struct HleRecordMasks {
   uint64_t vs = 0;
   uint64_t ps = 0;
+  uint32_t fetch = 0;  // slot 0 the most significant bit
+  uint64_t state = 0;  // +32: render state 0x2300 + k at bit 37 - k, ...
 };
 HleRecordMasks HleReadRecordMasks(uint8_t* base, uint32_t device);
 
@@ -56,6 +74,28 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
 // Writes a record's state in the GDTR block layout (render state 0x2000-0x23FF, float constants 0x4000-0x47FF, fetch
 // 0x4800-0x48BF, bool/loop 0x4900-0x4927); registers no shadow group covers are left as they are.
 void HleExpandRecord(const DrawRecord& record, uint32_t* values);
+
+// A constant write the device's flush does not make (big-endian values; float constants in dwords, VS c0 = 0, PS
+// c0 = 1024; fetch constants in dwords), by when it reaches the GPU: PM4 written between hooked calls (before the
+// next call's flush), a shader's literal loads during a call (after its flush, before its record), or a replayed
+// command buffer's own writes (after the call's record: they apply at once).
+enum class HleStateSpace { kFloat, kFetch, kRegister };  // kRegister: from 0x2000
+enum class HleWritePhase { kBeforeFlush, kDuringCall, kAfterRecord };
+void HleNoteStateWrite(HleStateSpace space, uint32_t first, uint32_t dwords, const uint8_t* values,
+                       HleWritePhase phase);
+
+// Adds to the record just built: BeginVertices' vertex range, and a replayed command buffer segment.
+void HleNoteUpVertices(uint8_t* base, uint32_t device, uint32_t physical, uint32_t dwords);
+void HleNoteSegment(uint32_t physical, uint32_t dwords);
+
+// Diagnostics: a predicated packet the walk ran (passes) or skipped, with the bin mask and select it evaluated.
+void HleNotePredicated(bool passes, uint64_t bin_mask, uint64_t bin_select);
+
+// Diagnostics: an indirect buffer the walk took from its decoded cache (hit) or decoded.
+void HleNoteDecodedBuffer(bool hit);
+
+// Diagnostics: the guest return address of a record no render pass tags (logged, the most frequent first).
+void HleNoteUntaggedCaller(uint32_t caller);
 
 // Called at every main-loop frame of the title: frees the frame's records and logs the counters every 10 s.
 void HleRecordsFrame();

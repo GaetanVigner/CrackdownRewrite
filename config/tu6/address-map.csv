@@ -161,6 +161,37 @@ fn-base,d3d EndTiling,826BDA38,,,,,,base only: single-tile scene; no Title Updat
 fn-base,d3d SetPredication,826BD300,,,,,,base only: single-tile scene; no Title Update 6 target yet
 fn-base,command buffer fixup,826C3D90,,,,,,base only: single-tile scene; no Title Update 6 target yet
 fn-base,d3d bind shader literals,826C6A50,,,,,,base only: single-tile scene; no Title Update 6 target yet
+fn-base,d3d ring segment switch,826BB408,,,,,,base only: HLE records ring walk; no Title Update 6 target yet
+fn-base,render objects,823B4F20,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render objects translucent,823BA308,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render hud a,8240A0B8,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render hud b,824099B8,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render hud c,8270D160,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass early target,8251FA20,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass shadow map,825D3910,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass shadow helper a,825DBD98,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass shadow helper b,825DC790,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass shadow atlas,825C80D0,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass opaque scene,825A9C20,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass depth resolve,825A9CF0,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass normal resolve,825A9E80,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass half-res,825A8C90,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass screen space,825D8258,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass colour a,825B4718,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass colour b,825AD5F0,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass query effects a,82568DE0,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass query effects b,825D1EC0,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass light apply,825A9490,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass light pools,825A8AA0,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass particles,825CB478,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass late draw,82351F60,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass post-processing,825E12F8,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass late a,825AA490,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass late b,825B7930,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass late c,825BA9F8,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass late d,825B5728,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass late e,825B1950,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
+fn-base,render pass late f,825A9A80,,,,,,base only: HLE render pass tag; no Title Update 6 target yet
 site-base,crackdown_single_tile_light_rows,825A606C,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet
 site-base,crackdown_single_tile_light_ratio,825A5FFC,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet
 site-base,crackdown_single_tile_light_rows,825A0EA8,,,,,,base only: added after v0.6.1 mapped TU6; no Title Update 6 target yet

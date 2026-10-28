@@ -9,11 +9,13 @@
 #include <algorithm>
 #include <atomic>
 #include <bit>
+#include <chrono>
 #include <cstring>
 #include <cstdio>
 #include <filesystem>
 #include <mutex>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include <fmt/format.h>
@@ -34,6 +36,9 @@ REXCVAR_DEFINE_BOOL(crackdown_hle_capture, false, "Crackdown",
                     "Developer diagnostics (HLE renderer): F8 records the next frames from the D3D device (game side) "
                     "and the GPU command processor to logs/hle_game_<n>.bin and logs/hle_gpu_<n>.bin");
 REXCVAR_DEFINE_INT32(crackdown_hle_capture_frames, 3, "Crackdown", "Frames an F8 HLE capture records on the GPU side");
+REXCVAR_DEFINE_INT32(crackdown_hle_auto_capture, 0, "Crackdown",
+                     "Developer diagnostics: captures taken as if by F8 once a busy scene (1,500 D3D calls a frame or "
+                     "more) has run for 20 s, then every 30 s while it lasts, up to this many a session");
 
 namespace crackdown {
 namespace {
@@ -97,6 +102,9 @@ Capture g_capture;
 // The draw record of the hooked call being walked (nullptr outside one, or with records off).
 const DrawRecord* g_pending_record = nullptr;
 
+// Hooked D3D calls this frame, for crackdown_hle_auto_capture.
+std::atomic<uint32_t> g_frame_calls{0};
+
 // Where the draw being recorded comes from, written in the record's (GPU-side) visibility-query field: the
 // comparison reports each source apart. Set by the hooks, under the capture mutex.
 enum class Source : uint32_t { kDraw = 0, kCommandBuffer = 1, kGprFlush = 2, kClear = 3, kResolve = 4 };
@@ -122,12 +130,15 @@ struct ShaderHead {
 // packet wrote stay kUnknownRegister, which the comparison skips.
 struct RegisterImage {
   std::vector<uint32_t> values;
+  // Registers the walked packets wrote (not the shadow): what a command buffer sets itself.
+  std::vector<uint8_t> written;
   ShaderHead vs, ps;
 
   RegisterImage() {
     uint32_t total = 0;
     for (const Block& block : kBlocks) total += block.count;
     values.assign(total, kUnknownRegister);
+    written.assign(total, 0);
   }
 
   uint32_t* Find(uint32_t reg) {
@@ -167,8 +178,13 @@ struct GpuFloatConstants {
 GpuFloatConstants g_gpu_constants;
 
 // Guest physical memory, where command buffers, ring segments and shader microcode live (big-endian dwords).
+const uint8_t* PhysicalBase() {
+  static const uint8_t* base = rex::system::kernel_state()->memory()->physical_membase();
+  return base;
+}
+
 uint32_t ReadPhysical(uint32_t physical) {
-  const uint8_t* host = rex::system::kernel_state()->memory()->physical_membase() + (physical & 0x1FFFFFFF);
+  const uint8_t* host = PhysicalBase() + (physical & 0x1FFFFFFF);
   uint32_t value;
   std::memcpy(&value, host, sizeof(value));
   return std::byteswap(value);
@@ -244,7 +260,10 @@ void Apply(RegisterImage& image, uint32_t reg, uint32_t value, bool predicated =
                 reg, value, g_walk_header, g_walk_packet, g_walk_depth, uint32_t(g_source));
   }
   const uint32_t applied = predicated ? kUnknownRegister : value;
-  image.Set(reg, applied);
+  if (uint32_t* slot = image.Find(reg)) {
+    *slot = applied;
+    image.written[slot - image.values.data()] = 1;
+  }
   g_gpu_constants.Note(reg, applied);
 }
 
@@ -271,7 +290,7 @@ void RecordDraw(uint8_t* base, uint32_t device, const RegisterImage& image, uint
     WriteU32(file, initiator);
     WriteU32(file, index_base);
     WriteU32(file, 0);  // index count (not compared)
-    WriteU32(file, 0);  // index format (not compared)
+    WriteU32(file, g_pending_record ? g_pending_record->pass : 0);  // index format (not compared): the render pass
     WriteU32(file, header & 1);
     WriteU32(file, Load32(base, device + kBinMaskLow));
     WriteU32(file, 0);
@@ -281,10 +300,16 @@ void RecordDraw(uint8_t* base, uint32_t device, const RegisterImage& image, uint
     std::fwrite(values, sizeof(uint32_t), image.values.size(), file);
   };
   write(capture.file, image.values.data());
-  // Command buffer draws run with state their buffer writes, which a record keeps as the buffer, not as registers.
-  if (capture.records_file && g_pending_record && g_source != Source::kCommandBuffer) {
+  if (capture.records_file && g_pending_record) {
     std::vector<uint32_t> rebuilt(image.values);
     HleExpandRecord(*g_pending_record, rebuilt.data());
+    // A command buffer draw runs with the state its record inherits plus what the buffer writes; the buffer's part
+    // is a record of its decoded segments (later), so here it is taken from the walk to check the inherited part.
+    if (g_source == Source::kCommandBuffer) {
+      for (size_t i = 0; i < rebuilt.size(); ++i) {
+        if (image.written[i]) rebuilt[i] = image.values[i];
+      }
+    }
     write(capture.records_file, rebuilt.data());
   }
   ++capture.draws;
@@ -465,15 +490,333 @@ void RecordCommandBuffer(uint8_t* base, uint32_t device, uint32_t command_buffer
   }
 }
 
+// H1a records: the PM4 written to the ring between hooked calls (the engine's prebaked shader binds, unhooked D3D
+// functions) is walked for its float, fetch and resolve register writes, which reach the GPU without the device's
+// flush. The cursor is the last ring dword walked (guest virtual, 0 unknown), taken after g_record_cursor_switches
+// ring segment switches.
+uint32_t g_record_cursor = 0;
+// The GPU's bin mask and select as the walked packets set them (persistent, like the command processor's), for
+// their predicated packets.
+uint64_t g_record_bin_mask = ~uint64_t(0);
+uint64_t g_record_bin_select = ~uint64_t(0);
+
+// Diagnostics: where the walk is (0 ring gap, else the RecordKind of the call whose output it walks), and how many
+// bin mask/select packets it has logged.
+uint32_t g_walk_source = 0;
+uint32_t g_bin_packets_logged = 0;
+
+// The type-3 opcodes the title's D3D library and engine emit (HLE_RENDERER_FEASIBILITY.md 1.2), and NOP: the walk
+// stops at anything else, which means the ring holds data (vertices of an unhooked call), not packets.
+bool KnownOpcode(uint32_t opcode) {
+  switch (opcode) {
+    case 0x10: case 0x21: case 0x22: case 0x25: case 0x27: case 0x2B: case 0x2D: case 0x2F: case 0x36: case 0x37:
+    case 0x3B: case 0x3C: case 0x3E: case 0x3F: case 0x45: case 0x46: case 0x48: case 0x50: case 0x51: case 0x54:
+    case 0x58: case 0x5A: case 0x5B: case 0x60: case 0x61: case 0x62: case 0x63: case 0x64:
+      return true;
+    default:
+      return false;
+  }
+}
+
+// A walked packet reduced to what the records need. kBin: `code` the opcode, `first`/`count` its two data dwords;
+// kWrite: `code` the HleStateSpace, `values` an offset in the value pool; kIndirect: `first` address, `count` dwords.
+struct WalkOp {
+  enum Kind : uint8_t { kBin, kWrite, kIndirect } kind;
+  uint8_t code;
+  bool predicated;
+  uint32_t first;
+  uint32_t count;
+  uint32_t values;
+};
+
+struct DecodedPm4 {
+  std::vector<WalkOp> ops;
+  std::vector<uint32_t> pool;  // big-endian values, as in guest memory
+};
+
+void AddWrite(DecodedPm4& out, HleStateSpace space, bool predicated, uint32_t first, uint32_t count,
+              uint32_t physical) {
+  const uint32_t at = uint32_t(out.pool.size());
+  const uint32_t* values = reinterpret_cast<const uint32_t*>(PhysicalBase() + (physical & 0x1FFFFFFF));
+  out.pool.insert(out.pool.end(), values, values + count);
+  out.ops.push_back({WalkOp::kWrite, uint8_t(space), predicated, first, count, at});
+}
+
+// Decodes `dwords` of PM4 at a guest physical address, up to the first packet the title does not emit.
+void DecodePm4(uint32_t physical, uint32_t dwords, DecodedPm4& out) {
+  for (uint32_t i = 0; i < dwords;) {
+    const uint32_t at = physical + 4 * i;
+    const uint32_t header = ReadPhysical(at);
+    const uint32_t type = header >> 30;
+    if (type == 2) {
+      ++i;
+      continue;
+    }
+    if (type == 1) {  // two single-register writes below 0x800: none the records keep
+      i += 3;
+      continue;
+    }
+    const uint32_t count = ((header >> 16) & 0x3FFF) + 1;
+    if (i + 1 + count > dwords || (type == 0 && (header & 0x7FFF) + count > 0x5100) ||
+        (type == 3 && !KnownOpcode((header >> 8) & 0x7F))) {
+      // Diagnostics: the first distinct reasons a decode stopped before the end of its buffer.
+      static uint32_t logged = 0;
+      if (logged < 32) {
+        ++logged;
+        REXLOG_INFO("[HLE records] decode stopped at {:08X} (dword {} of {}): header {:08X} (source {})", at, i, dwords,
+                    header, g_walk_source);
+      }
+      return;
+    }
+    if (type == 0) {
+      const uint32_t first = header & 0x7FFF;
+      const bool one_register = (header >> 15) & 1;
+      if (first >= 0x2000 && first < 0x2400) {
+        // A one-register run writes every value to the same register: the last one stays.
+        AddWrite(out, HleStateSpace::kRegister, false, first - 0x2000, one_register ? 1 : count,
+                 at + 4 * (one_register ? count : 1));
+      } else if (!one_register && first >= 0x4000 && first < 0x4800) {
+        AddWrite(out, HleStateSpace::kFloat, false, first - 0x4000, count, at + 4);
+      } else if (!one_register && first >= 0x4800 && first < 0x48C0) {
+        AddWrite(out, HleStateSpace::kFetch, false, first - 0x4800, count, at + 4);
+      }
+    } else {
+      const uint32_t opcode = (header >> 8) & 0x7F;
+      const bool predicated = header & 1;
+      auto data = [&](uint32_t n) { return ReadPhysical(at + 4 * (1 + n)); };
+      if (opcode == 0x50 || opcode == 0x51) {
+        out.ops.push_back({WalkOp::kBin, uint8_t(opcode), predicated, data(0), count >= 2 ? data(1) : 0, 0});
+      } else if (opcode >= 0x60 && opcode <= 0x63) {
+        out.ops.push_back({WalkOp::kBin, uint8_t(opcode), predicated, data(0), 0, 0});
+      } else if (opcode == 0x2D && count >= 2) {  // SET_CONSTANT: offset and type, then the values
+        const uint32_t offset_type = data(0);
+        const uint32_t space = (offset_type >> 16) & 0xFF;
+        const uint32_t first = offset_type & 0x7FF;
+        if (space == 0) AddWrite(out, HleStateSpace::kFloat, predicated, first, count - 1, at + 8);
+        if (space == 1) AddWrite(out, HleStateSpace::kFetch, predicated, first, count - 1, at + 8);
+        if (space == 4) AddWrite(out, HleStateSpace::kRegister, predicated, first, count - 1, at + 8);
+      } else if (opcode == 0x2F && count >= 3) {  // LOAD_ALU_CONSTANT: address, offset and type, size
+        const uint32_t address = data(0) & 0x1FFFFFFF;
+        const uint32_t offset_type = data(1);
+        const uint32_t size = data(2) & 0xFFF;
+        const uint32_t space = (offset_type >> 16) & 0xFF;
+        if (space == 0) AddWrite(out, HleStateSpace::kFloat, predicated, offset_type & 0x7FF, size, address);
+        if (space == 1) AddWrite(out, HleStateSpace::kFetch, predicated, offset_type & 0x7FF, size, address);
+      } else if ((opcode == 0x3F || opcode == 0x37) && count >= 2 && (data(1) & 0xFFFFF) <= kMaxCallDwords) {
+        out.ops.push_back({WalkOp::kIndirect, uint8_t(opcode), predicated, data(0) & 0x1FFFFFFF,
+                           data(1) & 0xFFFFF, 0});
+      }
+    }
+    i += 1 + count;
+  }
+}
+
+// Indirect buffers decoded once (command buffer segments, the engine's prebaked binds: static data), keyed by
+// (address << 20) | dwords; dropped when a command buffer load relocates or fixes up any buffer.
+std::unordered_map<uint64_t, DecodedPm4> g_decoded_buffers;
+uint32_t g_decoded_loads = 0;
+
+void ExecuteOps(const DecodedPm4& decoded, uint32_t depth, HleWritePhase phase);
+
+void ExecuteIndirect(uint32_t physical, uint32_t dwords, uint32_t depth, HleWritePhase phase) {
+  const uint32_t loads = CommandBufferLoads();
+  if (loads != g_decoded_loads) {
+    g_decoded_buffers.clear();
+    g_decoded_loads = loads;
+  }
+  const uint64_t key = (uint64_t(physical) << 20) | dwords;
+  auto it = g_decoded_buffers.find(key);
+  const bool hit = it != g_decoded_buffers.end();
+  if (!hit) {
+    it = g_decoded_buffers.emplace(key, DecodedPm4{}).first;
+    DecodePm4(physical, dwords, it->second);
+  }
+  HleNoteDecodedBuffer(hit);
+  ExecuteOps(it->second, depth, phase);
+}
+
+void ExecuteOps(const DecodedPm4& decoded, uint32_t depth, HleWritePhase phase) {
+  for (const WalkOp& op : decoded.ops) {
+    // The command processor skips a predicated packet whose bin mask and select share no bit, before running it.
+    if (op.predicated) {
+      const bool passes = (g_record_bin_mask & g_record_bin_select) != 0;
+      HleNotePredicated(passes, g_record_bin_mask, g_record_bin_select);
+      if (!passes) continue;
+    }
+    switch (op.kind) {
+      case WalkOp::kBin: {
+        auto set_low = [](uint64_t& value, uint32_t low) { value = (value & ~uint64_t(0xFFFFFFFF)) | low; };
+        auto set_high = [](uint64_t& value, uint32_t high) {
+          value = (value & 0xFFFFFFFF) | (uint64_t(high) << 32);
+        };
+        if (op.code == 0x50) g_record_bin_mask = (uint64_t(op.first) << 32) | op.count;
+        if (op.code == 0x51) g_record_bin_select = (uint64_t(op.first) << 32) | op.count;
+        if (op.code == 0x60) set_low(g_record_bin_mask, op.first);
+        if (op.code == 0x61) set_high(g_record_bin_mask, op.first);
+        if (op.code == 0x62) set_low(g_record_bin_select, op.first);
+        if (op.code == 0x63) set_high(g_record_bin_select, op.first);
+        static uint32_t odd_logged = 0;
+        const uint32_t low = uint32_t(g_record_bin_select), high = uint32_t(g_record_bin_select >> 32);
+        if (odd_logged < 16 && ((low != 0xFFFFFFFF && low > 0xFF && low != 0x80000003) ||
+                                (high != 0xFFFFFFFF && high > 0xFF))) {
+          ++odd_logged;
+          REXLOG_WARN("[HLE records] unusual bin select {:016X} from packet 0x{:02X} {:08X} (source {}, depth {})",
+                      g_record_bin_select, op.code, op.first, g_walk_source, depth);
+        }
+        if (g_bin_packets_logged < 48) {
+          ++g_bin_packets_logged;
+          REXLOG_INFO("[HLE records] bin packet 0x{:02X} {:08X} {:08X} (predicated {}, source {}, depth {}): mask "
+                      "{:016X} select {:016X}",
+                      op.code, op.first, op.count, op.predicated, g_walk_source, depth, g_record_bin_mask,
+                      g_record_bin_select);
+        }
+        break;
+      }
+      case WalkOp::kWrite:
+        HleNoteStateWrite(HleStateSpace(op.code), op.first, op.count,
+                          reinterpret_cast<const uint8_t*>(decoded.pool.data() + op.values), phase);
+        break;
+      case WalkOp::kIndirect:
+        if (depth < kMaxIndirectDepth) ExecuteIndirect(op.first, op.count, depth + 1, phase);
+        break;
+    }
+  }
+}
+
+// Walks PM4 written to the ring (changes every frame: decoded, not cached).
+void WalkConstantWrites(uint32_t physical, uint32_t dwords, uint32_t source, HleWritePhase phase) {
+  thread_local DecodedPm4 decoded;
+  decoded.ops.clear();
+  decoded.pool.clear();
+  DecodePm4(physical, dwords, decoded);
+  g_walk_source = source;
+  ExecuteOps(decoded, 0, phase);
+}
+
+// The ring is a chain of segments the D3D library kicks to the GPU one at a time (sub_826BB408 switches to the next,
+// which can be anywhere): the switches so far, and the last one's old segment end and new segment start (write
+// pointers: the last dword written).
+uint32_t g_ring_switches = 0;
+uint32_t g_switch_old_end = 0;
+uint32_t g_switch_new_start = 0;
+
+// Calls `walk(physical, dwords)` for the ring dwords in (from, to], `from` taken when g_ring_switches was
+// `from_switches`: one run in the same segment, two across one switch; false (nothing walked) across more.
+template <typename Walk>
+bool WalkRing(uint32_t from, uint32_t from_switches, uint32_t to, Walk walk) {
+  auto run = [&](uint32_t begin, uint32_t end) {
+    if (end > begin && (end - begin) / 4 <= kMaxCallDwords) walk(PhysicalAddress(begin + 4), (end - begin) / 4);
+  };
+  if (g_ring_switches == from_switches) {
+    run(from, to);
+    return true;
+  }
+  if (g_ring_switches == from_switches + 1) {
+    run(from, g_switch_old_end);
+    run(g_switch_new_start, to);
+    return true;
+  }
+  return false;
+}
+
+uint32_t g_record_cursor_switches = 0;
+
+void WalkRecordGap(uint32_t pre) {
+  if (g_record_cursor) {
+    WalkRing(g_record_cursor, g_record_cursor_switches, pre, [](uint32_t physical, uint32_t dwords) {
+      WalkConstantWrites(physical, dwords, 0, HleWritePhase::kBeforeFlush);
+    });
+  }
+}
+
+// The INDIRECT_BUFFERs among the PM4 a RunCommandBuffer call wrote: the command buffer segments it replays.
+void NoteSegments(uint32_t physical, uint32_t dwords) {
+  for (uint32_t i = 0; i < dwords;) {
+    const uint32_t header = ReadPhysical(physical + 4 * i);
+    const uint32_t type = header >> 30;
+    if (type == 2) {
+      ++i;
+      continue;
+    }
+    const uint32_t count = ((header >> 16) & 0x3FFF) + 1;
+    if (type == 3 && ((header >> 8) & 0x7F) == 0x3F && i + 2 < dwords) {
+      HleNoteSegment(ReadPhysical(physical + 4 * (i + 1)) & 0x1FFFFFFF, ReadPhysical(physical + 4 * (i + 2)) & 0xFFFFF);
+    }
+    i += 1 + count;
+  }
+}
+
 // Runs a hooked call (r3 = device, arguments r4-r7) and returns its H1a draw record (nullptr with records off): the
 // dirty masks are read before the call flushes them, the state after.
 template <typename Original>
 const DrawRecord* CallWithRecord(PPCContext& ctx, uint8_t* base, RecordKind kind, Original original) {
   const uint32_t device = ctx.r3.u32;
   const uint32_t args[4] = {ctx.r4.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32};
+  g_frame_calls.fetch_add(1, std::memory_order_relaxed);
   const HleRecordMasks masks = HleReadRecordMasks(base, device);
+  const uint32_t pre = Load32(base, device + kWritePointer);
+  const uint32_t pre_switches = g_ring_switches;
+  const uint32_t caller = uint32_t(ctx.lr);
+  if (HleRecordsEnabled()) WalkRecordGap(pre);
   original();
-  return HleRecordCall(base, device, kind, args, masks);
+  const DrawRecord* record = HleRecordCall(base, device, kind, args, masks);
+  if (!record) {
+    return nullptr;
+  }
+  // After a Begin* call the ring holds the vertices the game writes next, not PM4: the cursor is unknown until the
+  // next call ends.
+  const bool begin = kind == RecordKind::kBeginVertices || kind == RecordKind::kBeginIndexedVertices;
+  g_record_cursor = begin ? 0 : Load32(base, device + kWritePointer);
+  g_record_cursor_switches = g_ring_switches;
+  if (record->pass == 0) HleNoteUntaggedCaller(caller);
+  if (kind == RecordKind::kBeginVertices && ctx.r3.u32) {
+    // BeginVertices(device, primitive, vertex count, stride) returns where the game writes the vertices.
+    HleNoteUpVertices(base, device, PhysicalAddress(ctx.r3.u32), args[1] * args[2] / 4);
+  }
+  if (kind == RecordKind::kCommandBuffer) {
+    // Diagnostics: the predicate selects RunCommandBuffer is called with (r5), the first sixteen distinct ones.
+    static uint32_t seen[16];
+    static uint32_t seen_count = 0;
+    if (seen_count < 16 && std::find(seen, seen + seen_count, args[1]) == seen + seen_count) {
+      seen[seen_count++] = args[1];
+      REXLOG_INFO("[HLE records] RunCommandBuffer predicate select {:08X} (command buffer {:08X})", args[1], args[0]);
+    }
+  }
+  if (kind == RecordKind::kCommandBuffer || kind == RecordKind::kClear || kind == RecordKind::kResolve ||
+      kind == RecordKind::kGprFlush) {
+    // These calls write their own state to the ring (a command buffer through its segments); the constants they
+    // leave on the GPU apply to the draws after them.
+    const uint32_t post = Load32(base, device + kWritePointer);
+    const bool walkable = WalkRing(pre, pre_switches, post, [&](uint32_t physical, uint32_t dwords) {
+      if (kind == RecordKind::kCommandBuffer) NoteSegments(physical, dwords);
+      WalkConstantWrites(physical, dwords, uint32_t(kind), HleWritePhase::kAfterRecord);
+    });
+    static uint32_t skipped = 0;
+    if (!walkable) ++skipped;
+    if (!walkable && (skipped & (skipped - 1)) == 0) {
+      // Diagnostics: logged at 1, 2, 4, 8... calls.
+      REXLOG_INFO("[HLE records] {} calls' output not walked (several ring segment switches), last a kind {} call",
+                  skipped, uint32_t(kind));
+    }
+    if (!walkable && kind == RecordKind::kCommandBuffer) {
+      // The call's output spans two ring segments: replay the buffer's segments from its own list instead
+      // (cb + 116: nodes {next, count, then (address, dwords) pairs from node + 8}), the list RunCommandBuffer emits
+      // one INDIRECT_BUFFER per entry from.
+      g_walk_source = uint32_t(kind);
+      uint32_t node = guest::Plausible(args[0]) ? Load32(base, args[0] + 116) : 0;
+      for (uint32_t n = 0; n < 64 && guest::Plausible(node); ++n) {
+        const uint32_t count = Load32(base, node + 4);
+        for (uint32_t s = 0; s < count && s < 256; ++s) {
+          const uint32_t address = Load32(base, node + 8 + 8 * s) & 0x1FFFFFFF;
+          const uint32_t dwords = Load32(base, node + 12 + 8 * s) & 0xFFFFF;
+          HleNoteSegment(address, dwords);
+          if (dwords <= kMaxCallDwords) ExecuteIndirect(address, dwords, 1, HleWritePhase::kAfterRecord);
+        }
+        node = Load32(base, node);
+      }
+    }
+  }
+  return record;
 }
 
 template <typename Original>
@@ -516,6 +859,38 @@ std::filesystem::path NextPath(const std::filesystem::path& folder, uint32_t& in
 
 }  // namespace
 
+void HleNoteLiteralPackets(uint8_t* base, uint32_t device, uint32_t pre, uint32_t segment_end) {
+  if (!HleRecordsEnabled()) {
+    return;
+  }
+  const uint32_t post = Load32(base, device + kWritePointer);
+  if (Load32(base, device + kSegmentEnd) != segment_end || post <= pre || (post - pre) / 4 > kMaxCallDwords) {
+    return;
+  }
+  const uint32_t physical = PhysicalAddress(pre + 4);
+  const uint32_t dwords = (post - pre) / 4;
+  const uint8_t* memory = rex::system::kernel_state()->memory()->physical_membase();
+  for (uint32_t i = 0; i < dwords;) {
+    const uint32_t header = ReadPhysical(physical + 4 * i);
+    if ((header >> 30) == 2) {
+      ++i;
+      continue;
+    }
+    const uint32_t count = ((header >> 16) & 0x3FFF) + 1;
+    // LOAD_ALU_CONSTANT: address, offset and type (type 0: ALU constants, offset in dwords), size in dwords.
+    if ((header >> 30) == 3 && ((header >> 8) & 0x7F) == 0x2F && i + 3 < dwords) {
+      const uint32_t address = ReadPhysical(physical + 4 * (i + 1)) & 0x1FFFFFFF;
+      const uint32_t offset_type = ReadPhysical(physical + 4 * (i + 2));
+      const uint32_t size = ReadPhysical(physical + 4 * (i + 3)) & 0xFFF;
+      if (((offset_type >> 16) & 0xFF) == 0) {
+        HleNoteStateWrite(HleStateSpace::kFloat, offset_type & 0x7FF, size, memory + address,
+                          HleWritePhase::kDuringCall);
+      }
+    }
+    i += 1 + count;
+  }
+}
+
 bool HleCaptureEnabled() {
   return REXCVAR_GET(crackdown_hle_capture);
 }
@@ -528,8 +903,38 @@ bool StartHleCapture() {
   return true;
 }
 
+namespace {
+
+void AutoCapture() {
+  using Clock = std::chrono::steady_clock;
+  static Clock::time_point busy_since;
+  static Clock::time_point last_capture;
+  static bool busy = false;
+  static int32_t taken = 0;
+  const uint32_t calls = g_frame_calls.exchange(0, std::memory_order_relaxed);
+  if (taken >= REXCVAR_GET(crackdown_hle_auto_capture) || !REXCVAR_GET(crackdown_hle_capture)) return;
+  const Clock::time_point now = Clock::now();
+  if (calls < 1500) {
+    busy = false;
+    return;
+  }
+  if (!busy) {
+    busy = true;
+    busy_since = now;
+  }
+  if (now - busy_since >= std::chrono::seconds(20) &&
+      (taken == 0 || now - last_capture >= std::chrono::seconds(30)) && StartHleCapture()) {
+    ++taken;
+    last_capture = now;
+    REXLOG_WARN("[HLE] automatic capture {} of {}", taken, REXCVAR_GET(crackdown_hle_auto_capture));
+  }
+}
+
+}  // namespace
+
 void HleCaptureFrame() {
   HleRecordsFrame();
+  AutoCapture();
   Capture& capture = g_capture;
   if (g_recording.load(std::memory_order_relaxed)) {
     std::lock_guard lock(capture.mutex);
@@ -662,6 +1067,59 @@ void crackdown::hooks::D3dSetShaderGprAllocation(PPCContext& ctx, uint8_t* base,
                          crackdown::Source::kGprFlush);
 }
 
+// The ring segment switch (sub_826BB408, r3 = device): its old end and new start, for the H1a ring walks.
+void crackdown::hooks::D3dRingSegmentSwitch(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  const uint32_t device = ctx.r3.u32;
+  const uint32_t old_end = crackdown::guest::Load32(base, device + crackdown::kWritePointer);
+  original(ctx, base);
+  crackdown::g_switch_old_end = old_end;
+  crackdown::g_switch_new_start = crackdown::guest::Load32(base, device + crackdown::kWritePointer);
+  ++crackdown::g_ring_switches;
+}
+
+// The scene's render passes: each record made while a pass function runs is tagged with that pass.
+#define CRACKDOWN_DEFINE_RENDER_PASS(n)                                                             \
+  void crackdown::hooks::RenderPass##n(PPCContext& ctx, uint8_t* base, GuestFunction original) {    \
+    const uint32_t previous = crackdown::HleEnterRenderPass(n);                                    \
+    original(ctx, base);                                                                           \
+    crackdown::HleLeaveRenderPass(previous);                                                       \
+  }
+CRACKDOWN_RENDER_PASSES(CRACKDOWN_DEFINE_RENDER_PASS)
+#undef CRACKDOWN_DEFINE_RENDER_PASS
+
+// The generic object drawing the scene bracket sub_82326A90 also calls directly, outside any pass function: twice
+// sub_823B4F20 (returning to 82326FCC and 8232727C) and once sub_823BA308 (82327848). Inside a pass, the pass keeps
+// its tag.
+void crackdown::hooks::RenderObjects(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  uint32_t pass = 0;
+  if (crackdown::HleCurrentRenderPass() == 0) {
+    switch (uint32_t(ctx.lr)) {
+      case 0x82326FCC: pass = 26; break;
+      case 0x8232727C: pass = 27; break;
+      case 0x82327848: pass = 28; break;
+      default: break;
+    }
+  }
+  if (!pass) {
+    original(ctx, base);
+    return;
+  }
+  const uint32_t previous = crackdown::HleEnterRenderPass(pass);
+  original(ctx, base);
+  crackdown::HleLeaveRenderPass(previous);
+}
+
+// The HUD and interface drawing (reached through function pointers, outside the scene bracket).
+void crackdown::hooks::RenderHud(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  if (crackdown::HleCurrentRenderPass() != 0) {
+    original(ctx, base);
+    return;
+  }
+  const uint32_t previous = crackdown::HleEnterRenderPass(29);
+  original(ctx, base);
+  crackdown::HleLeaveRenderPass(previous);
+}
+
 // RunCommandBuffer(r3 = device, r4 = command buffer, r5 = predicate select).
 void crackdown::hooks::D3dRunCommandBuffer(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   const uint32_t device = ctx.r3.u32;
@@ -677,17 +1135,20 @@ void crackdown::hooks::D3dRunCommandBuffer(PPCContext& ctx, uint8_t* base, Guest
     std::lock_guard lock(crackdown::g_capture.mutex);
     if (crackdown::g_capture.file) crackdown::WalkGap(base, device, pre, segment_end);
   }
-  crackdown::CallWithRecord(ctx, base, crackdown::RecordKind::kCommandBuffer, [&] { original(ctx, base); });
+  const crackdown::DrawRecord* record =
+      crackdown::CallWithRecord(ctx, base, crackdown::RecordKind::kCommandBuffer, [&] { original(ctx, base); });
   crackdown::SingleTileCommandBuffer(base, device, pre, segment_end);
   std::lock_guard lock(crackdown::g_capture.mutex);
   if (crackdown::g_capture.file) {
     crackdown::g_source = crackdown::Source::kCommandBuffer;
+    crackdown::g_pending_record = record;
     const uint32_t post = crackdown::guest::Load32(base, device + crackdown::kWritePointer);
     const bool same_segment = crackdown::guest::Load32(base, device + crackdown::kSegmentEnd) == segment_end;
     if (!crackdown::RecordCall(base, device, pre, post, same_segment, false)) {
       crackdown::RecordCommandBuffer(base, device, command_buffer);
     }
     crackdown::AdvanceCursor(base, device, post);
+    crackdown::g_pending_record = nullptr;
     crackdown::g_source = crackdown::Source::kDraw;
   }
 }
