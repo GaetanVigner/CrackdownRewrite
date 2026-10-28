@@ -29,6 +29,9 @@
 
 REXCVAR_DEFINE_BOOL(crackdown_launcher, true, "Crackdown",
                     "Show the launcher before the game starts (hold Shift at start to force it)");
+// Off in this fork: its builds are not the upstream releases, and an upstream update would replace them.
+REXCVAR_DEFINE_BOOL(crackdown_update_check, false, "Crackdown",
+                    "Check GitHub for a newer release when the launcher opens, and offer to install it");
 REXCVAR_DEFINE_BOOL(crackdown_skip_launcher, false, "Crackdown",
                     "Skip the launcher once (set when the launcher restarts the game)");
 REXCVAR_DEFINE_INT32(crackdown_frame_rate, 60, "Crackdown",

@@ -16,6 +16,7 @@
 
 REXCVAR_DECLARE(bool, crackdown_launcher);
 REXCVAR_DECLARE(bool, crackdown_skip_launcher);
+REXCVAR_DECLARE(bool, crackdown_update_check);
 REXCVAR_DECLARE(bool, crackdown_skip_intro);
 REXCVAR_DECLARE(int32_t, crackdown_frame_rate);
 REXCVAR_DECLARE(bool, crackdown_show_fps);

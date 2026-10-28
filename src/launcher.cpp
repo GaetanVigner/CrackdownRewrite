@@ -211,7 +211,7 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
         [this](const std::string& text, double seconds) { launcher_->SetStatus(text, seconds); });
     launcher_ = std::make_unique<trg::Launcher>(MakeConfig());
     updater_ = std::make_unique<trg::update::UpdateController>(MakeUpdateConfig(PortFolder()));
-    updater_->StartCheck();
+    if (REXCVAR_GET(crackdown_update_check)) updater_->StartCheck();
     if (WindowFullscreen()) {
       restore_when_windowed_ = true;
       RequestFullscreen(false);
