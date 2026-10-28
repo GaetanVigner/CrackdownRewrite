@@ -267,11 +267,19 @@ In an existing clone, run `git submodule update --init --recursive`.
 
 The Linux AppImage is built on Linux or WSL with `tools/package-linux.sh`, after the steps above have generated the C++, and `tools/build.sh` makes a plain Linux build without packaging. See [docs/linux.md](docs/linux.md) and [docs/build-workflow.md](docs/build-workflow.md).
 
+## Sponsoring
+
+Crackdown Recompiled is maintained and developed in my free time. If you enjoy the project or find it useful, consider supporting its continued development.
+
+<p align="center">
+<a href="https://github.com/sponsors/saulob" target="_blank"><img src="https://img.shields.io/badge/GitHub%20Sponsors-Sponsor-EA4AAA?style=for-the-badge&logo=githubsponsors&logoColor=white" alt="GitHub Sponsors"></a>
+</p>
+
 ## Credits
 
 - Crackdown by Realtime Worlds, published by Microsoft Game Studios (2007). This is an unofficial fan-made PC port. It is not affiliated with or endorsed by Microsoft or Realtime Worlds, and it contains none of their files.
 - [ReXGlue SDK](https://github.com/rexglue/rexglue-sdk) for the recompiler and runtime (BSD 3-Clause)
-- [TRG Launcher](https://github.com/TekRantGaming/trg-launcher), the launcher interface, pinned at v1.1.0. The referenced revision contains no explicit license file.
+- [TRG Launcher](https://github.com/TekRantGaming/trg-launcher), the launcher interface, pinned at v1.1.0, licensed under the MIT License
 - The licenses of the libraries the release includes are in the `licenses` folder of the ZIP and in the AppImage
 
 ## AI disclosure
