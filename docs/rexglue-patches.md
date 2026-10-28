@@ -5,8 +5,8 @@ result is installed over the stock files in `tools/rexglue`. The game compiles a
 must not move virtual functions or data members of classes the generated game code uses.
 
 `NNNN-name.patch` applies on both platforms, `NNNN-name.windows.patch` only on Windows and `NNNN-name.linux.patch` only on
-Linux. Numbers are unique and patches apply in name order; gaps are fine. 71 patches are common, 32 are Windows only and
-3 are Linux only, so 103 apply on Windows and 74 apply on Linux. The Vulkan patches are common since the Windows
+Linux. Numbers are unique and patches apply in name order; gaps are fine. 74 patches are common, 32 are Windows only and
+3 are Linux only, so 106 apply on Windows and 77 apply on Linux. The Vulkan patches are common since the Windows
 plugin carries the Vulkan backend too (0114). Patches 0005, 0052 and 0095 change the code generator and
 are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the runtime and the GPU plugin.
 
@@ -108,6 +108,9 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0113 | windows | `gpu_draw_trace_resolve_data`: a draw trace also writes the bytes of every resolve (`<trace>_resolves.bin`) |
 | 0114 | windows | the Vulkan backend is built on Windows too, and `gpu_backend` (`any`/`d3d12`/`vulkan`) picks the one the plugin creates |
 | 0115 | all | `vulkan_async_submission` (off: slower here, see the patch): the Vulkan counterpart of 0081, a "Vulkan Submission" thread replays and submits the recorded command buffers in order; fences are only polled once submitted |
+| 0116 | all | `gpu_frame_stats` on Vulkan: IssueDraw timed in 15 sections (ns a draw) and render pass entries counted, logged every 10 s with the GPU command thread's CPU time |
+| 0117 | all | cheaper Vulkan draws: the memexport readback check (a by-name cvar lookup) only for draws that export, and a table of sampler parameters keyed by the fetch constant |
+| 0118 | all | `gpu_ab_cvar` / `gpu_ab_values`: with `gpu_frame_stats` on Vulkan, a hot-reloadable cvar alternates every 10 s window so one run measures A and B in the same scene; `vulkan_sampler_parameters_cache` toggles 0117's table |
 
 Patches 0054 to 0058, 0078 to 0083, 0095, 0096, 0103 and 0115 and the hooks in `src/audio_guest_sync.cpp` and
 `src/vehicle_action_step.cpp` are adapted from Unowa001/crackdown-recomp (BSD 3-Clause, notice in

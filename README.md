@@ -69,7 +69,8 @@ state the draw records reproduce. The plan, the measurements behind each step an
   apply on both platforms (occlusion queries, render target transfers, resolve handling), and float24 depth is
   converted in the pixel shader under Vulkan, which the Agency garage's markers need. At the usual city spot Vulkan runs
   130-140 FPS against 190-200 on D3D12: its GPU command thread is the limit (~8 ms a frame), which the next ports
-  address.
+  address. Per-section timers of the Vulkan draw path and an in-run A/B switch (`gpu_ab_cvar`, one setting alternated
+  every 10 s so both sides see the same scene) measure each change; the first two fixes cut ~180 ns of ~1,050 a draw.
 
 ### Next
 

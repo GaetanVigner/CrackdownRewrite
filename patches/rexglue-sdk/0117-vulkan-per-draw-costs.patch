@@ -1,0 +1,88 @@
+Cheaper Vulkan draws, found with 0116's section timers (city spot, ~4,500 draws a frame):
+- IssueDraw asked IsReadbackMemexportEnabled on every draw, which looks the legacy readback cvar up in the cvar
+  registry by name (a lock and a string hash, ~130 ns); it is now only asked for draws that export, like D3D12.
+- VulkanTextureCache::GetSamplerParameters parses the fetch constant (clamp, filters, the texture's host format for
+  filterability, mip range) for each of a draw's samplers (~104 ns a draw against ~54 on D3D12 with 0111's caches). Its
+  result depends only on the six fetch constant dwords, the binding's filter overrides and anisotropic_override, so the
+  last results are kept in a 256-entry direct-mapped table keyed by them.
+
+diff --git a/include/rex/graphics/vulkan/texture_cache.h b/include/rex/graphics/vulkan/texture_cache.h
+--- a/include/rex/graphics/vulkan/texture_cache.h
++++ b/include/rex/graphics/vulkan/texture_cache.h
+@@ -393,6 +393,21 @@ class VulkanTextureCache final : public TextureCache {
+ 
+   xenos::AnisoFilter max_anisotropy_;
+ 
++  // GetSamplerParameters derives the parameters from the six fetch constant dwords, the binding's
++  // filter overrides and anisotropic_override only, so the last results are kept in a direct-mapped
++  // table keyed by them (most draws repeat their samplers).
++  SamplerParameters GetSamplerParametersUncached(const VulkanShader::SamplerBinding& binding) const;
++  struct SamplerParametersCacheEntry {
++    uint32_t fetch[6];
++    uint32_t binding_filters;
++    int32_t anisotropic_override;
++    SamplerParameters parameters;
++    bool valid = false;
++  };
++  static constexpr uint32_t kSamplerParametersCacheSize = 256;
++  mutable std::array<SamplerParametersCacheEntry, kSamplerParametersCacheSize>
++      sampler_parameters_cache_;
++
+   std::unordered_map<SamplerParameters, Sampler, SamplerParameters::Hasher> samplers_;
+   std::pair<const SamplerParameters, Sampler>* sampler_used_first_ = nullptr;
+   std::pair<const SamplerParameters, Sampler>* sampler_used_last_ = nullptr;
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -4300,8 +4300,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+     shared_memory_->RangeWrittenByGpu(0, SharedMemory::kBufferSize);
+   }
+ 
+-  if (IsReadbackMemexportEnabled(REXCVAR_GET(vulkan_readback_memexport)) &&
+-      !memexport_ranges_.empty()) {
++  // The check looks the legacy cvar up by name, so it is only made for draws that export.
++  if (!memexport_ranges_.empty() &&
++      IsReadbackMemexportEnabled(REXCVAR_GET(vulkan_readback_memexport))) {
+     uint32_t memexport_total_size = 0;
+     for (const draw_util::MemExportRange& memexport_range : memexport_ranges_) {
+       memexport_total_size += memexport_range.size_bytes;
+diff --git a/src/graphics/vulkan/texture_cache.cpp b/src/graphics/vulkan/texture_cache.cpp
+--- a/src/graphics/vulkan/texture_cache.cpp
++++ b/src/graphics/vulkan/texture_cache.cpp
+@@ -673,6 +673,36 @@ VkImageView VulkanTextureCache::GetActiveBindingOrNullImageView(uint32_t fetch_c
+ 
+ VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParameters(
+     const VulkanShader::SamplerBinding& binding) const {
++  xenos::xe_gpu_texture_fetch_t fetch = register_file().GetTextureFetch(binding.fetch_constant);
++  uint32_t fetch_dwords[6];
++  static_assert(sizeof(fetch) == sizeof(fetch_dwords));
++  std::memcpy(fetch_dwords, &fetch, sizeof(fetch_dwords));
++  const uint32_t binding_filters = uint32_t(binding.mag_filter) | (uint32_t(binding.min_filter) << 8) |
++                                   (uint32_t(binding.mip_filter) << 16) |
++                                   (uint32_t(binding.aniso_filter) << 24);
++  const int32_t anisotropic_override = REXCVAR_GET(anisotropic_override);
++  uint32_t hash = binding_filters * 0x9E3779B1u;
++  for (uint32_t dword : fetch_dwords) {
++    hash = (hash ^ dword) * 0x9E3779B1u;
++  }
++  SamplerParametersCacheEntry& entry =
++      sampler_parameters_cache_[(hash >> 24) & (kSamplerParametersCacheSize - 1)];
++  if (entry.valid && entry.binding_filters == binding_filters &&
++      entry.anisotropic_override == anisotropic_override &&
++      !std::memcmp(entry.fetch, fetch_dwords, sizeof(fetch_dwords))) {
++    return entry.parameters;
++  }
++  SamplerParameters parameters = GetSamplerParametersUncached(binding);
++  std::memcpy(entry.fetch, fetch_dwords, sizeof(fetch_dwords));
++  entry.binding_filters = binding_filters;
++  entry.anisotropic_override = anisotropic_override;
++  entry.parameters = parameters;
++  entry.valid = true;
++  return parameters;
++}
++
++VulkanTextureCache::SamplerParameters VulkanTextureCache::GetSamplerParametersUncached(
++    const VulkanShader::SamplerBinding& binding) const {
+   const auto& regs = register_file();
+   xenos::xe_gpu_texture_fetch_t fetch = regs.GetTextureFetch(binding.fetch_constant);
+ 
