@@ -5,8 +5,8 @@ result is installed over the stock files in `tools/rexglue`. The game compiles a
 must not move virtual functions or data members of classes the generated game code uses.
 
 `NNNN-name.patch` applies on both platforms, `NNNN-name.windows.patch` only on Windows and `NNNN-name.linux.patch` only on
-Linux. Numbers are unique and patches apply in name order; gaps are fine. 74 patches are common, 32 are Windows only and
-3 are Linux only, so 106 apply on Windows and 77 apply on Linux. The Vulkan patches are common since the Windows
+Linux. Numbers are unique and patches apply in name order; gaps are fine. 78 patches are common, 32 are Windows only and
+3 are Linux only, so 110 apply on Windows and 81 apply on Linux. The Vulkan patches are common since the Windows
 plugin carries the Vulkan backend too (0114). Patches 0005, 0052 and 0095 change the code generator and
 are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the runtime and the GPU plugin.
 
@@ -111,6 +111,10 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0116 | all | `gpu_frame_stats` on Vulkan: IssueDraw timed in 15 sections (ns a draw) and render pass entries counted, logged every 10 s with the GPU command thread's CPU time |
 | 0117 | all | cheaper Vulkan draws: the memexport readback check (a by-name cvar lookup) only for draws that export, and a table of sampler parameters keyed by the fetch constant |
 | 0118 | all | `gpu_ab_cvar` / `gpu_ab_values`: with `gpu_frame_stats` on Vulkan, a hot-reloadable cvar alternates every 10 s window so one run measures A and B in the same scene; `vulkan_sampler_parameters_cache` toggles 0117's table |
+| 0119 | all | `vulkan_reuse_texture_descriptors` (on): a stage's texture descriptor set is kept while its image views and samplers are unchanged (~15 ns a draw) |
+| 0120 | all | `vulkan_skip_unchanged_constant_writes` (on), the Vulkan half of 0099 (no measurable effect here: the constants do change) |
+| 0121 | all | `gpu_frame_stats` on Vulkan: UpdateBindings timed in five subsections, descriptor sets written per frame counted |
+| 0122 | all | Vulkan constants through dynamic uniform buffers: a set names the upload buffers, offsets are given at bind, so ~5,000 set writes a frame become none (+20-25% FPS at the city spot); upload pages keep a reserved tail |
 
 Patches 0054 to 0058, 0078 to 0083, 0095, 0096, 0103 and 0115 and the hooks in `src/audio_guest_sync.cpp` and
 `src/vehicle_action_step.cpp` are adapted from Unowa001/crackdown-recomp (BSD 3-Clause, notice in

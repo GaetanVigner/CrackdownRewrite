@@ -1,0 +1,105 @@
+vulkan_reuse_texture_descriptors (on, hot reload): UpdateBindings invalidated both texture descriptor sets on every
+draw (a TODO in the backend), so each draw with textures allocated a transient set, wrote it with
+vkUpdateDescriptorSets and bound it. A stage's set is now kept while its texture and sampler counts (which give the
+set layout), image views and samplers are the ones last written in the current submission (a new submission clears
+the up-to-date bits as before). The image views are looked up once per draw, into the comparison key, and written
+from it.
+
+diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
+--- a/include/rex/graphics/vulkan/command_processor.h
++++ b/include/rex/graphics/vulkan/command_processor.h
+@@ -629,6 +629,11 @@ class VulkanCommandProcessor : public CommandProcessor {
+   // Temporary storage with reusable memory for writing image and sampler
+   // descriptors.
+   std::vector<VkDescriptorImageInfo> descriptor_write_image_info_;
++  // vulkan_reuse_texture_descriptors: per stage (vertex, pixel), the texture and sampler counts, image
++  // views and samplers of the texture descriptor set last written in this submission; a draw with
++  // the same ones keeps that set instead of writing a new one.
++  std::vector<uint64_t> texture_descriptor_keys_[2];
++  std::vector<uint64_t> texture_descriptor_key_temp_;
+ 
+   std::unique_ptr<ui::vulkan::VulkanUploadBufferPool> uniform_buffer_pool_;
+ 
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -99,6 +99,11 @@ REXCVAR_DEFINE_STRING(gpu_ab_values, "", "GPU",
+                       "Comma-separated values gpu_ab_cvar takes in turn (e.g. true,false)")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
++REXCVAR_DEFINE_BOOL(vulkan_reuse_texture_descriptors, true, "GPU/Vulkan",
++                    "Keep a stage's texture descriptor set while its image views and samplers are "
++                    "unchanged instead of writing a new one for every draw")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++
+ namespace rex::graphics::vulkan {
+ 
+ namespace {
+@@ -7029,10 +7034,35 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+     sampler_count_pixel = 0;
+     texture_count_pixel = 0;
+   }
+-  // TODO(Triang3l): Reuse texture and sampler bindings if not changed.
+-  current_graphics_descriptor_set_values_up_to_date_ &=
+-      ~((UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex) |
+-        (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel));
++  // A stage's texture descriptor set is kept while its counts (and so the set layout), image views
++  // and samplers are the ones last written in this submission (a new submission clears the
++  // up-to-date bits). The views are looked up once, into the key, and written from there.
++  const bool reuse_texture_descriptors = REXCVAR_GET(vulkan_reuse_texture_descriptors);
++  for (uint32_t stage = 0; stage < 2; ++stage) {
++    const std::vector<VulkanShader::TextureBinding>* stage_textures =
++        stage ? textures_pixel : &textures_vertex;
++    const auto& stage_samplers = stage ? current_samplers_pixel_ : current_samplers_vertex_;
++    uint32_t stage_texture_count = stage ? texture_count_pixel : texture_count_vertex;
++    uint32_t stage_sampler_count = stage ? sampler_count_pixel : sampler_count_vertex;
++    std::vector<uint64_t>& key = texture_descriptor_key_temp_;
++    key.clear();
++    key.push_back(uint64_t(stage_texture_count) | (uint64_t(stage_sampler_count) << 32));
++    for (uint32_t i = 0; i < stage_texture_count; ++i) {
++      const VulkanShader::TextureBinding& texture_binding = (*stage_textures)[i];
++      key.push_back(uint64_t(texture_cache_->GetActiveBindingOrNullImageView(
++          texture_binding.fetch_constant, texture_binding.dimension,
++          bool(texture_binding.is_signed))));
++    }
++    for (uint32_t i = 0; i < stage_sampler_count; ++i) {
++      key.push_back(uint64_t(stage_samplers[i].second));
++    }
++    const uint32_t set_bit = UINT32_C(1) << (stage ? SpirvShaderTranslator::kDescriptorSetTexturesPixel
++                                                   : SpirvShaderTranslator::kDescriptorSetTexturesVertex);
++    if (!reuse_texture_descriptors || key != texture_descriptor_keys_[stage]) {
++      current_graphics_descriptor_set_values_up_to_date_ &= ~set_bit;
++      texture_descriptor_keys_[stage].swap(key);
++    }
++  }
+ 
+   // Make sure new descriptor sets are bound to the command buffer.
+ 
+@@ -7055,11 +7085,9 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+       (write_pixel_textures ? texture_count_pixel + sampler_count_pixel : 0));
+   size_t vertex_texture_image_info_offset = descriptor_write_image_info_.size();
+   if (write_vertex_textures && texture_count_vertex) {
+-    for (const VulkanShader::TextureBinding& texture_binding : textures_vertex) {
++    for (uint32_t i = 0; i < texture_count_vertex; ++i) {
+       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
+-      descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
+-          texture_binding.fetch_constant, texture_binding.dimension,
+-          bool(texture_binding.is_signed));
++      descriptor_image_info.imageView = VkImageView(texture_descriptor_keys_[0][1 + i]);
+       descriptor_image_info.imageLayout = descriptor_image_info.imageView != VK_NULL_HANDLE
+                                               ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                               : VK_IMAGE_LAYOUT_UNDEFINED;
+@@ -7075,11 +7103,9 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+   }
+   size_t pixel_texture_image_info_offset = descriptor_write_image_info_.size();
+   if (write_pixel_textures && texture_count_pixel) {
+-    for (const VulkanShader::TextureBinding& texture_binding : *textures_pixel) {
++    for (uint32_t i = 0; i < texture_count_pixel; ++i) {
+       VkDescriptorImageInfo& descriptor_image_info = descriptor_write_image_info_.emplace_back();
+-      descriptor_image_info.imageView = texture_cache_->GetActiveBindingOrNullImageView(
+-          texture_binding.fetch_constant, texture_binding.dimension,
+-          bool(texture_binding.is_signed));
++      descriptor_image_info.imageView = VkImageView(texture_descriptor_keys_[1][1 + i]);
+       descriptor_image_info.imageLayout = descriptor_image_info.imageView != VK_NULL_HANDLE
+                                               ? VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                               : VK_IMAGE_LAYOUT_UNDEFINED;

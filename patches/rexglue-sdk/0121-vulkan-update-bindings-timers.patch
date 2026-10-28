@@ -1,0 +1,139 @@
+gpu_frame_stats on Vulkan: UpdateBindings (0116's "bindings" section) is timed in five subsections (constant layout
+check, constant uploads, texture keys and image infos, descriptor set allocation and writes, binding), and the
+constant and texture descriptor sets written per frame are counted, in one more log line every 10 s.
+
+diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
+--- a/include/rex/graphics/vulkan/command_processor.h
++++ b/include/rex/graphics/vulkan/command_processor.h
+@@ -478,6 +478,12 @@ class VulkanCommandProcessor : public CommandProcessor {
+   // (begin after an end or a change) counted too.
+   static constexpr uint32_t kDrawSections = 15;
+   uint64_t render_passes_begun_ = 0;
++  // UpdateBindings subsections (kBindingsSectionNames in the .cpp) and descriptor sets written.
++  static constexpr uint32_t kBindingsSections = 5;
++  uint64_t bindings_mark_ = 0;
++  uint64_t bindings_section_ticks_[kBindingsSections] = {};
++  uint64_t constants_sets_written_ = 0;
++  uint64_t texture_sets_written_ = 0;
+   bool draw_timing_ = false;
+   uint64_t draw_mark_ = 0;
+   uint64_t draw_section_ticks_[kDrawSections] = {};
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -135,6 +135,12 @@ constexpr const char* kDrawSectionNames[] = {
+     draw_mark_ = draw_ticks_now;                         \
+   }
+ 
++// gpu_frame_stats: adds the time since the last mark to UpdateBindings subsection n.
++#define BINDINGS_SECTION(n)                                        if (draw_timing_) {                                                const uint64_t bindings_ticks_now = DrawTicks();                 bindings_section_ticks_[n] += bindings_ticks_now - bindings_mark_;     bindings_mark_ = bindings_ticks_now;                           }
++
++constexpr const char* kBindingsSectionNames[] = {"constant layout", "constant uploads",
++                                                 "texture keys", "descriptor writes", "bind"};
++
+ // CPU time the calling thread has run, in nanoseconds (waits excluded).
+ uint64_t ThreadCpuTimeNs() {
+ #if REX_PLATFORM_WIN32
+@@ -5472,6 +5478,9 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+     std::memset(draw_section_ticks_, 0, sizeof(draw_section_ticks_));
+     draw_timed_count_ = 0;
+     render_passes_begun_ = 0;
++    std::memset(bindings_section_ticks_, 0, sizeof(bindings_section_ticks_));
++    constants_sets_written_ = 0;
++    texture_sets_written_ = 0;
+   };
+   if (!cpu_stats_frames_++) {
+     restart_window();
+@@ -5514,6 +5523,18 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+         "entries; ns a draw: {}",
+         ab_tag, draws, total_ms, draws > 0.0 ? total_ms * 1.0e6 / draws : 0.0,
+         double(render_passes_begun_) / frames, sections);
++    std::string bindings;
++    for (uint32_t i = 0; i < kBindingsSections; ++i) {
++      bindings += fmt::format(
++          "{}{} {:.0f}", i ? ", " : "", kBindingsSectionNames[i],
++          draws > 0.0 ? double(bindings_section_ticks_[i]) * ms_per_tick / frames * 1.0e6 / draws
++                      : 0.0);
++    }
++    REXGPU_INFO(
++        "Vulkan UpdateBindings{}: {:.0f} constant sets and {:.0f} texture sets written a frame; ns "
++        "a draw: {}",
++        ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
++        bindings);
+   }
+   if (!ab_cvar.empty()) {
+     // Next value after the current one (the first when the current one is not listed).
+@@ -6874,6 +6895,9 @@ void VulkanCommandProcessor::UpdateSystemConstantValues(
+ 
+ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+                                             const VulkanShader* pixel_shader) {
++  if (draw_timing_) {
++    bindings_mark_ = DrawTicks();
++  }
+ #if XE_GPU_FINE_GRAINED_DRAW_SCOPES
+   SCOPE_profile_cpu_f("gpu");
+ #endif  // XE_GPU_FINE_GRAINED_DRAW_SCOPES
+@@ -6927,6 +6951,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+     std::memset(current_float_constant_map_pixel_, 0, sizeof(current_float_constant_map_pixel_));
+   }
+ 
++  BINDINGS_SECTION(0);
+   // Write the new constant buffers.
+   constexpr uint32_t kAllConstantBuffersMask =
+       (UINT32_C(1) << SpirvShaderTranslator::kConstantBufferCount) - 1;
+@@ -7051,6 +7076,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+     }
+   }
+ 
++  BINDINGS_SECTION(1);
+   // Textures and samplers.
+   const std::vector<VulkanShader::SamplerBinding>& samplers_vertex =
+       vertex_shader->GetSamplerBindingsAfterTranslation();
+@@ -7158,6 +7184,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+     }
+   }
+ 
++  BINDINGS_SECTION(2);
+   // Write the new descriptor sets.
+ 
+   // Consecutive bindings updated via a single VkWriteDescriptorSet must have
+@@ -7202,6 +7229,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+       write_constants.pBufferInfo = &current_constant_buffer_infos_[i];
+       write_constants.pTexelBufferView = nullptr;
+     }
++    ++constants_sets_written_;
+     write_descriptor_set_bits |= UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetConstants;
+     current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetConstants] =
+         constants_descriptor_set;
+@@ -7219,6 +7247,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+       return false;
+     }
+     write_descriptor_set_count += texture_descriptor_set_write_count;
++    ++texture_sets_written_;
+     write_descriptor_set_bits |= UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesVertex;
+     current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetTexturesVertex] =
+         write_textures[0].dstSet;
+@@ -7236,6 +7265,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+       return false;
+     }
+     write_descriptor_set_count += texture_descriptor_set_write_count;
++    ++texture_sets_written_;
+     write_descriptor_set_bits |= UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetTexturesPixel;
+     current_graphics_descriptor_sets_[SpirvShaderTranslator::kDescriptorSetTexturesPixel] =
+         write_textures[0].dstSet;
+@@ -7249,6 +7279,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+   // successfully.
+   current_graphics_descriptor_set_values_up_to_date_ |= write_descriptor_set_bits;
+ 
++  BINDINGS_SECTION(3);
+   // Bind the new descriptor sets.
+   uint32_t descriptor_sets_needed = (UINT32_C(1) << SpirvShaderTranslator::kDescriptorSetCount) - 1;
+   if (!texture_count_vertex && !sampler_count_vertex) {
+@@ -7275,6 +7306,7 @@ bool VulkanCommandProcessor::UpdateBindings(const VulkanShader* vertex_shader,
+   }
+   current_graphics_descriptor_sets_bound_up_to_date_ |= descriptor_sets_needed;
+ 
++  BINDINGS_SECTION(4);
+   return true;
+ }
+ 
