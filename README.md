@@ -64,6 +64,12 @@ state the draw records reproduce. The plan, the measurements behind each step an
 - **Upstream kept in.** Merged up to v0.6.2; the update system was audited (HTTPS to GitHub only, SHA-256 checked before
   extraction, no elevation, no malicious code found). This fork's builds do not check for updates
   (`crackdown_update_check`, off), so an upstream release cannot replace them.
+- **Vulkan on Windows too** (H1b, step 1). The GPU plugin carries the Vulkan backend on Windows as well, and
+  `gpu_backend = "vulkan"` runs the whole game on it, as on the Steam Deck. The Vulkan ports of our renderer fixes now
+  apply on both platforms (occlusion queries, render target transfers, resolve handling), and float24 depth is
+  converted in the pixel shader under Vulkan, which the Agency garage's markers need. At the usual city spot Vulkan runs
+  130-140 FPS against 190-200 on D3D12: its GPU command thread is the limit (~8 ms a frame), which the next ports
+  address.
 
 ### Next
 

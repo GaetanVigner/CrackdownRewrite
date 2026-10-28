@@ -86,7 +86,7 @@
 <rect x="416.0" y="649" width="82.0" height="30" rx="5" fill="#40a6f2" fill-opacity="1"><title>H1a: draw records (in progress)</title></rect>
 <text x="457.0" y="669" text-anchor="middle" fill="#ffffff" font-weight="600">H1a</text>
 <text class="t" x="457.0" y="695" text-anchor="middle" font-size="10.5">draw records</text>
-<rect x="502.0" y="649" width="82.0" height="30" rx="5" fill="#e5a50a" fill-opacity="1"><title>H1b: Vulkan opaque (next)</title></rect>
+<rect x="502.0" y="649" width="82.0" height="30" rx="5" fill="#40a6f2" fill-opacity="1"><title>H1b: Vulkan opaque (in progress)</title></rect>
 <text x="543.0" y="669" text-anchor="middle" fill="#ffffff" font-weight="600">H1b</text>
 <text class="t" x="543.0" y="695" text-anchor="middle" font-size="10.5">Vulkan opaque</text>
 <rect x="588.0" y="649" width="82.0" height="30" rx="5" fill="#8b949e" fill-opacity=".35"><title>H2: pass switch (planned)</title></rect>

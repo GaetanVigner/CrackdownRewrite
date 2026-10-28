@@ -5,8 +5,9 @@ result is installed over the stock files in `tools/rexglue`. The game compiles a
 must not move virtual functions or data members of classes the generated game code uses.
 
 `NNNN-name.patch` applies on both platforms, `NNNN-name.windows.patch` only on Windows and `NNNN-name.linux.patch` only on
-Linux. Numbers are unique and patches apply in name order; gaps are fine. 60 patches are common, 30 are Windows only and
-13 are Linux only, so 90 apply on Windows and 73 apply on Linux. Patches 0005, 0052 and 0095 change the code generator and
+Linux. Numbers are unique and patches apply in name order; gaps are fine. 71 patches are common, 32 are Windows only and
+3 are Linux only, so 103 apply on Windows and 74 apply on Linux. The Vulkan patches are common since the Windows
+plugin carries the Vulkan backend too (0114). Patches 0005, 0052 and 0095 change the code generator and
 are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change the runtime and the GPU plugin.
 
 | # | Platform | Purpose |
@@ -22,8 +23,8 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0010 | windows | D3D12 adapter preference (high-performance GPU) |
 | 0011 | all | Vulkan device preference |
 | 0012 | all | log host MSAA 2x support |
-| 0013 | linux | SPIR-V texture exponent adjust |
-| 0014 | linux | cache the Vulkan swapchain paint pipeline |
+| 0013 | all | SPIR-V texture exponent adjust |
+| 0014 | all | cache the Vulkan swapchain paint pipeline |
 | 0015 | all | timer queue blocks instead of spinning |
 | 0016 | all | batch performance counter reads |
 | 0017 | all | vblank thread sleeps until due |
@@ -43,19 +44,19 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0033 | all | command processor guest memory writes wake `WaitOnAddress`/futex waiters; `src/gpu_fence_wait.cpp` is the waiter |
 | 0034 | windows | early submission only while fewer than three are in flight, `PollBackgroundWork` finishes pending occlusion queries, no `direct_host_resolve` preflight |
 | 0035-0037 | windows | D3D12 halves of 0030-0032 |
-| 0038-0040 | linux | Vulkan halves of 0030-0032, submissions and occlusion queries |
-| 0041-0043 | all, windows, linux | resolves copied straight into the textures that sample them (`resolve_copy_into_textures`) |
-| 0044-0046 | all, windows, linux | above Original resolution, a resolve kept only in its texture is written back to memory when needed (`resolve_defer_writeback`) |
-| 0047-0049 | all, windows, linux | `internal_render_scale` 100/75/50: host render targets below the render resolution |
+| 0038-0040 | all | Vulkan halves of 0030-0032, submissions and occlusion queries |
+| 0041-0043 | all, windows, all | resolves copied straight into the textures that sample them (`resolve_copy_into_textures`) |
+| 0044-0046 | all, windows, all | above Original resolution, a resolve kept only in its texture is written back to memory when needed (`resolve_defer_writeback`) |
+| 0047-0049 | all, windows, all | `internal_render_scale` 100/75/50: host render targets below the render resolution |
 | 0050 | all | XMA context loop layout acquire loads |
 | 0051 | all | audio callbacks paced at the hardware's steady rate (`audio_callback_pacing`) |
 | 0052 | all | codegen: bit-exact `vrsqrtefp` estimate instead of an exact 1/sqrt; the helper is emitted into the generated `crackdown_pch.h` because the game compiles against the stock SDK headers; regenerate with `tools\codegen.ps1` |
-| 0053 | linux | Vulkan occlusion query results, the counterpart of 0006: the guest's begin and end blocks are separate, and the end block stays unfinished until the submission completes |
+| 0053 | all | Vulkan occlusion query results, the counterpart of 0006: the guest's begin and end blocks are separate, and the end block stays unfinished until the submission completes |
 | 0054 | all | keyboard and mouse binds also reach `XInputGetKeystroke` (menus such as Press Start), with the SDL driver's repeat timing |
 | 0055 | all | mouse look sets the right stick from mouse speed (`mnk_mouse_scale`, `mnk_mouse_deadzone`), so slow movement still turns the camera; `mnk_mouse_stick` lets a title switch the mouse-derived stick off for its own mouse look |
 | 0056 | all | `readback_resolve_max_bytes`: with `readback_resolve` on, only resolves of at most this many bytes are copied back to guest memory; larger ones stay GPU-only and may defer their writes (`resolve_defer_writeback`) |
 | 0057 | windows | D3D12 half of 0056 |
-| 0058 | linux | Vulkan half of 0056 |
+| 0058 | all | Vulkan half of 0056 |
 | 0059 | all | a read fault on an uncommitted page in 0x70000000-0x70FFFFFF (save-load) maps one zeroed page, at most 8 pages, each logged as `[SAVE_RECOVERY]`; writes and other ranges are not recovered |
 | 0060 | all | `XamEnumerate` sets the item count to zero before any error return and no longer copies an uninitialised value (an unimplemented `XamCreateEnumeratorHandle` made the title walk off its stack) |
 | 0061 | all | `KeSaveFloatingPointState` and `KeRestoreFloatingPointState` stubs warn on the first call only (the title calls them every frame) |
@@ -104,8 +105,11 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0110 | windows | `gpu_draw_identity_memo` (off, hot reload; needs 0109's cache): a draw of a cached indirect buffer has an identity (its DRAW operation and occurrence in the frame) and a memo of what `IssueDraw` derived for it: pixel shader use, shader variants and translations, pipeline and root signature, color mask, viewport, used textures, and the texture bindings (keys and textures, reused without parsing the fetch constants or looking textures up while no texture was destroyed and the scaled resolve state is unchanged). The memo is reused when the shaders are the same and a 64-bit hash of the render state (0x2000-0x23FF but the resolve registers) and of the used textures' fetch constants matches; float, bool and loop constants are not inputs of any of it. `gpu_frame_stats` also logs the time `IssueDraw` takes per draw by memo outcome. HLE renderer milestone 3b |
 | 0111 | windows | `gpu_fetch_constant_caches` (on, hot reload): what texture bindings and sampler parameters derive from a texture fetch constant is kept in direct-mapped tables indexed by a hash of its six dwords: the binding key, signs and host format swizzle, the textures last looked up for the key (reused while no texture was destroyed and the scaled resolve state of memory is unchanged, or still the texture's), and the sampler parameters (also keyed on the binding's filter overrides and `anisotropic_override`). About 6,000 binding updates and 3,000 sampler parameter computations a frame in the city, from few distinct fetch constants |
 | 0112 | windows | `gpu_edram_bookkeeping_memo` (on, hot reload): every draw marks the EDRAM tiles of each render target it writes dirty and adds stencil bits to them; a range within one of the last four set dirty since tiles were last made clean, or within the render target's last stencil addition with no new bits since its bits were last set, is skipped (both are idempotent, and consecutive draws to the same render targets repeat them) |
+| 0113 | windows | `gpu_draw_trace_resolve_data`: a draw trace also writes the bytes of every resolve (`<trace>_resolves.bin`) |
+| 0114 | windows | the Vulkan backend is built on Windows too, and `gpu_backend` (`any`/`d3d12`/`vulkan`) picks the one the plugin creates |
+| 0115 | all | `vulkan_async_submission` (off: slower here, see the patch): the Vulkan counterpart of 0081, a "Vulkan Submission" thread replays and submits the recorded command buffers in order; fences are only polled once submitted |
 
-Patches 0054 to 0058, 0078 to 0083, 0095, 0096 and 0103 and the hooks in `src/audio_guest_sync.cpp` and
+Patches 0054 to 0058, 0078 to 0083, 0095, 0096, 0103 and 0115 and the hooks in `src/audio_guest_sync.cpp` and
 `src/vehicle_action_step.cpp` are adapted from Unowa001/crackdown-recomp (BSD 3-Clause, notice in
 [THIRD-PARTY-LICENSES.txt](../packaging/licenses/THIRD-PARTY-LICENSES.txt)).
 

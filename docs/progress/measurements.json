@@ -14,7 +14,7 @@
     {"id": "1T", "name": "single tile", "status": "done"},
     {"id": "M3", "name": "PM4 caches", "status": "done"},
     {"id": "H1a", "name": "draw records", "status": "in progress"},
-    {"id": "H1b", "name": "Vulkan opaque", "status": "next"},
+    {"id": "H1b", "name": "Vulkan opaque", "status": "in progress"},
     {"id": "H2", "name": "pass switch", "status": "planned"},
     {"id": "H3", "name": "all native", "status": "planned"},
     {"id": "H4", "name": "parallel, MVs", "status": "planned"},
