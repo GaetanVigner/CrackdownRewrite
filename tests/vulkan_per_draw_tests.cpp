@@ -1,4 +1,4 @@
-// Vulkan per-draw optimizations (patches/rexglue-sdk/0117, 0119, 0120, 0122, 0125): each faster path is checked
+// Vulkan per-draw optimizations (patches/rexglue-sdk/0117, 0119, 0120, 0122, 0125, 0128, 0129): each faster path is checked
 // against the code it replaced on random inputs (same output, same state), and the patch text is checked to still
 // hold the code mirrored here. The Vulkan calls themselves need a device and are not run.
 // Run: vulkan_per_draw_tests
@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <bit>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <filesystem>
@@ -14,6 +15,7 @@
 #include <vector>
 
 #include "check.h"
+#include "hle_frame_abi.h"
 
 namespace {
 
@@ -357,6 +359,53 @@ void SegmentedOcclusionQueries(std::mt19937_64& rng) {
   }
 }
 
+// --- 0129: the game and the plugin agree on HleFrameAbi ------------------------------------------------------------
+
+// The lines of `text` from the one starting with `first` to the next "};" (the struct's body), a leading '+' (patch
+// text) and any trailing comment dropped, so the two copies compare line for line.
+std::vector<std::string> StructLines(const std::string& text, const std::string& first, bool patch) {
+  std::vector<std::string> lines;
+  size_t pos = 0;
+  bool inside = false;
+  while (pos < text.size()) {
+    size_t end = text.find('\n', pos);
+    if (end == std::string::npos) end = text.size();
+    std::string line = text.substr(pos, end - pos);
+    pos = end + 1;
+    if (!line.empty() && line.back() == '\r') line.pop_back();
+    if (patch) {
+      if (line.empty() || line[0] != '+') continue;
+      line.erase(0, 1);
+    }
+    if (const size_t comment = line.find("//"); comment != std::string::npos) line.erase(comment);
+    while (!line.empty() && line.back() == ' ') line.pop_back();
+    if (!inside && line == first) inside = true;
+    if (!inside) continue;
+    lines.push_back(line);
+    if (line == "};") break;
+  }
+  return lines;
+}
+
+void HleFrameAbiMatches() {
+  const std::string p0129 = ReadPatch("0129-");
+  const std::string game = check::ReadText(std::filesystem::path(CRACKDOWN_SRC_DIR) / "hle_frame_abi.h");
+  const auto plugin_lines = StructLines(p0129, "struct HleFrameAbi {", true);
+  const auto game_lines = StructLines(game, "struct HleFrameAbi {", false);
+  CHECK(plugin_lines.size() > 2);
+  CHECK(plugin_lines == game_lines);
+  CHECK(Has(p0129, "+inline constexpr uint32_t kHleFrameAbiVersion = 1;"));
+  CHECK(crackdown::kHleFrameAbiVersion == 1);
+  // A fixed layout on both 64-bit targets (Windows and the Steam Deck): no padding the two compilers could disagree on.
+  static_assert(sizeof(crackdown::HleFrameAbi) == 48);
+  static_assert(offsetof(crackdown::HleFrameAbi, frame) == 8);
+  static_assert(offsetof(crackdown::HleFrameAbi, records) == 16);
+  static_assert(offsetof(crackdown::HleFrameAbi, arena) == 32);
+  // The exported entry point the game looks up, and the plugin refusing what it cannot read.
+  CHECK(Has(p0129, "+extern \"C\" REX_GPU_PLUGIN_EXPORT int rex_gpu_hle_submit_frame("));
+  CHECK(Has(p0129, "+  if (frame.version != kHleFrameAbiVersion || frame.struct_size < sizeof(HleFrameAbi) ||"));
+}
+
 // --- the patch text still holds what is mirrored here ----------------------------------------------------------
 
 void PatchText() {
@@ -408,6 +457,7 @@ int main() {
   UnchangedConstantWrites(rng);
   DynamicUniformRanges(rng);
   SegmentedOcclusionQueries(rng);
+  HleFrameAbiMatches();
   PatchText();
   return check::Finish("vulkan_per_draw_tests");
 }

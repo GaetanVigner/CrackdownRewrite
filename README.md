@@ -80,6 +80,10 @@ state the draw records reproduce. The plan, the measurements behind each step an
   output hashes that catch a codegen change, the device fields each one writes). `tools\game-test-battery.ps1` runs a
   set of in-game measurements in one sitting and writes a report (FPS, CPU and GPU time, GPU time by category, render
   pass breaks by cause, A/B settings within one launch).
+- **Native renderer, first link.** The game can now hand each frame's draw records (what the title's D3D runtime was
+  asked to draw, with its state) straight to the GPU plugin (`crackdown_hle_plugin_channel`, off by default), the
+  input the native Vulkan renderer will draw from instead of decoding the emulated GPU's command stream. A test checks
+  both sides agree on the exchange format; one battery run checks every frame arrives and what it costs.
 
 ### Next
 

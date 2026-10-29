@@ -26,10 +26,29 @@
 #include <rex/logging.h>
 
 #include "guest_memory.h"
+#include "hle_frame_abi.h"
+
+#if defined(_WIN32)
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 REXCVAR_DEFINE_BOOL(crackdown_hle_records, false, "Crackdown",
                     "Developer diagnostics (HLE renderer H1a): build a draw record from the D3D device state at every "
                     "flushing call and log their counters every 10 s; observe only")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
+REXCVAR_DEFINE_BOOL(crackdown_hle_plugin_channel, false, "Crackdown",
+                    "Developer diagnostics (HLE renderer H1b): with crackdown_hle_records on, hand each frame's draw "
+                    "records and state blocks to the GPU plugin (rex_gpu_hle_submit_frame, SDK patch 0129), which "
+                    "logs what it receives under gpu_frame_stats")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
 namespace crackdown {
@@ -138,9 +157,40 @@ struct State {
   Counters counters;
   std::chrono::steady_clock::time_point window_start = std::chrono::steady_clock::now();
   uint64_t window_tsc = __rdtsc();
+  // crackdown_hle_plugin_channel: the frame's finished records, handed to the plugin at the frame's end.
+  std::vector<DrawRecord> frame_records;
+  uint64_t frame_number = 0;
 };
 State g_state;
 thread_local DrawRecord t_record;
+// Whether t_record holds a record not yet added to the frame (records are completed by the notes that follow their
+// call: BeginVertices' vertices, command buffer segments), so it is added when the next one starts or the frame ends.
+thread_local bool t_record_pending = false;
+
+bool PluginChannelEnabled() { return REXCVAR_GET(crackdown_hle_plugin_channel); }
+
+using SubmitFrame = int (*)(const HleFrameAbi*);
+
+// The GPU plugin's rex_gpu_hle_submit_frame (any build configuration's file name), looked up once.
+SubmitFrame FindSubmitFrame() {
+  static SubmitFrame submit = [] {
+    for (const char* postfix : {"", "rd", "d"}) {
+#if defined(_WIN32)
+      std::string name = std::string("rexgpu-xenos") + postfix + ".dll";
+      if (HMODULE module = GetModuleHandleA(name.c_str())) {
+        return reinterpret_cast<SubmitFrame>(GetProcAddress(module, "rex_gpu_hle_submit_frame"));
+      }
+#else
+      std::string name = std::string("librexgpu-xenos") + postfix + ".so";
+      if (void* module = dlopen(name.c_str(), RTLD_NOW | RTLD_NOLOAD)) {
+        return reinterpret_cast<SubmitFrame>(dlsym(module, "rex_gpu_hle_submit_frame"));
+      }
+#endif
+    }
+    return SubmitFrame(nullptr);
+  }();
+  return submit;
+}
 thread_local uint32_t t_pass = 0;
 constexpr const char* kRenderPassNames[kRenderPassCount + 1] = {"other", "early target", "shadow map", "shadow helper a", "shadow helper b", "shadow atlas", "opaque scene", "depth resolve", "normal resolve", "half-res", "screen space", "colour a", "colour b", "query effects a", "query effects b", "light apply", "light pools", "particles", "late draw", "post-processing", "late a", "late b", "late c", "late d", "late e", "late f", "objects a", "objects b", "objects c", "hud"};
 
@@ -400,6 +450,8 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
   SpinLock lock(state.lock);
   const uint8_t* dev = base + device;
   DrawRecord& record = t_record;
+  if (t_record_pending && PluginChannelEnabled()) state.frame_records.push_back(record);
+  t_record_pending = true;
   record.kind = kind;
   record.pass = t_pass;
   std::copy(args, args + 4, record.args);
@@ -561,6 +613,25 @@ void HleRecordsFrame() {
   {
     SpinLock lock(state.lock);
     ++state.counters.frames;
+    // Before the arena is compacted: the frame's records reference its blocks.
+    if (PluginChannelEnabled() && HleRecordsEnabled()) {
+      if (t_record_pending) state.frame_records.push_back(t_record);
+      if (SubmitFrame submit = FindSubmitFrame()) {
+        HleFrameAbi frame = {};
+        frame.version = kHleFrameAbiVersion;
+        frame.struct_size = sizeof(HleFrameAbi);
+        frame.frame = state.frame_number;
+        frame.records = state.frame_records.data();
+        frame.record_count = uint32_t(state.frame_records.size());
+        frame.record_size = sizeof(DrawRecord);
+        frame.arena = state.arena.data();
+        frame.arena_dwords = uint32_t(state.arena.size());
+        submit(&frame);
+      }
+    }
+    state.frame_records.clear();
+    t_record_pending = false;
+    ++state.frame_number;
     // Keep only the blocks the device holds now, so the arena does not grow across frames.
     if (state.arena.capacity() < kArenaDwords) state.arena.reserve(kArenaDwords);
     if (state.render_state != UINT32_MAX && state.arena.size() > kArenaDwords / 2) {

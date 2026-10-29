@@ -1,0 +1,210 @@
+HLE renderer channel (H1b step 2): the game hands each frame's draw records and the block arena they reference to the
+GPU plugin through an exported C function, rex_gpu_hle_submit_frame(const HleFrameAbi*). The plugin checks the ABI
+version and sizes, copies the frame into HleFrameSink (the place the native renderer will read its records from) and
+counts records by kind; the Vulkan command processor logs those counts under gpu_frame_stats ("HLE records
+received"). Nothing calls it unless the game turns on crackdown_hle_plugin_channel, so the default path is unchanged.
+The game keeps its own copy of HleFrameAbi (src/hle_frame_abi.h); tests/vulkan_per_draw_tests checks both match.
+
+diff --git a/include/rex/graphics/hle_frame.h b/include/rex/graphics/hle_frame.h
+new file mode 100644
+index 0000000..653a0f8
+--- /dev/null
++++ b/include/rex/graphics/hle_frame.h
+@@ -0,0 +1,62 @@
++/**
++ * @file        graphics/hle_frame.h
++ * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
++ *
++ * @license     BSD 3-Clause License
++ *              See LICENSE file in the project root for full license text.
++ */
++
++#pragma once
++
++#include <cstdint>
++#include <mutex>
++#include <vector>
++
++namespace rex::graphics {
++
++// What the game passes to rex_gpu_hle_submit_frame once a frame: its draw records (the game's own layout, record_size
++// bytes each, the first dword the record kind and the second its render pass) and the block arena they reference
++// (offsets in dwords). The plugin copies both before returning. Keep in step with the game's copy of this struct.
++struct HleFrameAbi {
++  uint32_t version;
++  uint32_t struct_size;
++  uint64_t frame;
++  const void* records;
++  uint32_t record_count;
++  uint32_t record_size;
++  const uint32_t* arena;
++  uint32_t arena_dwords;
++  uint32_t reserved;
++};
++inline constexpr uint32_t kHleFrameAbiVersion = 1;
++
++// The plugin's copy of the latest frame, and counters for gpu_frame_stats. The game thread submits, the GPU command
++// thread reads; the native renderer will take its records from here.
++class HleFrameSink {
++ public:
++  static HleFrameSink& Get();
++  bool Submit(const HleFrameAbi& frame);
++
++  struct Stats {
++    uint64_t frames = 0;
++    uint64_t records = 0;
++    uint64_t draws = 0;            // kinds 1-4 (draw, indexed draw, BeginVertices, BeginIndexedVertices)
++    uint64_t command_buffers = 0;  // kind 5
++    uint64_t clears = 0;           // kind 6
++    uint64_t resolves = 0;         // kind 7
++    uint64_t arena_bytes = 0;
++    uint64_t record_bytes = 0;
++  };
++  // The counters since the previous call.
++  Stats TakeStats();
++
++ private:
++  std::mutex mutex_;
++  uint64_t frame_ = 0;
++  uint32_t record_size_ = 0;
++  std::vector<uint8_t> records_;
++  std::vector<uint32_t> arena_;
++  Stats stats_;
++};
++
++}  // namespace rex::graphics
+diff --git a/src/graphics/CMakeLists.txt b/src/graphics/CMakeLists.txt
+index 2bf96ca..a2d471a 100644
+--- a/src/graphics/CMakeLists.txt
++++ b/src/graphics/CMakeLists.txt
+@@ -6,6 +6,7 @@
+ 
+ set(REXGPU_XENOS_SOURCES
+     plugin_main.cpp
++    hle_frame.cpp
+ 
+     # Core GPU types
+     flags.cpp
+diff --git a/src/graphics/hle_frame.cpp b/src/graphics/hle_frame.cpp
+new file mode 100644
+index 0000000..49ffa01
+--- /dev/null
++++ b/src/graphics/hle_frame.cpp
+@@ -0,0 +1,61 @@
++/**
++ * @file        graphics/hle_frame.cpp
++ * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
++ *
++ * @license     BSD 3-Clause License
++ *              See LICENSE file in the project root for full license text.
++ */
++
++#include <rex/graphics/hle_frame.h>
++
++#include <cstring>
++
++namespace rex::graphics {
++
++HleFrameSink& HleFrameSink::Get() {
++  static HleFrameSink sink;
++  return sink;
++}
++
++bool HleFrameSink::Submit(const HleFrameAbi& frame) {
++  if (frame.version != kHleFrameAbiVersion || frame.struct_size < sizeof(HleFrameAbi) ||
++      (frame.record_count && (!frame.records || frame.record_size < 8)) ||
++      (frame.arena_dwords && !frame.arena)) {
++    return false;
++  }
++  const size_t record_bytes = size_t(frame.record_count) * frame.record_size;
++  std::lock_guard<std::mutex> lock(mutex_);
++  frame_ = frame.frame;
++  record_size_ = frame.record_size;
++  records_.resize(record_bytes);
++  if (record_bytes) std::memcpy(records_.data(), frame.records, record_bytes);
++  arena_.assign(frame.arena, frame.arena + frame.arena_dwords);
++
++  ++stats_.frames;
++  stats_.records += frame.record_count;
++  stats_.record_bytes += record_bytes;
++  stats_.arena_bytes += uint64_t(frame.arena_dwords) * 4;
++  for (uint32_t i = 0; i < frame.record_count; ++i) {
++    uint32_t kind;
++    std::memcpy(&kind, records_.data() + size_t(i) * frame.record_size, 4);
++    if (kind >= 1 && kind <= 4) {
++      ++stats_.draws;
++    } else if (kind == 5) {
++      ++stats_.command_buffers;
++    } else if (kind == 6) {
++      ++stats_.clears;
++    } else if (kind == 7) {
++      ++stats_.resolves;
++    }
++  }
++  return true;
++}
++
++HleFrameSink::Stats HleFrameSink::TakeStats() {
++  std::lock_guard<std::mutex> lock(mutex_);
++  Stats stats = stats_;
++  stats_ = {};
++  return stats;
++}
++
++}  // namespace rex::graphics
+diff --git a/src/graphics/plugin_main.cpp b/src/graphics/plugin_main.cpp
+index ec756d3..5086b15 100644
+--- a/src/graphics/plugin_main.cpp
++++ b/src/graphics/plugin_main.cpp
+@@ -11,6 +11,7 @@
+ 
+ #include <string_view>
+ 
++#include <rex/graphics/hle_frame.h>
+ #include <rex/logging.h>
+ #include <rex/system/gpu_plugin.h>
+ 
+@@ -21,6 +22,12 @@
+ #include <rex/graphics/vulkan/graphics_system.h>
+ #endif
+ 
++// HLE renderer channel: the game hands each frame's draw records to the plugin (rex/graphics/hle_frame.h). Returns 1
++// when the frame was taken.
++extern "C" REX_GPU_PLUGIN_EXPORT int rex_gpu_hle_submit_frame(const rex::graphics::HleFrameAbi* frame) {
++  return frame && rex::graphics::HleFrameSink::Get().Submit(*frame) ? 1 : 0;
++}
++
+ extern "C" REX_GPU_PLUGIN_EXPORT uint32_t rex_gpu_abi_version(void) {
+   return rex::system::kGpuPluginAbiVersion;
+ }
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+index d71d508..a245963 100644
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -42,6 +42,7 @@
+ #include <rex/graphics/pipeline/shader/spirv_translator.h>
+ #include <rex/graphics/registers.h>
+ #include <rex/graphics/vulkan/command_processor.h>
++#include <rex/graphics/hle_frame.h>
+ #include <rex/graphics/vulkan/pipeline_cache.h>
+ #include <rex/graphics/vulkan/render_target_cache.h>
+ #include <rex/graphics/vulkan/shader.h>
+@@ -5865,6 +5866,18 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+         "a draw: {}",
+         ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
+         bindings);
++    const HleFrameSink::Stats hle = HleFrameSink::Get().TakeStats();
++    if (hle.frames) {
++      const double hle_frames = double(hle.frames);
++      REXGPU_INFO(
++          "HLE records received{}: {:.1f} frames a second ({:.0f} presented), per frame {:.0f} records "
++          "(draws {:.0f}, command buffers {:.0f}, clears {:.1f}, resolves {:.1f}), {:.0f} KB of records, {:.0f} KB "
++          "of state blocks",
++          ab_tag, hle_frames / seconds, frames / seconds, double(hle.records) / hle_frames,
++          double(hle.draws) / hle_frames, double(hle.command_buffers) / hle_frames,
++          double(hle.clears) / hle_frames, double(hle.resolves) / hle_frames,
++          double(hle.record_bytes) / hle_frames / 1024.0, double(hle.arena_bytes) / hle_frames / 1024.0);
++    }
+     REXGPU_INFO(
+         "Vulkan render pass ends per frame{}: barriers {:.1f}, forced (copies, dispatches) {:.1f}, render target "
+         "changes {:.1f}, occlusion queries {:.1f}, submissions {:.1f}, other {:.1f}",

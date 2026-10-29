@@ -5,8 +5,8 @@ result is installed over the stock files in `tools/rexglue`. The game compiles a
 must not move virtual functions or data members of classes the generated game code uses.
 
 `NNNN-name.patch` applies on both platforms, `NNNN-name.windows.patch` only on Windows and `NNNN-name.linux.patch` only on
-Linux. Numbers are unique and patches apply in name order; gaps are fine. 116 patches are common and 3 are Linux only, so 116 apply
-on Windows and 119 on Linux. Every patch that was Windows only became common (2026-10-29): most touch only D3D12
+Linux. Numbers are unique and patches apply in name order; gaps are fine. 117 patches are common and 3 are Linux only, so 117 apply
+on Windows and 120 on Linux. Every patch that was Windows only became common (2026-10-29): most touch only D3D12
 files, which are in the Linux tree but not compiled there, and the rest keep their Windows code behind
 `REX_PLATFORM_WIN32` or `if(WIN32)`; this way the shared-code optimizations (0100, 0109-0113) reach the Linux
 build and the Steam Deck (checked: the Linux runtime and GPU plugin build with clang-20 on Ubuntu 20.04). The Vulkan patches are common since the Windows plugin carries the Vulkan backend too
@@ -124,6 +124,7 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0126 | all | `gpu_frame_stats` on Vulkan: host GPU time per frame by category (draw passes, render target updates, resolves, swap, other), from timestamps at render pass entries and exits and at changes of what the command processor does |
 | 0127 | all | `gpu_frame_stats` on Vulkan: render pass ends per frame by reason (barriers, forced copies and dispatches, render target changes, occlusion queries, submission ends) |
 | 0128 | all | `vulkan_occlusion_queries_in_render_pass` (off): occlusion queries run inside the guest's render passes, one host query per pass a guest query spans, summed, instead of ending the pass around each query |
+| 0129 | all | HLE renderer channel: exported `rex_gpu_hle_submit_frame` takes a frame's draw records and state blocks from the game (`crackdown_hle_plugin_channel`, off), copies them into `HleFrameSink` and logs what it receives under `gpu_frame_stats`; `vulkan_per_draw_tests` checks the game's `HleFrameAbi` matches |
 
 Patches 0054 to 0058, 0078 to 0083, 0095, 0096, 0103 and 0115 and the hooks in `src/audio_guest_sync.cpp` and
 `src/vehicle_action_step.cpp` are adapted from Unowa001/crackdown-recomp (BSD 3-Clause, notice in

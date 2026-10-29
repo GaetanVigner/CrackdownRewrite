@@ -38,7 +38,12 @@ $Batteries = [ordered]@{
     'vulkan-baseline' = @(
         @{ Name = 'Vulkan'; Settings = $Vulkan
            Do = "In the Agency garage, walk around the parking markers (they must not show through walls). $CitySpot" },
-        @{ Name = 'D3D12 reference'; Settings = [ordered]@{ gpu_backend = '"d3d12"' }; Do = $CitySpot }
+        @{ Name = 'D3D12 reference'; Settings = [ordered]@{ gpu_backend = '"d3d12"' }; Do = $CitySpot },
+        # HLE renderer H1b: the draw records reach the plugin (SDK patch 0129); the report checks every presented frame
+        # handed one over, and how much the recording costs against the plain Vulkan run.
+        @{ Name = 'Vulkan, HLE records handed to the plugin'
+           Settings = $Vulkan + [ordered]@{ crackdown_hle_records = 'true'; crackdown_hle_plugin_channel = 'true' }
+           Do = $CitySpot }
     )
     'vulkan-gpu' = @(
         @{ Name = 'Vulkan'; Settings = $Vulkan; Do = $CitySpot },
@@ -133,6 +138,14 @@ function Read-Windows([string]$LogPath) {
         } elseif ($null -ne $current -and $line -match 'whole process CPU ([\d.]+) ms, host GPU ([\d.]+) ms') {
             $current.ProcessCpuMs = [double]::Parse($Matches[1], $culture)
             $current.GpuMs = [double]::Parse($Matches[2], $culture)
+        } elseif ($null -ne $current -and $line -match 'HLE records received.*: ([\d.]+) frames a second \(([\d.]+) presented\), per frame ([\d.]+) records \(draws ([\d.]+), command buffers ([\d.]+), clears ([\d.]+), resolves ([\d.]+)\), ([\d.]+) KB of records, ([\d.]+) KB of state blocks') {
+            $current.Hle = [ordered]@{
+                'frames a second' = [double]::Parse($Matches[1], $culture); 'presented a second' = [double]::Parse($Matches[2], $culture)
+                'records' = [double]::Parse($Matches[3], $culture); 'draws' = [double]::Parse($Matches[4], $culture)
+                'command buffers' = [double]::Parse($Matches[5], $culture); 'clears' = [double]::Parse($Matches[6], $culture)
+                'resolves' = [double]::Parse($Matches[7], $culture); 'record KB' = [double]::Parse($Matches[8], $culture)
+                'state block KB' = [double]::Parse($Matches[9], $culture)
+            }
         } elseif ($null -ne $current -and $line -match 'Vulkan GPU by category per frame.*: draw passes ([\d.]+) ms, render target updates ([\d.]+) ms, resolves ([\d.]+) ms, swap ([\d.]+) ms, other ([\d.]+) ms') {
             $current.GpuCategories = [ordered]@{
                 'draw passes' = [double]::Parse($Matches[1], $culture); 'render target updates' = [double]::Parse($Matches[2], $culture)
@@ -185,6 +198,18 @@ function Write-Report($Runs, [string]$Path) {
             $out.Add('Host GPU by category (ms a frame, busy median): ' + (($categoryWindows[0].GpuCategories.Keys | ForEach-Object {
                 $key = $_; "$key $(Format-Number (Get-Median ([double[]]@($categoryWindows | ForEach-Object { $_.GpuCategories[$key] }))) 2)"
             }) -join ', '))
+        }
+        $hleWindows = @($busy | Where-Object { $_.Hle })
+        if ($hleWindows.Count) {
+            $out.Add('')
+            $out.Add('HLE records received by the plugin (busy median): ' + (($hleWindows[0].Hle.Keys | ForEach-Object {
+                $key = $_; "$key $(Format-Number (Get-Median ([double[]]@($hleWindows | ForEach-Object { $_.Hle[$key] }))) 1)"
+            }) -join ', '))
+            # Every presented frame should hand its records over: a gap means frames the channel missed.
+            $short = @($hleWindows | Where-Object { $_.Hle['frames a second'] -lt 0.9 * $_.Hle['presented a second'] })
+            $out.Add('')
+            $out.Add($(if ($short.Count) { "CHECK FAILED: $($short.Count) busy windows received records for under 90% of the presented frames." }
+                       else { 'Check: every busy window received records for the presented frames.' }))
         }
         $endWindows = @($busy | Where-Object { $_.PassEnds })
         if ($endWindows.Count) {
