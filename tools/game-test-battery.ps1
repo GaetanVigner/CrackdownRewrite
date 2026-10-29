@@ -8,6 +8,7 @@
   .\tools\game-test-battery.ps1                         # the default battery
   .\tools\game-test-battery.ps1 -List                   # the batteries and their runs
   .\tools\game-test-battery.ps1 -Battery vulkan-gpu     # one battery
+  .\tools\game-test-battery.ps1 -Runs 3                 # only the third run of the default battery
   .\tools\game-test-battery.ps1 -ReportOnly -Since '2026-10-29 01:00'   # report on logs already written
 #>
 param(
@@ -16,7 +17,8 @@ param(
     [switch]$List,
     [switch]$ReportOnly,
     [string]$Since,                # with -ReportOnly: logs written after this time
-    [int]$BusyDraws = 3000         # windows with at least this many draws a frame are summarized as the busy scene
+    [int]$BusyDraws = 3000,        # windows with at least this many draws a frame are summarized as the busy scene
+    [int[]]$Runs                   # only these runs of the battery (1-based, as -List numbers them)
 )
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path $PSScriptRoot -Parent
@@ -68,7 +70,8 @@ $Batteries = [ordered]@{
 if ($List) {
     foreach ($name in $Batteries.Keys) {
         Write-Host $name
-        foreach ($run in $Batteries[$name]) { Write-Host "  - $($run.Name)" }
+        $index = 0
+        foreach ($run in $Batteries[$name]) { Write-Host "  $((++$index)). $($run.Name)" }
     }
     return
 }
@@ -281,16 +284,17 @@ $backup = "$SettingsFile.battery-backup"
 [IO.File]::WriteAllLines($backup, $playerLines, (New-Object Text.UTF8Encoding $false))
 $results = New-Object System.Collections.Generic.List[object]
 try {
-    $runs = $Batteries[$Battery]
+    $batteryRuns = $Batteries[$Battery]
     $number = 0
-    foreach ($run in $runs) {
+    foreach ($run in $batteryRuns) {
         ++$number
+        if ($Runs -and $Runs -notcontains $number) { continue }
         $values = [ordered]@{}
         foreach ($key in $Common.Keys) { $values[$key] = $Common[$key] }
         foreach ($key in $run.Settings.Keys) { $values[$key] = $run.Settings[$key] }
-        Write-Settings $values $playerLines "$Battery $number/$($runs.Count): $($run.Name)"
+        Write-Settings $values $playerLines "$Battery $number/$($batteryRuns.Count): $($run.Name)"
         Write-Host ''
-        Write-Host "=== Run $number/$($runs.Count): $($run.Name) ===" -ForegroundColor Cyan
+        Write-Host "=== Run $number/$($batteryRuns.Count): $($run.Name) ===" -ForegroundColor Cyan
         Write-Host $run.Do -ForegroundColor Yellow
         Write-Host 'Close the game when done; the next run starts by itself.'
         $before = @(Get-ChildItem -LiteralPath $Logs -Filter 'crackdown_*.log' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
