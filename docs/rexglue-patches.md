@@ -5,8 +5,8 @@ result is installed over the stock files in `tools/rexglue`. The game compiles a
 must not move virtual functions or data members of classes the generated game code uses.
 
 `NNNN-name.patch` applies on both platforms, `NNNN-name.windows.patch` only on Windows and `NNNN-name.linux.patch` only on
-Linux. Numbers are unique and patches apply in name order; gaps are fine. 112 patches are common and 3 are Linux only, so 112 apply
-on Windows and 115 on Linux. Every patch that was Windows only became common (2026-10-29): most touch only D3D12
+Linux. Numbers are unique and patches apply in name order; gaps are fine. 113 patches are common and 3 are Linux only, so 113 apply
+on Windows and 116 on Linux. Every patch that was Windows only became common (2026-10-29): most touch only D3D12
 files, which are in the Linux tree but not compiled there, and the rest keep their Windows code behind
 `REX_PLATFORM_WIN32` or `if(WIN32)`; this way the shared-code optimizations (0100, 0109-0113) reach the Linux
 build and the Steam Deck (checked: the Linux runtime and GPU plugin build with clang-20 on Ubuntu 20.04). The Vulkan patches are common since the Windows plugin carries the Vulkan backend too
@@ -120,6 +120,7 @@ are the reason `tools\codegen.ps1` builds its own `rexglue.exe`; the rest change
 | 0122 | all | Vulkan constants through dynamic uniform buffers: a set names the upload buffers, offsets are given at bind, so ~5,000 set writes a frame become none (+20-25% FPS at the city spot); upload pages keep a reserved tail |
 | 0123 | all | `gpu_frame_stats` on Vulkan: EndSubmission, its command buffer replay and submit, and IssueSwap timed per frame |
 | 0124 | all | portable `__rdtsc` include for the frame stats timers (`<x86intrin.h>` off MSVC-style toolchains), needed by the Linux build since 0110 became common |
+| 0125 | all | Vulkan float constants copied a run per memcpy and vertex buffer residency cleared a 64-bit mask at a time (as 0101); `gpu_frame_stats` adds the whole process CPU time and the host GPU time per frame (timestamps around each replayed command buffer) |
 
 Patches 0054 to 0058, 0078 to 0083, 0095, 0096, 0103 and 0115 and the hooks in `src/audio_guest_sync.cpp` and
 `src/vehicle_action_step.cpp` are adapted from Unowa001/crackdown-recomp (BSD 3-Clause, notice in

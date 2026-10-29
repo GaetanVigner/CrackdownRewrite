@@ -450,6 +450,10 @@ void ApplyVulkanDepth() {
   // interlock path is right but halves the frame rate). The flag lives in the GPU plugin, so it only exists once the
   // plugin is loaded: before that SetFlagByName rejects it.
   constexpr const char* kKey = "depth_float24_convert_in_pixel_shader";
+  // A value set in a config file wins (it costs GPU time: no early depth test where it applies).
+  if (rex::cvar::GetFlagSource(kKey) != rex::cvar::Source::kDefault) {
+    return;
+  }
   if (rex::cvar::GetFlagByName(kKey) != "true" && rex::cvar::SetFlagByName(kKey, "true")) {
     REXLOG_INFO("Vulkan: float24 depth converted in the pixel shader");
   }
