@@ -1,4 +1,4 @@
-// D3D12 asynchronous submission (patches/rexglue-sdk/0081-d3d12-async-submission.windows.patch): the
+// D3D12 asynchronous submission (patches/rexglue-sdk/0081-d3d12-async-submission.patch): the
 // recorded commands of a submission are replayed, executed and fenced by a dedicated thread instead
 // of the GPU command processor thread. The state machine, the recorded-stream ownership (SwapStream),
 // the command allocator lifetime it drives and the two call-site predicates are mirrored here; the
@@ -909,7 +909,7 @@ void TestPatchWiring() {
   std::printf("patch wiring\n");
   const std::string patch =
       ReadFile(std::string(CRACKDOWN_SRC_DIR) +
-               "/../patches/rexglue-sdk/0081-d3d12-async-submission.windows.patch");
+               "/../patches/rexglue-sdk/0081-d3d12-async-submission.patch");
   CHECK(!patch.empty());
 
   // The cvars and their defaults.

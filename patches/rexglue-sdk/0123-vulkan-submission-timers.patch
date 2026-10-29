@@ -1,0 +1,91 @@
+gpu_frame_stats on Vulkan: the time the GPU command thread spends in EndSubmission, in its synchronous command buffer
+replay and vkQueueSubmit, and in IssueSwap (which includes the frame's last EndSubmission) is logged per frame every
+10 s next to IssueDraw's, so the thread's time outside IssueDraw splits into submission work and PM4 processing.
+
+diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
+--- a/include/rex/graphics/vulkan/command_processor.h
++++ b/include/rex/graphics/vulkan/command_processor.h
+@@ -484,6 +484,18 @@ class VulkanCommandProcessor : public CommandProcessor {
+   uint64_t bindings_mark_ = 0;
+   uint64_t bindings_section_ticks_[kBindingsSections] = {};
+   uint64_t constants_sets_written_ = 0;
++  // gpu_frame_stats: DrawTicks spent in EndSubmission, in its command buffer replay and submission
++  // (synchronous path), and in IssueSwap (which includes the frame's last EndSubmission).
++  uint64_t end_submission_ticks_ = 0;
++  uint64_t replay_ticks_ = 0;
++  uint64_t swap_ticks_ = 0;
++  struct ScopedTicks {
++    uint64_t* total;
++    uint64_t start;
++    explicit ScopedTicks(uint64_t* total_in, bool enabled, uint64_t now)
++        : total(enabled ? total_in : nullptr), start(now) {}
++    ~ScopedTicks();
++  };
+   uint64_t texture_sets_written_ = 0;
+   bool draw_timing_ = false;
+   uint64_t draw_mark_ = 0;
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -2414,6 +2414,8 @@ void VulkanCommandProcessor::OnGammaRampPWLValueWritten() {
+ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontbuffer_width,
+                                        uint32_t frontbuffer_height) {
+   SCOPE_profile_cpu_f("gpu");
++  const bool timing = REXCVAR_GET(gpu_frame_stats);
++  ScopedTicks swap_timer(&swap_ticks_, timing, timing ? DrawTicks() : 0);
+   vertex_buffers_in_sync_[0] = 0;
+   vertex_buffers_in_sync_[1] = 0;
+ 
+@@ -5476,6 +5478,12 @@ void VulkanCommandProcessor::AsyncSubmissionThread() {
+   }
+ }
+ 
++VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
++  if (total) {
++    *total += DrawTicks() - start;
++  }
++}
++
+ void VulkanCommandProcessor::LogCpuFrameStats() {
+   const auto now = std::chrono::steady_clock::now();
+   const uint64_t processor_ns = ThreadCpuTimeNs();
+@@ -5493,6 +5501,9 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+     std::memset(bindings_section_ticks_, 0, sizeof(bindings_section_ticks_));
+     constants_sets_written_ = 0;
+     texture_sets_written_ = 0;
++    end_submission_ticks_ = 0;
++    replay_ticks_ = 0;
++    swap_ticks_ = 0;
+   };
+   if (!cpu_stats_frames_++) {
+     restart_window();
+@@ -5547,6 +5558,12 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+         "a draw: {}",
+         ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
+         bindings);
++    REXGPU_INFO(
++        "Vulkan submissions per frame{}: EndSubmission {:.2f} ms (command buffer replay and submit "
++        "{:.2f} ms), IssueSwap {:.2f} ms, IssueDraw {:.2f} ms of the command processor thread",
++        ab_tag, double(end_submission_ticks_) * ms_per_tick / frames,
++        double(replay_ticks_) * ms_per_tick / frames, double(swap_ticks_) * ms_per_tick / frames,
++        total_ms);
+   }
+   if (!ab_cvar.empty()) {
+     // Next value after the current one (the first when the current one is not listed).
+@@ -5718,6 +5735,8 @@ bool VulkanCommandProcessor::BeginSubmission(bool is_guest_command) {
+ }
+ 
+ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
++  const bool timing = REXCVAR_GET(gpu_frame_stats);
++  ScopedTicks end_submission_timer(&end_submission_ticks_, timing, timing ? DrawTicks() : 0);
+   const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
+   const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
+   const VkDevice device = vulkan_device->device();
+@@ -5910,6 +5929,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
+   }
+ 
+   if (submission_open_) {
++    ScopedTicks replay_timer(&replay_ticks_, timing, timing ? DrawTicks() : 0);
+     CommandBuffer command_buffer = command_buffers_writable_.back();
+     if (dfn.vkResetCommandPool(device, command_buffer.pool, 0) != VK_SUCCESS) {
+       REXGPU_ERROR("Failed to reset a Vulkan command pool");

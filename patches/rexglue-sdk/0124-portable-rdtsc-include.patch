@@ -1,0 +1,35 @@
+The frame stats timers (0110) include <intrin.h> for __rdtsc, which only MSVC-style toolchains provide; GCC and Clang
+on Linux declare it in <x86intrin.h>. Found building the GPU plugin on Linux once 0100-0114 became common.
+
+diff --git a/include/rex/graphics/gpu_frame_stats.h b/include/rex/graphics/gpu_frame_stats.h
+--- a/include/rex/graphics/gpu_frame_stats.h
++++ b/include/rex/graphics/gpu_frame_stats.h
+@@ -6,7 +6,12 @@
+ 
+ #include <cstdint>
+ 
++// __rdtsc: <intrin.h> with MSVC and clang-cl, <x86intrin.h> with GCC and Clang elsewhere.
++#if defined(_MSC_VER)
+ #include <intrin.h>
++#else
++#include <x86intrin.h>
++#endif
+ 
+ namespace rex::graphics {
+ 
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -19,7 +19,12 @@
+ #include <string>
+ #include <string_view>
+ 
++// __rdtsc: <intrin.h> with MSVC and clang-cl, <x86intrin.h> with GCC and Clang elsewhere.
++#if defined(_MSC_VER)
+ #include <intrin.h>
++#else
++#include <x86intrin.h>
++#endif
+ 
+ #include <fmt/format.h>
+ 

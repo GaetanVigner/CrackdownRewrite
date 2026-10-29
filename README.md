@@ -72,7 +72,9 @@ state the draw records reproduce. The plan, the measurements behind each step an
   address. Per-section timers of the Vulkan draw path and an in-run A/B switch (`gpu_ab_cvar`, one setting alternated
   every 10 s so both sides see the same scene) measure each change. Two by-draw costs went first (a by-name cvar
   lookup on every draw, samplers parsed again for each draw), then the biggest: a constants descriptor set was written
-  for every draw; with dynamic uniform buffers none is, and the city spot went from ~115 to ~145 FPS on Vulkan.
+  for every draw; with dynamic uniform buffers none is, and the city spot went from ~115 to ~145 FPS on Vulkan. The
+  GPU command optimizations that were Windows only (command buffer cache, fetch constant caches, EDRAM memo) now
+  apply to the Linux build too, so the Steam Deck gets them.
 
 ### Next
 
