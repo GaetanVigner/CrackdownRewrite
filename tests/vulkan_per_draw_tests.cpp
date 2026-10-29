@@ -394,10 +394,12 @@ void HleFrameAbiMatches() {
   const auto game_lines = StructLines(game, "struct HleFrameAbi {", false);
   CHECK(plugin_lines.size() > 2);
   CHECK(plugin_lines == game_lines);
-  CHECK(Has(p0129, "+inline constexpr uint32_t kHleFrameAbiVersion = 2;"));
-  CHECK(crackdown::kHleFrameAbiVersion == 2);
+  CHECK(Has(p0129, "+inline constexpr uint32_t kHleFrameAbiVersion = 3;"));
+  CHECK(crackdown::kHleFrameAbiVersion == 3);
   // A fixed layout on both 64-bit targets (Windows and the Steam Deck): no padding the two compilers could disagree on.
-  static_assert(sizeof(crackdown::HleFrameAbi) == 48);
+  static_assert(sizeof(crackdown::HleFrameAbi) == 80);
+  static_assert(offsetof(crackdown::HleFrameAbi, groups) == 56);
+  static_assert(offsetof(crackdown::HleFrameAbi, pass_names) == 64);
   static_assert(offsetof(crackdown::HleFrameAbi, frame) == 8);
   static_assert(offsetof(crackdown::HleFrameAbi, records) == 16);
   static_assert(offsetof(crackdown::HleFrameAbi, arena) == 32);

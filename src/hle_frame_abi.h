@@ -17,7 +17,13 @@ struct HleFrameAbi {
   const uint32_t* arena;
   uint32_t arena_dwords;
   uint32_t ucode_offset;  // byte offset in each record of {VS physical, VS dwords, PS physical, PS dwords}
+  uint32_t state_offset;  // byte offset of {render state, fetch, bool/loop, VS pages[16], PS pages[16]} arena offsets
+  uint32_t group_count;
+  const uint32_t* groups;  // {first register, dwords} pairs: the render state block's layout
+  const char* const* pass_names;  // pass_count + 1 names, index 0 the untagged records
+  uint32_t pass_count;
+  uint32_t reserved;
 };
-inline constexpr uint32_t kHleFrameAbiVersion = 2;
+inline constexpr uint32_t kHleFrameAbiVersion = 3;
 
 }  // namespace crackdown

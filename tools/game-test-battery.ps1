@@ -149,6 +149,9 @@ function Read-Windows([string]$LogPath) {
                 'resolves' = [double]::Parse($Matches[7], $culture); 'record KB' = [double]::Parse($Matches[8], $culture)
                 'state block KB' = [double]::Parse($Matches[9], $culture)
             }
+        } elseif ($null -ne $current -and $line -match 'HLE pass inventory.*\(frame \d+\): (.*)$') {
+            if (-not $current.Contains('Passes')) { $current.Passes = New-Object System.Collections.Generic.List[string] }
+            $current.Passes.Add($Matches[1])
         } elseif ($null -ne $current -and $line -match 'HLE shaders resolved.*\(frame \d+\): (\d+) draws, vertex shaders found (\d+), pixel shaders found (\d+) \((\d+) draws without\), both (\d+) \(([\d.]+)%\), unreadable (\d+)') {
             $current.Shaders = [ordered]@{
                 'draws' = [double]$Matches[1]; 'vertex found' = [double]$Matches[2]; 'pixel found' = [double]$Matches[3]
@@ -226,6 +229,14 @@ function Write-Report($Runs, [string]$Path) {
             $out.Add('HLE draws resolved to emulation''s shaders (latest frame of each window, busy median): ' + (($shaderWindows[0].Shaders.Keys | ForEach-Object {
                 $key = $_; "$key $(Format-Number (Get-Median ([double[]]@($shaderWindows | ForEach-Object { $_.Shaders[$key] }))) 1)"
             }) -join ', '))
+        }
+        # The pass inventory of the busy window with the most draws (one frame: no median across windows).
+        $passWindow = @($busy | Where-Object { $_.Passes } | Sort-Object { $_.Draws } -Descending | Select-Object -First 1)
+        if ($passWindow.Count) {
+            $out.Add('')
+            $out.Add("HLE pass inventory (latest frame of the busiest window, $($passWindow[0].Draws) draws a frame):")
+            $out.Add('')
+            foreach ($pass in $passWindow[0].Passes) { $out.Add("- $pass") }
         }
         $endWindows = @($busy | Where-Object { $_.PassEnds })
         if ($endWindows.Count) {

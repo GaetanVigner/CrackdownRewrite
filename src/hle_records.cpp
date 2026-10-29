@@ -652,6 +652,16 @@ void HleRecordsFrame() {
         frame.arena = state.arena.data();
         frame.arena_dwords = uint32_t(state.arena.size());
         frame.ucode_offset = uint32_t(offsetof(DrawRecord, ucode));
+        frame.state_offset = uint32_t(offsetof(DrawRecord, render_state));
+        static const auto groups = [] {
+          std::vector<uint32_t> pairs;
+          for (const Group& group : kRenderStateGroups) pairs.insert(pairs.end(), {group.first_register, group.count});
+          return pairs;
+        }();
+        frame.group_count = uint32_t(groups.size() / 2);
+        frame.groups = groups.data();
+        frame.pass_names = kRenderPassNames;
+        frame.pass_count = kRenderPassCount;
         submit(&frame);
       }
     }

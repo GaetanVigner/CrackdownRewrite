@@ -5,17 +5,22 @@ counts records by kind; the Vulkan command processor logs those counts under gpu
 received"). Nothing calls it unless the game turns on crackdown_hle_plugin_channel, so the default path is unchanged.
 The game keeps its own copy of HleFrameAbi (src/hle_frame_abi.h); tests/vulkan_per_draw_tests checks both match.
 
-ABI version 2 (step 3a): each record also carries its shaders' microcode (guest physical address and dwords, vertex
+ABI version 3 (steps 3a, 3b-1): each record also carries its shaders' microcode (guest physical address and dwords, vertex
 then pixel) at HleFrameAbi::ucode_offset. Every gpu_frame_stats window the command thread resolves the latest
 frame's draws against the shaders emulation already loaded (VulkanPipelineCache::FindShader, same microcode hash, no
 shader created) and logs "HLE shaders resolved": the first thing a native pass needs from a record.
 
+Version 3 adds the render state block's layout (the game's group table), where each record's state block offsets
+are and the render pass names: the same window also logs an inventory per tagged pass of the latest frame ("HLE
+pass inventory": draws, depth only, colour and depth, MSAA, distinct shader pairs and target configurations,
+textures and vertex bindings a draw), to choose the first pass to draw natively.
+
 diff --git a/include/rex/graphics/hle_frame.h b/include/rex/graphics/hle_frame.h
 new file mode 100644
-index 0000000..859eceb
+index 0000000..53a3abc
 --- /dev/null
 +++ b/include/rex/graphics/hle_frame.h
-@@ -0,0 +1,72 @@
+@@ -0,0 +1,86 @@
 +/**
 + * @file        graphics/hle_frame.h
 + * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
@@ -28,6 +33,7 @@ index 0000000..859eceb
 +
 +#include <cstdint>
 +#include <mutex>
++#include <string>
 +#include <vector>
 +
 +namespace rex::graphics {
@@ -45,8 +51,14 @@ index 0000000..859eceb
 +  const uint32_t* arena;
 +  uint32_t arena_dwords;
 +  uint32_t ucode_offset;  // byte offset in each record of {VS physical, VS dwords, PS physical, PS dwords}
++  uint32_t state_offset;  // byte offset of {render state, fetch, bool/loop, VS pages[16], PS pages[16]} arena offsets
++  uint32_t group_count;
++  const uint32_t* groups;  // {first register, dwords} pairs: the render state block's layout
++  const char* const* pass_names;  // pass_count + 1 names, index 0 the untagged records
++  uint32_t pass_count;
++  uint32_t reserved;
 +};
-+inline constexpr uint32_t kHleFrameAbiVersion = 2;
++inline constexpr uint32_t kHleFrameAbiVersion = 3;
 +
 +// The plugin's copy of the latest frame, and counters for gpu_frame_stats. The game thread submits, the GPU command
 +// thread reads; the native renderer will take its records from here.
@@ -73,7 +85,11 @@ index 0000000..859eceb
 +    std::vector<uint8_t> records;
 +    uint32_t record_size = 0;
 +    uint32_t ucode_offset = 0;
++    uint32_t state_offset = 0;
 +    uint64_t frame = 0;
++    std::vector<uint32_t> arena;  // big-endian dwords, as the game keeps them
++    std::vector<uint32_t> groups;
++    std::vector<std::string> pass_names;
 +  };
 +  bool CopyLatest(Latest& latest);
 +
@@ -82,6 +98,9 @@ index 0000000..859eceb
 +  uint64_t frame_ = 0;
 +  uint32_t record_size_ = 0;
 +  uint32_t ucode_offset_ = 0;
++  uint32_t state_offset_ = 0;
++  std::vector<uint32_t> groups_;
++  std::vector<std::string> pass_names_;
 +  std::vector<uint8_t> records_;
 +  std::vector<uint32_t> arena_;
 +  Stats stats_;
@@ -115,10 +134,10 @@ index 2bf96ca..a2d471a 100644
      flags.cpp
 diff --git a/src/graphics/hle_frame.cpp b/src/graphics/hle_frame.cpp
 new file mode 100644
-index 0000000..5b55740
+index 0000000..88c7fc8
 --- /dev/null
 +++ b/src/graphics/hle_frame.cpp
-@@ -0,0 +1,73 @@
+@@ -0,0 +1,85 @@
 +/**
 + * @file        graphics/hle_frame.cpp
 + * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
@@ -142,7 +161,9 @@ index 0000000..5b55740
 +  if (frame.version != kHleFrameAbiVersion || frame.struct_size < sizeof(HleFrameAbi) ||
 +      (frame.record_count && (!frame.records || frame.record_size < 8)) ||
 +      (frame.arena_dwords && !frame.arena) ||
-+      (frame.ucode_offset && frame.ucode_offset + 16 > frame.record_size)) {
++      (frame.ucode_offset && frame.ucode_offset + 16 > frame.record_size) ||
++      (frame.state_offset && frame.state_offset + 35 * 4 > frame.record_size) ||
++      (frame.group_count && !frame.groups) || (frame.pass_count && !frame.pass_names)) {
 +    return false;
 +  }
 +  const size_t record_bytes = size_t(frame.record_count) * frame.record_size;
@@ -150,6 +171,12 @@ index 0000000..5b55740
 +  frame_ = frame.frame;
 +  record_size_ = frame.record_size;
 +  ucode_offset_ = frame.ucode_offset;
++  state_offset_ = frame.state_offset;
++  groups_.assign(frame.groups, frame.groups + size_t(frame.group_count) * 2);
++  if (pass_names_.size() != size_t(frame.pass_count) + 1 && frame.pass_count) {
++    pass_names_.clear();
++    for (uint32_t i = 0; i <= frame.pass_count; ++i) pass_names_.emplace_back(frame.pass_names[i]);
++  }
 +  records_.resize(record_bytes);
 +  if (record_bytes) std::memcpy(records_.data(), frame.records, record_bytes);
 +  arena_.assign(frame.arena, frame.arena + frame.arena_dwords);
@@ -180,6 +207,10 @@ index 0000000..5b55740
 +  latest.records = records_;
 +  latest.record_size = record_size_;
 +  latest.ucode_offset = ucode_offset_;
++  latest.state_offset = state_offset_;
++  latest.arena = arena_;
++  latest.groups = groups_;
++  latest.pass_names = pass_names_;
 +  latest.frame = frame_;
 +  return true;
 +}
@@ -218,10 +249,18 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..86419b4 100644
+index d71d508..7f2db7f 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
-@@ -42,6 +42,7 @@
+@@ -11,6 +11,7 @@
+ 
+ #include <algorithm>
+ #include <array>
++#include <unordered_set>
+ #include <cstdint>
+ #include <cstring>
+ #include <ctime>
+@@ -42,6 +43,7 @@
  #include <rex/graphics/pipeline/shader/spirv_translator.h>
  #include <rex/graphics/registers.h>
  #include <rex/graphics/vulkan/command_processor.h>
@@ -229,7 +268,7 @@ index d71d508..86419b4 100644
  #include <rex/graphics/vulkan/pipeline_cache.h>
  #include <rex/graphics/vulkan/render_target_cache.h>
  #include <rex/graphics/vulkan/shader.h>
-@@ -5865,6 +5866,56 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +5867,124 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -240,6 +279,23 @@ index d71d508..86419b4 100644
 +    if (hle.frames && HleFrameSink::Get().CopyLatest(latest) && latest.ucode_offset) {
 +      uint32_t draws = 0, vs_found = 0, ps_found = 0, both = 0, no_ps = 0, bad = 0;
 +      const uint32_t count = uint32_t(latest.records.size() / latest.record_size);
++      // Step 3b-1: what each tagged pass would need natively (the register values come from the record's render
++      // state block, laid out by the game's group table).
++      std::array<int32_t, 0x400> state_index;
++      state_index.fill(-1);
++      for (size_t g = 0, position = 0; g + 1 < latest.groups.size(); g += 2) {
++        for (uint32_t k = 0; k < latest.groups[g + 1]; ++k) {
++          const uint32_t reg = latest.groups[g] + k;
++          if (reg >= 0x2000 && reg < 0x2400) state_index[reg - 0x2000] = int32_t(position);
++          ++position;
++        }
++      }
++      struct PassInventory {
++        uint32_t draws = 0, depth_only = 0, color_depth = 0, msaa[4] = {}, unanalyzed = 0;
++        uint64_t textures = 0, vertex_bindings = 0;
++        std::unordered_set<uint64_t> shader_pairs, targets;
++      };
++      std::vector<PassInventory> passes(std::max<size_t>(latest.pass_names.size(), 1));
 +      for (uint32_t i = 0; i < count; ++i) {
 +        const uint8_t* record = latest.records.data() + size_t(i) * latest.record_size;
 +        uint32_t kind, ucode[4];
@@ -265,6 +321,57 @@ index d71d508..86419b4 100644
 +        vs_found += vs;
 +        ps_found += ps;
 +        both += vs && (ps || !ucode[2]);
++
++        uint32_t pass, render_state = UINT32_MAX;
++        std::memcpy(&pass, record + 4, 4);
++        if (latest.state_offset) std::memcpy(&render_state, record + latest.state_offset, 4);
++        PassInventory& inventory = passes[pass < passes.size() ? pass : 0];
++        ++inventory.draws;
++        auto reg = [&](uint32_t index) -> uint32_t {
++          const int32_t position = state_index[index - 0x2000];
++          if (position < 0 || size_t(render_state) + position >= latest.arena.size()) return 0;
++          return rex::byte_swap(latest.arena[render_state + position]);
++        };
++        const uint32_t surface_info = reg(0x2000), color_info = reg(0x2001), depth_info = reg(0x2002);
++        const uint32_t color_mask = reg(0x2104), mode = reg(0x2208) & 7;
++        ++inventory.msaa[(surface_info >> 16) & 3];
++        if (mode == uint32_t(xenos::EdramMode::kDepthOnly) || !ucode[2] || !color_mask) {
++          ++inventory.depth_only;
++        } else if (mode == uint32_t(xenos::EdramMode::kColorDepth)) {
++          ++inventory.color_depth;
++        }
++        inventory.targets.insert((uint64_t(surface_info) << 32) ^ (uint64_t(color_info) << 16) ^ depth_info);
++        const Shader* vertex_shader =
++            vs ? pipeline_cache_->FindShader(memory_->TranslatePhysical<const uint32_t*>(ucode[0]), ucode[1])
++               : nullptr;
++        const Shader* pixel_shader =
++            ps ? pipeline_cache_->FindShader(memory_->TranslatePhysical<const uint32_t*>(ucode[2]), ucode[3])
++               : nullptr;
++        inventory.shader_pairs.insert((vertex_shader ? vertex_shader->ucode_data_hash() : 0) * 31 ^
++                                      (pixel_shader ? pixel_shader->ucode_data_hash() : 0));
++        if (vertex_shader && vertex_shader->is_ucode_analyzed()) {
++          inventory.vertex_bindings += vertex_shader->vertex_bindings().size();
++          inventory.textures += vertex_shader->texture_bindings().size();
++        } else {
++          ++inventory.unanalyzed;
++        }
++        if (pixel_shader && pixel_shader->is_ucode_analyzed()) {
++          inventory.textures += pixel_shader->texture_bindings().size();
++        }
++      }
++      for (size_t pass = 0; pass < passes.size(); ++pass) {
++        const PassInventory& inventory = passes[pass];
++        if (!inventory.draws) continue;
++        const double pass_draws = double(inventory.draws);
++        REXGPU_INFO(
++            "HLE pass inventory{} (frame {}): {}: draws {}, depth only {}, colour and depth {}, MSAA 1x/2x/4x "
++            "{}/{}/{}, shader pairs {}, target configurations {}, textures a draw {:.1f}, vertex bindings a draw "
++            "{:.1f}, unanalysed {}",
++            ab_tag, latest.frame, pass < latest.pass_names.size() ? latest.pass_names[pass] : std::string("?"),
++            inventory.draws, inventory.depth_only, inventory.color_depth, inventory.msaa[0], inventory.msaa[1],
++            inventory.msaa[2], inventory.shader_pairs.size(), inventory.targets.size(),
++            double(inventory.textures) / pass_draws, double(inventory.vertex_bindings) / pass_draws,
++            inventory.unanalyzed);
 +      }
 +      REXGPU_INFO(
 +          "HLE shaders resolved{} (frame {}): {} draws, vertex shaders found {}, pixel shaders found {} ({} "
