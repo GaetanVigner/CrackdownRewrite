@@ -43,6 +43,9 @@ struct DrawRecord {
   static constexpr uint32_t kMaxSegments = 8;
   uint32_t segment_count;
   uint32_t segments[kMaxSegments][2];
+  // The bound shaders' microcode as the runtime's IM_LOAD sends it (sub_826C6C48): guest physical address and
+  // dwords, vertex then pixel; 0 when no shader is bound.
+  uint32_t ucode[4];
 };
 
 // The render pass each record belongs to (0: none of the tagged passes), set by the pass hooks for the duration of the

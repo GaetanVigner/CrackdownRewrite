@@ -16,8 +16,8 @@ struct HleFrameAbi {
   uint32_t record_size;
   const uint32_t* arena;
   uint32_t arena_dwords;
-  uint32_t reserved;
+  uint32_t ucode_offset;  // byte offset in each record of {VS physical, VS dwords, PS physical, PS dwords}
 };
-inline constexpr uint32_t kHleFrameAbiVersion = 1;
+inline constexpr uint32_t kHleFrameAbiVersion = 2;
 
 }  // namespace crackdown

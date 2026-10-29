@@ -9,6 +9,7 @@
 #include <atomic>
 #include <bit>
 #include <chrono>
+#include <cstddef>
 #include <cstring>
 #include <string>
 #include <unordered_map>
@@ -68,6 +69,28 @@ constexpr uint32_t kPixelShader = 12412;
 constexpr uint32_t kVertexShader = 12416;
 constexpr uint32_t kFetchDwords = 192;
 constexpr uint32_t kBoolLoopDwords = 40;
+
+// A shader object's microcode as sub_826C6C48 loads it (IM_LOAD): guest physical address and dwords. Pixel shader:
+// blob = obj + [obj+64], code at [obj+24] + [blob+40], [blob+44] bytes. Vertex shader: variant v (1 when bit 0x20 of
+// [obj+872] is set), blob = obj + [obj+896+8v], code at [obj+32] + [blob+872], [blob+876] bytes; the runtime patches
+// that code in place for the vertex declaration before loading it.
+void ShaderMicrocode(uint8_t* base, uint32_t object, bool vertex, uint32_t out[2]) {
+  out[0] = out[1] = 0;
+  if (object < 0x40000000) return;
+  uint32_t code, bytes;
+  if (vertex) {
+    const uint32_t variant = (Load32(base, object + 872) & 0x20) ? 1 : 0;
+    const uint32_t blob = object + Load32(base, object + 896 + 8 * variant);
+    code = Load32(base, object + 32) + Load32(base, blob + 872);
+    bytes = Load32(base, blob + 876);
+  } else {
+    const uint32_t blob = object + Load32(base, object + 64);
+    code = Load32(base, object + 24) + Load32(base, blob + 40);
+    bytes = Load32(base, blob + 44);
+  }
+  out[0] = (code & 0x1FFFFFFF) + ((((code >> 20) + 0x200) & 0x1000));
+  out[1] = bytes >> 2;
+}
 constexpr uint32_t kPageDwords = 64;  // 16 float4
 // The overlay's index space: float constants (VS c0-c255 then PS, in dwords), the fetch constants, then the resolve
 // registers 0x2318-0x2327 (the device zeroes its copy after a resolve; the GPU keeps the values).
@@ -460,6 +483,8 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
   record.segment_count = 0;
   record.vertex_shader = Load32(base, device + kVertexShader);
   record.pixel_shader = Load32(base, device + kPixelShader);
+  ShaderMicrocode(base, record.vertex_shader, true, &record.ucode[0]);
+  ShaderMicrocode(base, record.pixel_shader, false, &record.ucode[2]);
 
   const uint32_t touched = ApplyOverlay(state, masks);
   const uint64_t after_overlay = __rdtsc();
@@ -626,6 +651,7 @@ void HleRecordsFrame() {
         frame.record_size = sizeof(DrawRecord);
         frame.arena = state.arena.data();
         frame.arena_dwords = uint32_t(state.arena.size());
+        frame.ucode_offset = uint32_t(offsetof(DrawRecord, ucode));
         submit(&frame);
       }
     }

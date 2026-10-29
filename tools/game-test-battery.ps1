@@ -149,6 +149,12 @@ function Read-Windows([string]$LogPath) {
                 'resolves' = [double]::Parse($Matches[7], $culture); 'record KB' = [double]::Parse($Matches[8], $culture)
                 'state block KB' = [double]::Parse($Matches[9], $culture)
             }
+        } elseif ($null -ne $current -and $line -match 'HLE shaders resolved.*\(frame \d+\): (\d+) draws, vertex shaders found (\d+), pixel shaders found (\d+) \((\d+) draws without\), both (\d+) \(([\d.]+)%\), unreadable (\d+)') {
+            $current.Shaders = [ordered]@{
+                'draws' = [double]$Matches[1]; 'vertex found' = [double]$Matches[2]; 'pixel found' = [double]$Matches[3]
+                'without pixel shader' = [double]$Matches[4]; 'both found' = [double]$Matches[5]
+                'both %' = [double]::Parse($Matches[6], $culture); 'unreadable' = [double]$Matches[7]
+            }
         } elseif ($null -ne $current -and $line -match 'Vulkan GPU by category per frame.*: draw passes ([\d.]+) ms, render target updates ([\d.]+) ms, resolves ([\d.]+) ms, swap ([\d.]+) ms, other ([\d.]+) ms') {
             $current.GpuCategories = [ordered]@{
                 'draw passes' = [double]::Parse($Matches[1], $culture); 'render target updates' = [double]::Parse($Matches[2], $culture)
@@ -213,6 +219,13 @@ function Write-Report($Runs, [string]$Path) {
             $out.Add('')
             $out.Add($(if ($short.Count) { "CHECK FAILED: $($short.Count) busy windows received records for under 90% of the presented frames." }
                        else { 'Check: every busy window received records for the presented frames.' }))
+        }
+        $shaderWindows = @($busy | Where-Object { $_.Shaders })
+        if ($shaderWindows.Count) {
+            $out.Add('')
+            $out.Add('HLE draws resolved to emulation''s shaders (latest frame of each window, busy median): ' + (($shaderWindows[0].Shaders.Keys | ForEach-Object {
+                $key = $_; "$key $(Format-Number (Get-Median ([double[]]@($shaderWindows | ForEach-Object { $_.Shaders[$key] }))) 1)"
+            }) -join ', '))
         }
         $endWindows = @($busy | Where-Object { $_.PassEnds })
         if ($endWindows.Count) {
