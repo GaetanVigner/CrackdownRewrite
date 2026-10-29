@@ -1,0 +1,133 @@
+gpu_frame_stats on Vulkan: why render passes end, per frame: pipeline barriers, forced ends for copies and dispatches
+(uploads, resolves, transfers), render target changes, occlusion query begins and ends (0053 ends the pass around
+each), submission ends, other. Each end stores the attachments and the next pass loads them again, which at 1440p
+with host MSAA costs GPU time (~200 render pass entries a frame at the city spot).
+
+diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
+--- a/include/rex/graphics/vulkan/command_processor.h
++++ b/include/rex/graphics/vulkan/command_processor.h
+@@ -479,6 +479,22 @@ class VulkanCommandProcessor : public CommandProcessor {
+   // (begin after an end or a change) counted too.
+   static constexpr uint32_t kDrawSections = 15;
+   uint64_t render_passes_begun_ = 0;
++  // gpu_frame_stats: why render passes end (each end stores and later reloads the attachments).
++  enum RenderPassEndReason : uint32_t {
++    kRenderPassEndBarrier,       // pipeline barriers before a copy, dispatch or draw
++    kRenderPassEndForced,        // copies and dispatches outside a pass (uploads, resolves, transfers)
++    kRenderPassEndTarget,        // another render target or transfer pass
++    kRenderPassEndQuery,         // occlusion query begin or end
++    kRenderPassEndSubmission,    // the submission ends
++    kRenderPassEndOther,
++    kRenderPassEndReasonCount,
++  };
++  RenderPassEndReason render_pass_end_reason_ = kRenderPassEndOther;
++  uint64_t render_pass_ends_[kRenderPassEndReasonCount] = {};
++  void EndRenderPassFor(RenderPassEndReason reason) {
++    render_pass_end_reason_ = reason;
++    EndRenderPass();
++  }
+   // UpdateBindings subsections (kBindingsSectionNames in the .cpp) and descriptor sets written.
+   static constexpr uint32_t kBindingsSections = 5;
+   uint64_t bindings_mark_ = 0;
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -3279,11 +3279,11 @@ bool VulkanCommandProcessor::SubmitBarriers(bool force_end_render_pass) {
+   SplitPendingBarrier();
+   if (pending_barriers_.empty()) {
+     if (force_end_render_pass) {
+-      EndRenderPass();
++      EndRenderPassFor(kRenderPassEndForced);
+     }
+     return false;
+   }
+-  EndRenderPass();
++  EndRenderPassFor(force_end_render_pass ? kRenderPassEndForced : kRenderPassEndBarrier);
+   for (auto it = pending_barriers_.cbegin(); it != pending_barriers_.cend(); ++it) {
+     auto it_next = std::next(it);
+     bool is_last = it_next == pending_barriers_.cend();
+@@ -3331,6 +3331,7 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+ 
+   ++render_passes_begun_;
+   if (in_render_pass_) {
++    ++render_pass_ends_[kRenderPassEndTarget];
+     if (use_dynamic_rendering) {
+       deferred_command_buffer_.CmdVkEndRendering();
+     } else {
+@@ -3407,6 +3408,7 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+   }
+ 
+   if (in_render_pass_) {
++    ++render_pass_ends_[kRenderPassEndTarget];
+     if (use_dynamic_rendering) {
+       deferred_command_buffer_.CmdVkEndRendering();
+     } else {
+@@ -3486,6 +3488,8 @@ void VulkanCommandProcessor::EndRenderPass() {
+   if (!in_render_pass_) {
+     return;
+   }
++  ++render_pass_ends_[render_pass_end_reason_];
++  render_pass_end_reason_ = kRenderPassEndOther;
+   if (current_render_pass_ == VK_NULL_HANDLE) {
+     deferred_command_buffer_.CmdVkEndRendering();
+   } else {
+@@ -5146,7 +5150,7 @@ bool VulkanCommandProcessor::BeginGuestOcclusionQuery() {
+     if (!BeginSubmission(true)) {
+       return false;
+     }
+-    EndRenderPass();
++    EndRenderPassFor(kRenderPassEndQuery);
+     deferred_command_buffer().CmdVkEndQuery(occlusion_query_pool_,
+                                             active_occlusion_query_.host_index);
+     active_occlusion_query_ = {};
+@@ -5160,7 +5164,7 @@ bool VulkanCommandProcessor::BeginGuestOcclusionQuery() {
+     return false;
+   }
+ 
+-  EndRenderPass();
++  EndRenderPassFor(kRenderPassEndQuery);
+ 
+   DeferredCommandBuffer& command_buffer = deferred_command_buffer();
+   command_buffer.CmdVkResetQueryPool(occlusion_query_pool_, host_index, 1);
+@@ -5184,7 +5188,7 @@ bool VulkanCommandProcessor::EndGuestOcclusionQuery(uint32_t sample_count_addres
+     return false;
+   }
+ 
+-  EndRenderPass();
++  EndRenderPassFor(kRenderPassEndQuery);
+ 
+   DeferredCommandBuffer& command_buffer = deferred_command_buffer();
+   command_buffer.CmdVkEndQuery(occlusion_query_pool_, host_index);
+@@ -5652,6 +5656,7 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+     std::memset(draw_section_ticks_, 0, sizeof(draw_section_ticks_));
+     draw_timed_count_ = 0;
+     render_passes_begun_ = 0;
++    std::memset(render_pass_ends_, 0, sizeof(render_pass_ends_));
+     std::memset(bindings_section_ticks_, 0, sizeof(bindings_section_ticks_));
+     constants_sets_written_ = 0;
+     texture_sets_written_ = 0;
+@@ -5715,6 +5720,15 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+         "a draw: {}",
+         ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
+         bindings);
++    REXGPU_INFO(
++        "Vulkan render pass ends per frame{}: barriers {:.1f}, forced (copies, dispatches) {:.1f}, render target "
++        "changes {:.1f}, occlusion queries {:.1f}, submissions {:.1f}, other {:.1f}",
++        ab_tag, double(render_pass_ends_[kRenderPassEndBarrier]) / frames,
++        double(render_pass_ends_[kRenderPassEndForced]) / frames,
++        double(render_pass_ends_[kRenderPassEndTarget]) / frames,
++        double(render_pass_ends_[kRenderPassEndQuery]) / frames,
++        double(render_pass_ends_[kRenderPassEndSubmission]) / frames,
++        double(render_pass_ends_[kRenderPassEndOther]) / frames);
+     REXGPU_INFO(
+         "Vulkan submissions per frame{}: EndSubmission {:.2f} ms (command buffer replay and submit "
+         "{:.2f} ms), IssueSwap {:.2f} ms, IssueDraw {:.2f} ms of the command processor thread; "
+@@ -5983,7 +5997,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
+       active_occlusion_query_ = {};
+     }
+ 
+-    EndRenderPass();
++    EndRenderPassFor(kRenderPassEndSubmission);
+     GpuCategoryMark(kGpuCategoryEnd);
+ 
+     pipeline_cache_->EndSubmission();

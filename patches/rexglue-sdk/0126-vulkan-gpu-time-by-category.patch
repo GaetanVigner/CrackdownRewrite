@@ -1,0 +1,288 @@
+gpu_frame_stats on Vulkan: host GPU time per frame by category. A timestamp is written at every render pass entry
+and exit and wherever the command processor starts or stops IssueDraw's render target update, IssueCopy (resolves)
+or IssueSwap, always outside a render pass so its query can be reset just before; the time between two consecutive
+timestamps of a submission goes to the category the first one opened: draw passes, render target updates
+(ownership transfers, clears), resolves, swap (gamma, FXAA, presentation copy) or other (barriers, uploads, texture
+loads between passes). The DeferredCommandBuffer learns vkCmdWriteTimestamp.
+
+diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
+--- a/include/rex/graphics/vulkan/command_processor.h
++++ b/include/rex/graphics/vulkan/command_processor.h
+@@ -499,6 +499,48 @@ class VulkanCommandProcessor : public CommandProcessor {
+   std::deque<std::pair<uint64_t, uint32_t>> gpu_time_pending_;
+   uint64_t gpu_time_ticks_ = 0;
+   void ReadCompletedGpuTimes();
++  // gpu_frame_stats GPU time by category: a timestamp at every render pass entry and exit and at every change of
++  // what the command processor is doing (all outside render passes, where a query can be reset); the time between
++  // two consecutive timestamps of a submission goes to the category the first one opened.
++  enum GpuCategory : uint32_t {
++    kGpuCategoryDrawPasses,
++    kGpuCategoryRenderTargetUpdates,
++    kGpuCategoryResolves,
++    kGpuCategorySwap,
++    kGpuCategoryOther,
++    kGpuCategoryCount,
++    kGpuCategoryEnd = kGpuCategoryCount,
++  };
++  // What the command processor is doing: kGpuCategoryOther outside IssueDraw's render target update, IssueCopy and
++  // IssueSwap; inside a render pass, kGpuCategoryOther counts as kGpuCategoryDrawPasses.
++  GpuCategory gpu_context_ = kGpuCategoryOther;
++  void GpuCategoryMark(GpuCategory category);
++  void GpuCategoryMarkContext() {
++    GpuCategoryMark(gpu_context_);
++  }
++  struct GpuContextScope {
++    VulkanCommandProcessor& processor;
++    GpuCategory previous;
++    GpuContextScope(VulkanCommandProcessor& processor_in, GpuCategory category)
++        : processor(processor_in), previous(processor_in.gpu_context_) {
++      processor.gpu_context_ = category;
++      processor.GpuCategoryMarkContext();
++    }
++    ~GpuContextScope() {
++      processor.gpu_context_ = previous;
++      processor.GpuCategoryMarkContext();
++    }
++  };
++  static constexpr uint32_t kGpuCategoryQueries = 8192;
++  VkQueryPool gpu_category_query_pool_ = VK_NULL_HANDLE;
++  uint32_t gpu_category_next_query_ = 0;
++  struct GpuCategoryMarker {
++    uint64_t submission;
++    uint32_t query;
++    GpuCategory category;
++  };
++  std::deque<GpuCategoryMarker> gpu_category_pending_;
++  uint64_t gpu_category_ticks_[kGpuCategoryCount] = {};
+   uint64_t replay_ticks_ = 0;
+   uint64_t swap_ticks_ = 0;
+   struct ScopedTicks {
+diff --git a/include/rex/graphics/vulkan/deferred_command_buffer.h b/include/rex/graphics/vulkan/deferred_command_buffer.h
+--- a/include/rex/graphics/vulkan/deferred_command_buffer.h
++++ b/include/rex/graphics/vulkan/deferred_command_buffer.h
+@@ -283,6 +283,15 @@ class DeferredCommandBuffer {
+   void CmdVkBeginRendering(const VkRenderingInfo* rendering_info);
+   void CmdVkEndRendering() { WriteCommand(Command::kVkEndRendering, 0); }
+ 
++  void CmdVkWriteTimestamp(VkPipelineStageFlagBits pipeline_stage, VkQueryPool query_pool,
++                           uint32_t query) {
++    auto& args = *reinterpret_cast<ArgsVkWriteTimestamp*>(
++        WriteCommand(Command::kVkWriteTimestamp, sizeof(ArgsVkWriteTimestamp)));
++    args.pipeline_stage = pipeline_stage;
++    args.query_pool = query_pool;
++    args.query = query;
++  }
++
+   void CmdVkResetQueryPool(VkQueryPool query_pool, uint32_t first_query, uint32_t query_count) {
+     auto& args = *reinterpret_cast<ArgsVkResetQueryPool*>(
+         WriteCommand(Command::kVkResetQueryPool, sizeof(ArgsVkResetQueryPool)));
+@@ -400,6 +409,7 @@ class DeferredCommandBuffer {
+     kVkSetStencilReference,
+     kVkSetStencilWriteMask,
+     kVkSetViewport,
++    kVkWriteTimestamp,
+   };
+ 
+   struct CommandHeader {
+@@ -549,6 +559,12 @@ class DeferredCommandBuffer {
+     uint32_t query;
+   };
+ 
++  struct ArgsVkWriteTimestamp {
++    VkPipelineStageFlagBits pipeline_stage;
++    VkQueryPool query_pool;
++    uint32_t query;
++  };
++
+   struct ArgsVkResetQueryPool {
+     VkQueryPool query_pool;
+     uint32_t first_query;
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -2051,6 +2051,12 @@ bool VulkanCommandProcessor::SetupContext() {
+       gpu_time_query_pool_ = VK_NULL_HANDLE;
+     }
+     gpu_timestamp_mask_ = ~uint64_t(0);
++    query_pool_create_info.queryCount = kGpuCategoryQueries;
++    if (gpu_time_query_pool_ == VK_NULL_HANDLE ||
++        dfn.vkCreateQueryPool(device, &query_pool_create_info, nullptr,
++                              &gpu_category_query_pool_) != VK_SUCCESS) {
++      gpu_category_query_pool_ = VK_NULL_HANDLE;
++    }
+   }
+ 
+   // Just not to expose uninitialized memory.
+@@ -2073,6 +2079,12 @@ void VulkanCommandProcessor::ShutdownContext() {
+     gpu_time_query_pool_ = VK_NULL_HANDLE;
+   }
+   gpu_time_pending_.clear();
++  if (gpu_category_query_pool_ != VK_NULL_HANDLE) {
++    GetVulkanDevice()->functions().vkDestroyQueryPool(GetVulkanDevice()->device(),
++                                                      gpu_category_query_pool_, nullptr);
++    gpu_category_query_pool_ = VK_NULL_HANDLE;
++  }
++  gpu_category_pending_.clear();
+   InvalidateAllVertexBufferResidency();
+   ShutdownOcclusionQueryResources();
+ 
+@@ -2482,6 +2494,7 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+   SCOPE_profile_cpu_f("gpu");
+   const bool timing = REXCVAR_GET(gpu_frame_stats);
+   ScopedTicks swap_timer(&swap_ticks_, timing, timing ? DrawTicks() : 0);
++  GpuContextScope gpu_context_scope(*this, kGpuCategorySwap);
+   vertex_buffers_in_sync_[0] = 0;
+   vertex_buffers_in_sync_[1] = 0;
+ 
+@@ -3352,8 +3365,10 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+     rendering_info.pColorAttachments = color_attachment_count ? color_attachments : nullptr;
+     rendering_info.pDepthAttachment = has_depth ? &depth_attachment : nullptr;
+     rendering_info.pStencilAttachment = has_stencil ? &stencil_attachment : nullptr;
++    GpuCategoryMark(gpu_context_ == kGpuCategoryOther ? kGpuCategoryDrawPasses : gpu_context_);
+     deferred_command_buffer_.CmdVkBeginRendering(&rendering_info);
+   } else {
++    GpuCategoryMark(gpu_context_ == kGpuCategoryOther ? kGpuCategoryDrawPasses : gpu_context_);
+     VkRenderPassBeginInfo render_pass_begin_info;
+     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+     render_pass_begin_info.pNext = nullptr;
+@@ -3446,8 +3461,10 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+     rendering_info.pColorAttachments = transfer_dest_is_depth ? nullptr : &color_attachment;
+     rendering_info.pDepthAttachment = transfer_dest_is_depth ? &depth_attachment : nullptr;
+     rendering_info.pStencilAttachment = transfer_dest_is_depth ? &stencil_attachment : nullptr;
++    GpuCategoryMark(gpu_context_ == kGpuCategoryOther ? kGpuCategoryDrawPasses : gpu_context_);
+     deferred_command_buffer_.CmdVkBeginRendering(&rendering_info);
+   } else {
++    GpuCategoryMark(gpu_context_ == kGpuCategoryOther ? kGpuCategoryDrawPasses : gpu_context_);
+     VkRenderPassBeginInfo render_pass_begin_info;
+     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+     render_pass_begin_info.pNext = nullptr;
+@@ -3477,6 +3494,7 @@ void VulkanCommandProcessor::EndRenderPass() {
+   current_render_pass_ = VK_NULL_HANDLE;
+   current_framebuffer_ = nullptr;
+   in_render_pass_ = false;
++  GpuCategoryMarkContext();
+ }
+ 
+ VkDescriptorSet VulkanCommandProcessor::AllocateSingleTransientDescriptor(
+@@ -4102,8 +4120,14 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+   const VulkanPipelineCache::PipelineLayoutProvider* pipeline_layout_provider;
+   // Set up the render targets - this may perform dispatches and draws.
+   DRAW_SECTION(4);
+-  if (!render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
+-                                    normalized_color_mask, *vertex_shader)) {
++  bool render_target_updated;
++  {
++    // gpu_frame_stats: render target transfers and clears the update records count as their own category.
++    GpuContextScope gpu_context_scope(*this, kGpuCategoryRenderTargetUpdates);
++    render_target_updated = render_target_cache_->Update(is_rasterization_done, normalized_depth_control,
++                                                         normalized_color_mask, *vertex_shader);
++  }
++  if (!render_target_updated) {
+     return draw_fail("render_target_update");
+   }
+ 
+@@ -4666,6 +4690,7 @@ bool VulkanCommandProcessor::IssueCopy() {
+   if (!BeginSubmission(true)) {
+     return false;
+   }
++  GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
+ 
+   ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
+   render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
+@@ -5545,7 +5570,49 @@ void VulkanCommandProcessor::AsyncSubmissionThread() {
+   }
+ }
+ 
++void VulkanCommandProcessor::GpuCategoryMark(GpuCategory category) {
++  // Queries are reset just before they are written, which a render pass does not allow; a marker that would
++  // overwrite one not read yet is dropped (its interval joins the previous one's category).
++  if (gpu_category_query_pool_ == VK_NULL_HANDLE || !submission_open_ || in_render_pass_ ||
++      !REXCVAR_GET(gpu_frame_stats) || gpu_category_pending_.size() >= kGpuCategoryQueries - 1) {
++    return;
++  }
++  uint32_t query = gpu_category_next_query_;
++  gpu_category_next_query_ = (gpu_category_next_query_ + 1) % kGpuCategoryQueries;
++  deferred_command_buffer_.CmdVkResetQueryPool(gpu_category_query_pool_, query, 1);
++  deferred_command_buffer_.CmdVkWriteTimestamp(VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
++                                               gpu_category_query_pool_, query);
++  gpu_category_pending_.push_back({GetCurrentSubmission(), query, category});
++}
++
+ void VulkanCommandProcessor::ReadCompletedGpuTimes() {
++  if (!gpu_category_pending_.empty()) {
++    const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
++    const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
++    while (!gpu_category_pending_.empty() &&
++           gpu_category_pending_.front().submission <= submission_completed_) {
++      const uint64_t submission = gpu_category_pending_.front().submission;
++      uint64_t previous_time = 0;
++      GpuCategory previous_category = kGpuCategoryEnd;
++      while (!gpu_category_pending_.empty() &&
++             gpu_category_pending_.front().submission == submission) {
++        const GpuCategoryMarker marker = gpu_category_pending_.front();
++        gpu_category_pending_.pop_front();
++        uint64_t time;
++        if (dfn.vkGetQueryPoolResults(vulkan_device->device(), gpu_category_query_pool_, marker.query, 1,
++                                      sizeof(time), &time, sizeof(time),
++                                      VK_QUERY_RESULT_64_BIT) != VK_SUCCESS) {
++          previous_category = kGpuCategoryEnd;
++          continue;
++        }
++        if (previous_category < kGpuCategoryCount && time >= previous_time) {
++          gpu_category_ticks_[previous_category] += time - previous_time;
++        }
++        previous_time = time;
++        previous_category = marker.category;
++      }
++    }
++  }
+   if (gpu_time_pending_.empty()) {
+     return;
+   }
+@@ -5593,6 +5660,7 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+     swap_ticks_ = 0;
+     cpu_stats_process_ns_ = process_ns;
+     gpu_time_ticks_ = 0;
++    std::memset(gpu_category_ticks_, 0, sizeof(gpu_category_ticks_));
+   };
+   if (!cpu_stats_frames_++) {
+     restart_window();
+@@ -5655,6 +5723,15 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+         double(replay_ticks_) * ms_per_tick / frames, double(swap_ticks_) * ms_per_tick / frames,
+         total_ms, double(process_ns - cpu_stats_process_ns_) * 1.0e-6 / frames,
+         double(gpu_time_ticks_) * gpu_timestamp_period_ns_ * 1.0e-6 / frames);
++    auto category_ms = [&](GpuCategory category) {
++      return double(gpu_category_ticks_[category]) * gpu_timestamp_period_ns_ * 1.0e-6 / frames;
++    };
++    REXGPU_INFO(
++        "Vulkan GPU by category per frame{}: draw passes {:.2f} ms, render target updates {:.2f} ms, "
++        "resolves {:.2f} ms, swap {:.2f} ms, other {:.2f} ms",
++        ab_tag, category_ms(kGpuCategoryDrawPasses), category_ms(kGpuCategoryRenderTargetUpdates),
++        category_ms(kGpuCategoryResolves), category_ms(kGpuCategorySwap),
++        category_ms(kGpuCategoryOther));
+   }
+   if (!ab_cvar.empty()) {
+     // Next value after the current one (the first when the current one is not listed).
+@@ -5907,6 +5984,7 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
+     }
+ 
+     EndRenderPass();
++    GpuCategoryMark(kGpuCategoryEnd);
+ 
+     pipeline_cache_->EndSubmission();
+ 
+diff --git a/src/graphics/vulkan/deferred_command_buffer.cpp b/src/graphics/vulkan/deferred_command_buffer.cpp
+--- a/src/graphics/vulkan/deferred_command_buffer.cpp
++++ b/src/graphics/vulkan/deferred_command_buffer.cpp
+@@ -275,6 +275,11 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
+             reinterpret_cast<const uint8_t*>(stream) + sizeof(ArgsVkPushConstants));
+       } break;
+ 
++      case Command::kVkWriteTimestamp: {
++        auto& args = *reinterpret_cast<const ArgsVkWriteTimestamp*>(stream);
++        dfn.vkCmdWriteTimestamp(command_buffer, args.pipeline_stage, args.query_pool, args.query);
++      } break;
++
+       case Command::kVkResetQueryPool: {
+         auto& args = *reinterpret_cast<const ArgsVkResetQueryPool*>(stream);
+         dfn.vkCmdResetQueryPool(command_buffer, args.query_pool, args.first_query,

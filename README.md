@@ -75,6 +75,11 @@ state the draw records reproduce. The plan, the measurements behind each step an
   for every draw; with dynamic uniform buffers none is, and the city spot went from ~115 to ~145 FPS on Vulkan. The
   GPU command optimizations that were Windows only (command buffer cache, fetch constant caches, EDRAM memo) now
   apply to the Linux build too, so the Steam Deck gets them.
+- **Tests that compare outputs.** Each faster Vulkan path is checked against the code it replaced on random inputs,
+  and a guest sandbox runs ~300 recompiled functions of the title's D3D runtime outside the game (deterministic runs,
+  output hashes that catch a codegen change, the device fields each one writes). `tools\game-test-battery.ps1` runs a
+  set of in-game measurements in one sitting and writes a report (FPS, CPU and GPU time, GPU time by category, render
+  pass breaks by cause, A/B settings within one launch).
 
 ### Next
 

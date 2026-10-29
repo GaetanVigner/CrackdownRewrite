@@ -57,6 +57,29 @@ clone at the same path as the one it was made in; member and other external func
     .\tools\package-release.ps1              # local Release build and dist\Crackdown-v<version>-windows-x64.zip
     .\tools\stamp-release-hashes.ps1         # writes the artifacts' SHA-256 into the release notes
 
+Two kinds of tests compare outputs:
+
+- `vulkan_per_draw_tests` runs each faster Vulkan path (sampler table, dynamic constant buffers, constant copies,
+  residency masks, descriptor reuse) against the code it replaced on random inputs, and checks the patch text still
+  holds the mirrored code.
+- `guest_d3d_leaf_tests` runs the recompiled leaf functions of the title's D3D runtime (no calls, no MMIO) in a guest
+  sandbox (`tests/guest_sandbox.h`: a 4 GB guest address space committed on first touch) on seeded random devices.
+  Each function must give the same result twice from the same state, and its outputs must match
+  `tests/golden/guest_d3d_leaf.txt` (hashes only), so a codegen or SDK change that alters a translated function shows
+  up; `CRACKDOWN_UPDATE_GOLDEN=1` rewrites the hashes after checking such a change. `--layout` lists the device fields
+  each function writes against the layout the HLE records use. The functions are extracted from the local
+  `generated/default` at configure time (the test is skipped without it); no guest code is kept in the repository.
+
+In-game measurements in one sitting:
+
+    .\tools\game-test-battery.ps1 -List                  # the batteries and their runs
+    .\tools\game-test-battery.ps1 -Battery vulkan-gpu    # runs each launch with its settings, then writes logs\battery-<time>.md
+    .\tools\game-test-battery.ps1 -ReportOnly -Since '2026-10-29 01:00'   # the report for logs already written
+
+The battery saves the player's settings, applies each run's (diagnostics off, frame statistics on), tells what to do
+in game, waits for the game to close, restores the settings and reports FPS, the GPU command thread and process CPU,
+the host GPU time and its categories, the IssueDraw sections and the errors of each run.
+
 `package-release.ps1` builds into `build-release\`, stages only the allow-listed files and refuses to continue if
 the staging folder holds game files, saves, logs, settings or local paths. Nothing is published or uploaded.
 The packaged `trg-updater.exe` is built by `tools\build-updater.ps1` with MSYS2 CLANG64 (static, Windows system DLLs
@@ -66,7 +89,8 @@ The launcher is the TRG library in `third_party/trg-launcher` (git submodule, pi
 `<build dir>/trg-launcher-patched`, applies `patches/trg-launcher` to that copy, and builds it there, so the submodule
 checkout stays clean. It has no upstream license file; get one from its author before distributing a package.
 
-Patches with a `.windows` or `.linux` suffix apply only on that platform; unsuffixed patches apply everywhere.
+Patches with a `.windows` or `.linux` suffix apply only on that platform; unsuffixed patches apply everywhere (since
+2026-10-29 every patch but three Linux ones is unsuffixed).
 See `docs/rexglue-patches.md` for what each patch is for.
 
 ## Linux
