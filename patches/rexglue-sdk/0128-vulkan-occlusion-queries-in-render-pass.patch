@@ -1,0 +1,315 @@
+vulkan_occlusion_queries_in_render_pass (off, hot reload; to measure with 0127's counters before turning it on): 0053
+ends the render pass around every occlusion query begin and end. Samples only come from draws, which only happen in
+render passes, so in this mode the host query runs inside each guest render pass the guest query spans: a segment
+begun right after the pass begins (or at the guest's begin, inside a pass) and ended before it ends (or at the
+guest's end), the guest result being the sum of its segments. Render target cache transfer passes are not the
+guest's draws and get no segment. Query indices are reset ahead in blocks of 64 outside render passes (a reset is
+not allowed inside one), and the results are copied to the readback buffer at the end of the submission (neither is
+a copy). Wrapping the indices around waits for results in flight, so it is only done where the guest begins a query;
+a pass entered without an index left gets no segment. With the mode off nothing changes.
+
+diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
+--- a/include/rex/graphics/vulkan/command_processor.h
++++ b/include/rex/graphics/vulkan/command_processor.h
+@@ -918,12 +918,35 @@ class VulkanCommandProcessor : public CommandProcessor {
+   struct ActiveOcclusionQuery {
+     uint32_t host_index = UINT32_MAX;
+     bool valid = false;
++    // vulkan_occlusion_queries_in_render_pass: samples only come from draws, which only happen in render passes, so
++    // the host query runs inside each guest render pass the guest query spans (a segment per pass, begun after the
++    // pass begins and ended before it ends) instead of ending the pass around the query; the result is their sum.
++    bool segmented = false;
++    bool segment_open = false;
++    std::vector<uint32_t> segments;
+   } active_occlusion_query_;
+   struct PendingOcclusionQuery {
+     uint64_t submission;
+-    uint32_t host_index;
++    uint32_t host_index;  // UINT32_MAX for a segmented query
+     uint32_t sample_count_address;
++    std::vector<uint32_t> segments;
+   };
++  // Segmented queries: query indices reset ahead of use (a reset is not allowed in a render pass), the segments
++  // whose results are copied to the readback buffer at the end of the submission (neither is a copy), and whether the
++  // current render pass is a guest one (render target cache transfer passes are not the guest's draws).
++  uint32_t query_reset_next_ = 0;
++  uint32_t query_reset_end_ = 0;
++  std::vector<uint32_t> query_copies_pending_;
++  bool in_guest_render_pass_ = false;
++  // may_wait: the query indices may wrap around, which waits for results still in flight (and may end the
++  // submission), so it is only allowed where the guest begins a query, never on the way into a render pass.
++  void ReserveQueryResets(uint32_t minimum, bool may_wait);
++  void BeginQuerySegment();
++  void EndQuerySegment();
++  void OcclusionQueryBeforeGuestRenderPassBegin();
++  void OcclusionQueryAfterGuestRenderPassBegin();
++  void OcclusionQueryBeforeRenderPassEnd();
++  void FlushQueryCopies();
+   std::deque<PendingOcclusionQuery> pending_occlusion_queries_;
+   struct VertexBufferState {
+     uint32_t address = UINT32_MAX;
+diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
+--- a/src/graphics/vulkan/command_processor.cpp
++++ b/src/graphics/vulkan/command_processor.cpp
+@@ -109,6 +109,11 @@ REXCVAR_DEFINE_BOOL(vulkan_skip_unchanged_constant_writes, true, "GPU/Vulkan",
+                     "already have, keep the constant buffers and texture bindings derived from them")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
++REXCVAR_DEFINE_BOOL(vulkan_occlusion_queries_in_render_pass, false, "GPU/Vulkan",
++                    "Run occlusion queries inside the guest's render passes (a host query per pass a guest query "
++                    "spans, summed) instead of ending the render pass around each query")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++
+ namespace rex::graphics::vulkan {
+ 
+ namespace {
+@@ -3331,6 +3336,8 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+ 
+   ++render_passes_begun_;
+   if (in_render_pass_) {
++    OcclusionQueryBeforeRenderPassEnd();
++    in_guest_render_pass_ = false;
+     ++render_pass_ends_[kRenderPassEndTarget];
+     if (use_dynamic_rendering) {
+       deferred_command_buffer_.CmdVkEndRendering();
+@@ -3367,9 +3374,11 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+     rendering_info.pDepthAttachment = has_depth ? &depth_attachment : nullptr;
+     rendering_info.pStencilAttachment = has_stencil ? &stencil_attachment : nullptr;
+     GpuCategoryMark(gpu_context_ == kGpuCategoryOther ? kGpuCategoryDrawPasses : gpu_context_);
++    OcclusionQueryBeforeGuestRenderPassBegin();
+     deferred_command_buffer_.CmdVkBeginRendering(&rendering_info);
+   } else {
+     GpuCategoryMark(gpu_context_ == kGpuCategoryOther ? kGpuCategoryDrawPasses : gpu_context_);
++    OcclusionQueryBeforeGuestRenderPassBegin();
+     VkRenderPassBeginInfo render_pass_begin_info;
+     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+     render_pass_begin_info.pNext = nullptr;
+@@ -3386,6 +3395,8 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+                                                   VK_SUBPASS_CONTENTS_INLINE);
+   }
+   in_render_pass_ = true;
++  in_guest_render_pass_ = true;
++  OcclusionQueryAfterGuestRenderPassBegin();
+ }
+ 
+ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+@@ -3408,6 +3419,8 @@ void VulkanCommandProcessor::SubmitBarriersAndEnterRenderTargetCacheRenderPass(
+   }
+ 
+   if (in_render_pass_) {
++    OcclusionQueryBeforeRenderPassEnd();
++    in_guest_render_pass_ = false;
+     ++render_pass_ends_[kRenderPassEndTarget];
+     if (use_dynamic_rendering) {
+       deferred_command_buffer_.CmdVkEndRendering();
+@@ -3488,6 +3501,8 @@ void VulkanCommandProcessor::EndRenderPass() {
+   if (!in_render_pass_) {
+     return;
+   }
++  OcclusionQueryBeforeRenderPassEnd();
++  in_guest_render_pass_ = false;
+   ++render_pass_ends_[render_pass_end_reason_];
+   render_pass_end_reason_ = kRenderPassEndOther;
+   if (current_render_pass_ == VK_NULL_HANDLE) {
+@@ -5117,6 +5132,80 @@ void VulkanCommandProcessor::ShutdownOcclusionQueryResources() {
+   occlusion_query_readback_memory_size_ = 0;
+ }
+ 
++void VulkanCommandProcessor::ReserveQueryResets(uint32_t minimum, bool may_wait) {
++  if (in_render_pass_ || !submission_open_ || occlusion_query_pool_ == VK_NULL_HANDLE ||
++      query_reset_end_ - query_reset_next_ >= minimum) {
++    return;
++  }
++  constexpr uint32_t kBlock = 64;
++  if (occlusion_query_cursor_ + kBlock > kMaxOcclusionQueries) {
++    if (!may_wait) {
++      return;  // a segment without an index is skipped; the guest's next begin wraps around
++    }
++    // Results still in flight must not be overwritten by the reused indices.
++    CompleteOcclusionQueries(true);
++    occlusion_query_cursor_ = 0;
++    if (!BeginSubmission(true) || in_render_pass_) {
++      return;
++    }
++  }
++  query_reset_next_ = occlusion_query_cursor_;
++  query_reset_end_ = occlusion_query_cursor_ + kBlock;
++  occlusion_query_cursor_ += kBlock;
++  deferred_command_buffer_.CmdVkResetQueryPool(occlusion_query_pool_, query_reset_next_, kBlock);
++}
++
++void VulkanCommandProcessor::BeginQuerySegment() {
++  // Only inside a guest render pass, with an index reset ahead (OcclusionQueryBeforeGuestRenderPassBegin).
++  if (query_reset_next_ == query_reset_end_) {
++    return;
++  }
++  uint32_t index = query_reset_next_++;
++  deferred_command_buffer_.CmdVkBeginQuery(occlusion_query_pool_, index, 0);
++  active_occlusion_query_.host_index = index;
++  active_occlusion_query_.segment_open = true;
++}
++
++void VulkanCommandProcessor::EndQuerySegment() {
++  deferred_command_buffer_.CmdVkEndQuery(occlusion_query_pool_, active_occlusion_query_.host_index);
++  active_occlusion_query_.segments.push_back(active_occlusion_query_.host_index);
++  query_copies_pending_.push_back(active_occlusion_query_.host_index);
++  active_occlusion_query_.segment_open = false;
++}
++
++void VulkanCommandProcessor::OcclusionQueryBeforeGuestRenderPassBegin() {
++  if (active_occlusion_query_.segmented || REXCVAR_GET(vulkan_occlusion_queries_in_render_pass)) {
++    ReserveQueryResets(16, false);
++  }
++}
++
++void VulkanCommandProcessor::OcclusionQueryAfterGuestRenderPassBegin() {
++  if (active_occlusion_query_.valid && active_occlusion_query_.segmented &&
++      !active_occlusion_query_.segment_open) {
++    BeginQuerySegment();
++  }
++}
++
++void VulkanCommandProcessor::OcclusionQueryBeforeRenderPassEnd() {
++  if (active_occlusion_query_.valid && active_occlusion_query_.segmented &&
++      active_occlusion_query_.segment_open) {
++    EndQuerySegment();
++  }
++}
++
++void VulkanCommandProcessor::FlushQueryCopies() {
++  // Outside any render pass (copies are not allowed in one); the readback barrier is submitted with the others.
++  for (uint32_t index : query_copies_pending_) {
++    deferred_command_buffer_.CmdVkCopyQueryPoolResults(
++        occlusion_query_pool_, index, 1, occlusion_query_readback_buffer_, sizeof(uint64_t) * index,
++        sizeof(uint64_t), VK_QUERY_RESULT_64_BIT | VK_QUERY_RESULT_WAIT_BIT);
++    PushBufferMemoryBarrier(occlusion_query_readback_buffer_, sizeof(uint64_t) * index, sizeof(uint64_t),
++                            VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_HOST_BIT,
++                            VK_ACCESS_TRANSFER_WRITE_BIT, VK_ACCESS_HOST_READ_BIT);
++  }
++  query_copies_pending_.clear();
++}
++
+ bool VulkanCommandProcessor::AcquireOcclusionQueryIndex(uint32_t& host_index_out) {
+   if (occlusion_query_cursor_ >= kMaxOcclusionQueries) {
+     // Results still in flight must not be overwritten by the reused indices.
+@@ -5128,7 +5217,8 @@ bool VulkanCommandProcessor::AcquireOcclusionQueryIndex(uint32_t& host_index_out
+ }
+ 
+ void VulkanCommandProcessor::DisableHostOcclusionQueries() {
+-  if (active_occlusion_query_.valid && occlusion_query_pool_ != VK_NULL_HANDLE) {
++  if (active_occlusion_query_.valid && !active_occlusion_query_.segmented &&
++      occlusion_query_pool_ != VK_NULL_HANDLE) {
+     if (BeginSubmission(true)) {
+       deferred_command_buffer_.CmdVkEndQuery(occlusion_query_pool_,
+                                              active_occlusion_query_.host_index);
+@@ -5150,12 +5240,40 @@ bool VulkanCommandProcessor::BeginGuestOcclusionQuery() {
+     if (!BeginSubmission(true)) {
+       return false;
+     }
+-    EndRenderPassFor(kRenderPassEndQuery);
+-    deferred_command_buffer().CmdVkEndQuery(occlusion_query_pool_,
+-                                            active_occlusion_query_.host_index);
++    if (active_occlusion_query_.segmented) {
++      if (active_occlusion_query_.segment_open) {
++        EndQuerySegment();
++      }
++    } else {
++      EndRenderPassFor(kRenderPassEndQuery);
++      deferred_command_buffer().CmdVkEndQuery(occlusion_query_pool_,
++                                              active_occlusion_query_.host_index);
++    }
+     active_occlusion_query_ = {};
+   }
+ 
++  if (REXCVAR_GET(vulkan_occlusion_queries_in_render_pass)) {
++    if (!BeginSubmission(true)) {
++      return false;
++    }
++    if (in_render_pass_ && query_reset_next_ == query_reset_end_) {
++      // No index reset ahead for this pass any more: end it, so the next pass opens the segment.
++      EndRenderPassFor(kRenderPassEndQuery);
++    }
++    if (!in_render_pass_) {
++      ReserveQueryResets(16, true);
++      if (!BeginSubmission(true)) {
++        return false;
++      }
++    }
++    active_occlusion_query_.valid = true;
++    active_occlusion_query_.segmented = true;
++    if (in_guest_render_pass_) {
++      BeginQuerySegment();
++    }
++    return true;
++  }
++
+   uint32_t host_index = 0;
+   if (!AcquireOcclusionQueryIndex(host_index)) {
+     return false;
+@@ -5181,6 +5299,26 @@ bool VulkanCommandProcessor::EndGuestOcclusionQuery(uint32_t sample_count_addres
+     return false;
+   }
+ 
++  if (active_occlusion_query_.segmented) {
++    if (!BeginSubmission(true)) {
++      return false;
++    }
++    if (active_occlusion_query_.segment_open) {
++      EndQuerySegment();
++    }
++    std::vector<uint32_t> segments = std::move(active_occlusion_query_.segments);
++    active_occlusion_query_ = {};
++    pending_occlusion_queries_.erase(
++        std::remove_if(pending_occlusion_queries_.begin(), pending_occlusion_queries_.end(),
++                       [sample_count_address](const PendingOcclusionQuery& query) {
++                         return query.sample_count_address == sample_count_address;
++                       }),
++        pending_occlusion_queries_.end());
++    pending_occlusion_queries_.push_back(
++        {GetCurrentSubmission(), UINT32_MAX, sample_count_address, std::move(segments)});
++    return true;
++  }
++
+   uint32_t host_index = active_occlusion_query_.host_index;
+   active_occlusion_query_ = {};
+ 
+@@ -5251,8 +5389,15 @@ void VulkanCommandProcessor::CompleteOcclusionQueries(bool wait) {
+       readback_invalidated = true;
+     }
+     const uint64_t* results = reinterpret_cast<const uint64_t*>(occlusion_query_readback_mapping_);
+-    WriteGuestOcclusionResult(query.sample_count_address,
+-                              NormalizeOcclusionSamples(results[query.host_index]));
++    uint64_t samples = 0;
++    if (query.host_index == UINT32_MAX) {
++      for (uint32_t segment : query.segments) {
++        samples += results[segment];
++      }
++    } else {
++      samples = results[query.host_index];
++    }
++    WriteGuestOcclusionResult(query.sample_count_address, NormalizeOcclusionSamples(samples));
+   }
+ }
+ 
+@@ -5992,12 +6137,19 @@ bool VulkanCommandProcessor::EndSubmission(bool is_swap) {
+     assert_false(scratch_buffer_used_);
+ 
+     if (active_occlusion_query_.valid && occlusion_query_pool_ != VK_NULL_HANDLE) {
+-      deferred_command_buffer_.CmdVkEndQuery(occlusion_query_pool_,
+-                                             active_occlusion_query_.host_index);
++      if (active_occlusion_query_.segmented) {
++        if (active_occlusion_query_.segment_open) {
++          EndQuerySegment();
++        }
++      } else {
++        deferred_command_buffer_.CmdVkEndQuery(occlusion_query_pool_,
++                                               active_occlusion_query_.host_index);
++      }
+       active_occlusion_query_ = {};
+     }
+ 
+     EndRenderPassFor(kRenderPassEndSubmission);
++    FlushQueryCopies();
+     GpuCategoryMark(kGpuCategoryEnd);
+ 
+     pipeline_cache_->EndSubmission();

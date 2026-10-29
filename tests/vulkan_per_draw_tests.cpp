@@ -310,6 +310,53 @@ void DynamicUniformRanges(std::mt19937_64& rng) {
   }
 }
 
+// --- 0128: occlusion queries in segments inside the guest's render passes ---------------------------------------
+
+// Model of the segmented mode against what the guest asks: the samples of its draws between a query's begin and end.
+// Events: guest/transfer pass begin, pass end, a draw (only in a pass), guest query begin, guest query end.
+void SegmentedOcclusionQueries(std::mt19937_64& rng) {
+  for (int sequence = 0; sequence < 2000; ++sequence) {
+    bool in_pass = false, guest_pass = false;
+    bool active = false, segment_open = false;
+    uint64_t segment_samples = 0, segments_sum = 0, expected = 0;
+    for (int step = 0; step < 200; ++step) {
+      switch (rng() % 6) {
+        case 0:  // a pass begins (another target ends the current one first)
+          if (in_pass && segment_open) { segments_sum += segment_samples; segment_open = false; }
+          in_pass = true;
+          guest_pass = rng() % 4 != 0;  // some passes are render target cache transfers
+          if (active && guest_pass) { segment_open = true; segment_samples = 0; }
+          break;
+        case 1:  // the pass ends
+          if (in_pass && segment_open) { segments_sum += segment_samples; segment_open = false; }
+          in_pass = false;
+          break;
+        case 2:
+        case 3:  // a draw
+          if (in_pass) {
+            uint64_t samples = rng() % 1000;
+            if (segment_open) segment_samples += samples;
+            if (active && guest_pass) expected += samples;
+          }
+          break;
+        case 4:  // guest begin (a begin while active replaces the query)
+          if (segment_open) { segment_open = false; }
+          active = true;
+          segments_sum = expected = 0;
+          if (in_pass && guest_pass) { segment_open = true; segment_samples = 0; }
+          break;
+        default:  // guest end
+          if (active) {
+            if (segment_open) { segments_sum += segment_samples; segment_open = false; }
+            CHECK(segments_sum == expected);
+            active = false;
+          }
+          break;
+      }
+    }
+  }
+}
+
 // --- the patch text still holds what is mirrored here ----------------------------------------------------------
 
 void PatchText() {
@@ -338,6 +385,12 @@ void PatchText() {
   const std::string p0124 = ReadPatch("0124-");
   CHECK(Has(p0124, "+#include <x86intrin.h>"));
 
+  const std::string p0128 = ReadPatch("0128-");
+  CHECK(Has(p0128, "+  OcclusionQueryAfterGuestRenderPassBegin();"));
+  CHECK(Has(p0128, "+  OcclusionQueryBeforeRenderPassEnd();"));
+  CHECK(Has(p0128, "+        samples += results[segment];"));
+  CHECK(Has(p0128, "+    FlushQueryCopies();"));
+
   const std::string p0125 = ReadPatch("0125-");
   CHECK(Has(p0125, "uint32_t run = uint32_t(std::countr_one(bits >> first));"));
   CHECK(Has(p0125, "bits = first + run >= 64 ? 0 : bits & (~uint64_t(0) << (first + run));"));
@@ -354,6 +407,7 @@ int main() {
   TextureDescriptorReuse(rng);
   UnchangedConstantWrites(rng);
   DynamicUniformRanges(rng);
+  SegmentedOcclusionQueries(rng);
   PatchText();
   return check::Finish("vulkan_per_draw_tests");
 }

@@ -53,7 +53,10 @@ $Batteries = [ordered]@{
         @{ Name = 'A/B anisotropic filtering override 3 / 0'; Settings = $Vulkan + (Ab 'anisotropic_override' '3,0'); Do = $CityAb },
         @{ Name = 'A/B gamma render targets as UNORM16 / 8-bit'; Settings = $Vulkan + (Ab 'gamma_render_target_as_unorm16' 'true,false'); Do = $CityAb },
         @{ Name = 'A/B occlusion queries on / off (markers may show through walls when off)'; Settings = $Vulkan + (Ab 'occlusion_query_enable' 'true,false'); Do = $CityAb },
-        @{ Name = 'A/B dynamic rendering / render passes'; Settings = $Vulkan + (Ab 'vulkan_dynamic_rendering' 'true,false'); Do = $CityAb }
+        @{ Name = 'A/B dynamic rendering / render passes'; Settings = $Vulkan + (Ab 'vulkan_dynamic_rendering' 'true,false'); Do = $CityAb },
+        @{ Name = 'A/B occlusion queries inside render passes / around them (SDK patch 0128)'
+           Settings = $Vulkan + (Ab 'vulkan_occlusion_queries_in_render_pass' 'true,false')
+           Do = "In the Agency garage, walk around the parking markers for 40 s (they must not show through walls in either mode, which alternates every 10 s). $CityAb" }
     )
 }
 
