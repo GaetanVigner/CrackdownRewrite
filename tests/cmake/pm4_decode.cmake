@@ -1,0 +1,1 @@
+crackdown_add_test(pm4_decode_tests SOURCES pm4_decode_tests.cpp)
