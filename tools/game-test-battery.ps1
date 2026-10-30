@@ -49,7 +49,7 @@ $Batteries = [ordered]@{
         # HLE renderer 3b-2.3: the shadow atlas records also drawn into the plugin's own depth image once a stats
         # window (the emulated frame must not change; the report's dry run line gives the native draw count).
         @{ Name = 'Vulkan, HLE native shadow atlas drawn'
-           Settings = $Vulkan + [ordered]@{ crackdown_hle_records = 'true'; crackdown_hle_plugin_channel = 'true'; gpu_hle_native_pass = 'true'; crackdown_hle_markers = 'true'; crackdown_hle_stream_pass = '5'; gpu_hle_compare_dumps = '4'; gpu_hle_dry_run_pass = '"shadow atlas"' }
+           Settings = $Vulkan + [ordered]@{ crackdown_hle_records = 'true'; crackdown_hle_plugin_channel = 'true'; gpu_hle_native_pass = 'true'; crackdown_hle_markers = 'true'; crackdown_hle_stream_pass = '5'; gpu_hle_compare_dumps = '2'; gpu_hle_dry_run_pass = '"shadow atlas"' }
            Do = "$CitySpot Watch for any visual change (there should be none)." }
     )
     'vulkan-gpu' = @(
