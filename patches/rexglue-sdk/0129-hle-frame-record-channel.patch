@@ -37,6 +37,29 @@ CmdVkCopyImageToBuffer); the native image is copied after the native pass. At th
 compare" counts, over the pixels the native pass wrote: equal, native farther (the command buffer draws the records
 miss) and native nearer (errors), and the first gpu_hle_compare_dumps pairs are written as 16-bit PNGs to logs\.
 
+Pass markers (H2): a type-3 NOP whose first dword is 'HLEM' carries {pass, frame, 1 begin / 2 end, records so far};
+CommandProcessor::OnHleMarker gets it (the NOP handler reads the first five dwords), the Vulkan command processor
+keeps the open passes and counts the emulated draws (not resolves) each pass's markers enclose, and compares them
+with the latest frame's records per pass ("HLE pass markers").
+
+diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
+index 7a5bdd2..4a849fc 100644
+--- a/include/rex/graphics/command_processor.h
++++ b/include/rex/graphics/command_processor.h
+@@ -197,6 +197,13 @@ class CommandProcessor {
+   bool ExecutePacketType3(memory::RingBuffer* reader, uint32_t packet);
+   bool ExecutePacketType3_ME_INIT(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
+   bool ExecutePacketType3_NOP(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
++  // HLE renderer render pass markers (a NOP whose first dword is 'HLEM': pass, frame, 1 begin / 2 end, records).
++  virtual void OnHleMarker(uint32_t pass, uint32_t frame, uint32_t kind, uint32_t records) {
++    (void)pass;
++    (void)frame;
++    (void)kind;
++    (void)records;
++  }
+   bool ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
+   bool ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
+   bool ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* reader, uint32_t packet,
 diff --git a/include/rex/graphics/hle_frame.h b/include/rex/graphics/hle_frame.h
 new file mode 100644
 index 0000000..b9f609b
@@ -143,10 +166,10 @@ index 0000000..b9f609b
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..b5db5ea 100644
+index 4f8a0cb..95366c6 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
-@@ -470,6 +470,112 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -470,6 +470,119 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -156,6 +179,13 @@ index 4f8a0cb..b5db5ea 100644
 +  // and pipeline creation with a depth-only render pass of its own, then the registers are restored. Nothing is
 +  // drawn; the counts say what a native pass would get.
 +  void HleDryRun();
++  // Render pass markers (H2): the passes open in the command stream, and the emulated draws (not resolves) each
++  // pass's markers enclose, this frame and the last.
++  void OnHleMarker(uint32_t pass, uint32_t frame, uint32_t kind, uint32_t records) override;
++  std::vector<uint32_t> hle_pass_stack_;
++  uint32_t hle_marker_begins_ = 0, hle_marker_ends_ = 0, hle_marker_unbalanced_ = 0;
++  uint32_t hle_pass_draws_[32] = {}, hle_pass_draws_last_[32] = {};
++  uint64_t hle_marker_frame_ = 0;
 +  bool hle_dry_run_pending_ = false;
 +  struct HleDryRunStats {
 +    uint64_t frame = 0;
@@ -357,6 +387,26 @@ index 2bf96ca..a2d471a 100644
  
      # Core GPU types
      flags.cpp
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+index 11d06a9..aebe726 100644
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -1863,7 +1863,14 @@ bool CommandProcessor::ExecutePacketType3_ME_INIT(memory::RingBuffer* reader, ui
+ bool CommandProcessor::ExecutePacketType3_NOP(memory::RingBuffer* reader, uint32_t packet,
+                                               uint32_t count) {
+   // skip N 32-bit words to get to the next packet
+-  // No-op, ignore some data.
++  // No-op, ignore some data - or an HLE render pass marker.
++  if (count >= 5) {
++    uint32_t words[5];
++    for (uint32_t& word : words) word = reader->ReadAndSwap<uint32_t>();
++    if (words[0] == 0x484C454D) OnHleMarker(words[1], words[2], words[3], words[4]);
++    reader->AdvanceRead((count - 5) * sizeof(uint32_t));
++    return true;
++  }
+   reader->AdvanceRead(count * sizeof(uint32_t));
+   return true;
+ }
 diff --git a/src/graphics/hle_frame.cpp b/src/graphics/hle_frame.cpp
 new file mode 100644
 index 0000000..91b0458
@@ -485,7 +535,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..a5e8060 100644
+index d71d508..a31d642 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,11 @@
@@ -531,12 +581,14 @@ index d71d508..a5e8060 100644
  REXCVAR_DEFINE_BOOL(vulkan_occlusion_queries_in_render_pass, false, "GPU/Vulkan",
                      "Run occlusion queries inside the guest's render passes (a host query per pass a guest query "
                      "spans, summed) instead of ending the render pass around each query")
-@@ -2503,6 +2525,85 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -2503,6 +2525,87 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
    vertex_buffers_in_sync_[0] = 0;
    vertex_buffers_in_sync_[1] = 0;
  
 +  // The dry run / native pass runs at the end of the captured frame, so the emulated reference, the emulated draws'
 +  // state and the records are the same frame's; a pass whose target is not known yet runs it at once to learn it.
++  std::memcpy(hle_pass_draws_last_, hle_pass_draws_, sizeof(hle_pass_draws_));
++  std::memset(hle_pass_draws_, 0, sizeof(hle_pass_draws_));
 +  if (hle_state_capture_active_ && hle_shadow_mode_) {
 +    if (hle_shadow_target_ready_ && hle_reference_captured_ && !hle_compare_pending_ &&
 +        EnsureHleReadback(VkDeviceSize(64) << 20)) {
@@ -617,7 +669,7 @@ index d71d508..a5e8060 100644
    if (!graphics_system_)
      return;
    ui::Presenter* presenter = graphics_system_->presenter();
-@@ -3886,6 +3987,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3886,6 +3989,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
  
    const RegisterFile& regs = *register_file_;
    (void)index_buffer_info;
@@ -634,7 +686,17 @@ index d71d508..a5e8060 100644
    draw_timing_ = REXCVAR_GET(gpu_frame_stats);
    if (draw_timing_) {
      draw_mark_ = DrawTicks();
-@@ -3924,6 +4035,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3906,6 +4019,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+   };
+ 
+   xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
++  if (!hle_pass_stack_.empty() && edram_mode != xenos::EdramMode::kCopy) {
++    ++hle_pass_draws_[hle_pass_stack_.back() & 31];
++  }
+   if (edram_mode == xenos::EdramMode::kCopy) {
+     // Special copy handling.
+     return IssueCopy();
+@@ -3924,6 +4040,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      return draw_fail("missing_vertex_shader");
    }
    pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
@@ -642,7 +704,7 @@ index d71d508..a5e8060 100644
    bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
    if (memexport_used_vertex) {
      if (!device_properties.vertexPipelineStoresAndAtomics) {
-@@ -3964,6 +4076,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3964,6 +4081,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
        return true;
      }
    }
@@ -650,7 +712,7 @@ index d71d508..a5e8060 100644
    bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
    if (memexport_used_pixel) {
      if (!device_properties.fragmentStoresAndAtomics) {
-@@ -4023,6 +4136,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4023,6 +4141,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      // produced by the primitive processor and are handled by the Vulkan
      // pipeline cache.
      DRAW_SECTION(1);
@@ -658,7 +720,7 @@ index d71d508..a5e8060 100644
      Shader::HostVertexShaderType host_vertex_shader_type =
          primitive_processing_result.host_vertex_shader_type;
      if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex &&
-@@ -4149,6 +4263,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4149,6 +4268,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    if (!render_target_updated) {
      return draw_fail("render_target_update");
    }
@@ -666,7 +728,7 @@ index d71d508..a5e8060 100644
  
    // Create the pipeline (for this, need the render pass from the render target
    // cache), translating the shaders - doing this now to obtain the used
-@@ -4280,6 +4395,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4280,6 +4400,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
                               shader_32bit_index_dma, 0, viewport_info, used_texture_mask,
                               normalized_depth_control, normalized_color_mask);
@@ -686,7 +748,7 @@ index d71d508..a5e8060 100644
  
    // Update uniform buffers and descriptor sets after binding the pipeline with
    // the new layout.
-@@ -4468,6 +4596,22 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4468,6 +4601,22 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1,
                                                0, 0, 0);
    }
@@ -709,7 +771,7 @@ index d71d508..a5e8060 100644
  
    // Invalidate textures in memexported memory and watch for changes.
    if (!memexport_ranges_.empty()) {
-@@ -4711,6 +4855,29 @@ bool VulkanCommandProcessor::IssueCopy() {
+@@ -4711,6 +4860,29 @@ bool VulkanCommandProcessor::IssueCopy() {
    }
    GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
  
@@ -739,7 +801,7 @@ index d71d508..a5e8060 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +5953,881 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +5958,899 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1215,6 +1277,24 @@ index d71d508..a5e8060 100644
 +  return identical;
 +}
 +
++void VulkanCommandProcessor::OnHleMarker(uint32_t pass, uint32_t frame, uint32_t kind, uint32_t records) {
++  (void)records;
++  hle_marker_frame_ = frame;
++  if (kind == 1) {
++    ++hle_marker_begins_;
++    hle_pass_stack_.push_back(pass);
++  } else if (kind == 2) {
++    ++hle_marker_ends_;
++    if (!hle_pass_stack_.empty() && hle_pass_stack_.back() == pass) {
++      hle_pass_stack_.pop_back();
++    } else {
++      ++hle_marker_unbalanced_;
++      auto it = std::find(hle_pass_stack_.rbegin(), hle_pass_stack_.rend(), pass);
++      if (it != hle_pass_stack_.rend()) hle_pass_stack_.erase(std::next(it).base(), hle_pass_stack_.end());
++    }
++  }
++}
++
 +void VulkanCommandProcessor::HleDryRun() {
 +  HleDryRunStats stats;
 +  const std::string wanted = hle_current_pass_;
@@ -1621,7 +1701,7 @@ index d71d508..a5e8060 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6907,225 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +6930,250 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -1731,7 +1811,7 @@ index d71d508..a5e8060 100644
 +        }
 +      }
 +      struct PassInventory {
-+        uint32_t draws = 0, depth_only = 0, color_depth = 0, msaa[4] = {}, unanalyzed = 0;
++        uint32_t draws = 0, depth_only = 0, color_depth = 0, msaa[4] = {}, unanalyzed = 0, not_copies = 0;
 +        // Index source of the draw packet the call wrote (ABI 4): DMA, immediate, auto index, not found.
 +        uint32_t index_source[4] = {};
 +        std::unordered_set<uint32_t> primitive_types;
@@ -1778,6 +1858,7 @@ index d71d508..a5e8060 100644
 +        const uint32_t surface_info = reg(0x2000), color_info = reg(0x2001), depth_info = reg(0x2002);
 +        const uint32_t color_mask = reg(0x2104), mode = reg(0x2208) & 7;
 +        ++inventory.msaa[(surface_info >> 16) & 3];
++        if (mode != uint32_t(xenos::EdramMode::kCopy)) ++inventory.not_copies;
 +        if (mode == uint32_t(xenos::EdramMode::kDepthOnly) || !ucode[2] || !color_mask) {
 +          ++inventory.depth_only;
 +        } else if (mode == uint32_t(xenos::EdramMode::kColorDepth)) {
@@ -1811,6 +1892,30 @@ index d71d508..a5e8060 100644
 +            inventory.primitive_types.insert(draw[0] & 0x3F);
 +          }
 +        }
++      }
++      if (hle_marker_begins_ || hle_marker_ends_) {
++        // The pass markers against the records: per pass, the emulated draws between its markers (last GPU frame)
++        // and the latest frame's records (not resolves). Equal counts mean the markers enclose the pass.
++        std::string differing;
++        uint32_t equal_passes = 0, compared = 0;
++        for (size_t pass = 1; pass < passes.size() && pass < 32; ++pass) {
++          const uint32_t emulated = hle_pass_draws_last_[pass], recorded = passes[pass].not_copies;
++          if (!emulated && !recorded) continue;
++          ++compared;
++          if (emulated == recorded) {
++            ++equal_passes;
++          } else {
++            differing += fmt::format(" {} {}/{},",
++                                     pass < latest.pass_names.size() ? latest.pass_names[pass] : std::string("?"),
++                                     emulated, recorded);
++          }
++        }
++        REXGPU_INFO(
++            "HLE pass markers{}: {} begins, {} ends, {} unbalanced, last frame {}; passes with as many emulated "
++            "draws between their markers as records: {} of {}; differing (emulated/records):{}",
++            ab_tag, hle_marker_begins_, hle_marker_ends_, hle_marker_unbalanced_, hle_marker_frame_, equal_passes,
++            compared, differing.empty() ? std::string(" none") : differing);
++        hle_marker_begins_ = hle_marker_ends_ = hle_marker_unbalanced_ = 0;
 +      }
 +      for (size_t pass = 0; pass < passes.size(); ++pass) {
 +        const PassInventory& inventory = passes[pass];

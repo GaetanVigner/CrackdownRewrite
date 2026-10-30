@@ -71,6 +71,14 @@ void HleLeaveRenderPass(uint32_t previous);
 // Whether crackdown_hle_records is on.
 bool HleRecordsEnabled();
 
+// HLE renderer H2: render pass markers. With crackdown_hle_markers on, each tagged render pass writes a NOP packet to
+// the ring when it begins and ends ({kHleMarkerMagic, pass, frame, 1 begin / 2 end, records so far this frame}), so
+// the GPU side knows where each pass's draws are in the command stream.
+inline constexpr uint32_t kHleMarkerMagic = 0x484C454D;  // 'HLEM'
+bool HleMarkersEnabled();
+uint64_t HleRecordsFrameNumber();
+uint32_t HleRecordsInFrame();
+
 // The device's float constant dirty masks (VS, PS), read before a call flushes and clears them.
 struct HleRecordMasks {
   uint64_t vs = 0;

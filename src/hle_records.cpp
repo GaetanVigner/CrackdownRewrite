@@ -46,6 +46,11 @@ REXCVAR_DEFINE_BOOL(crackdown_hle_records, false, "Crackdown",
                     "flushing call and log their counters every 10 s; observe only")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_BOOL(crackdown_hle_markers, false, "Crackdown",
+                    "Developer diagnostics (HLE renderer H2): write a marker packet to the GPU command stream where "
+                    "each tagged render pass begins and ends")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 REXCVAR_DEFINE_BOOL(crackdown_hle_plugin_channel, false, "Crackdown",
                     "Developer diagnostics (HLE renderer H1b): with crackdown_hle_records on, hand each frame's draw "
                     "records and state blocks to the GPU plugin (rex_gpu_hle_submit_frame, SDK patch 0129), which "
@@ -484,6 +489,20 @@ uint32_t HleEnterRenderPass(uint32_t pass) {
   const uint32_t previous = t_pass;
   t_pass = pass;
   return previous;
+}
+
+bool HleMarkersEnabled() { return REXCVAR_GET(crackdown_hle_markers); }
+
+uint64_t HleRecordsFrameNumber() {
+  State& state = g_state;
+  SpinLock lock(state.lock);
+  return state.frame_number;
+}
+
+uint32_t HleRecordsInFrame() {
+  State& state = g_state;
+  SpinLock lock(state.lock);
+  return uint32_t(state.frame_records.size());
 }
 
 uint32_t HleCurrentRenderPass() {

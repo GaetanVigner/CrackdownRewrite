@@ -678,9 +678,34 @@ void NoteSegments(uint32_t physical, uint32_t dwords) {
 
 // Runs a hooked call (r3 = device, arguments r4-r7) and returns its H1a draw record (nullptr with records off): the
 // dirty masks are read before the call flushes them, the state after.
+// The D3D device the hooked calls use (for the pass markers, written outside a call).
+uint32_t g_hle_device = 0;
+uint32_t g_markers_written = 0, g_markers_skipped = 0;
+
+// Writes a pass marker (a type-3 NOP) to the device's ring if its segment has room (the runtime's own check: the
+// write pointer, the last dword written, at most the segment's limit at device+56); skipped otherwise.
+void WriteHleMarker(uint8_t* base, uint32_t pass, uint32_t kind) {
+  if (!g_hle_device || !HleMarkersEnabled()) return;
+  const uint32_t device = g_hle_device;
+  uint32_t pointer = Load32(base, device + kWritePointer);
+  if (!guest::Plausible(pointer) || pointer > Load32(base, device + 56)) {
+    ++g_markers_skipped;
+    return;
+  }
+  const uint32_t words[6] = {0xC0001000u | (4u << 16), kHleMarkerMagic, pass, uint32_t(HleRecordsFrameNumber()),
+                             kind, HleRecordsInFrame()};
+  for (uint32_t word : words) {
+    pointer += 4;
+    guest::Store32(base, pointer, word);
+  }
+  guest::Store32(base, device + kWritePointer, pointer);
+  ++g_markers_written;
+}
+
 template <typename Original>
 const DrawRecord* CallWithRecord(PPCContext& ctx, uint8_t* base, RecordKind kind, Original original) {
   const uint32_t device = ctx.r3.u32;
+  g_hle_device = device;
   const uint32_t args[4] = {ctx.r4.u32, ctx.r5.u32, ctx.r6.u32, ctx.r7.u32};
   g_frame_calls.fetch_add(1, std::memory_order_relaxed);
   const HleRecordMasks masks = HleReadRecordMasks(base, device);
@@ -1019,7 +1044,9 @@ void crackdown::hooks::D3dRingSegmentSwitch(PPCContext& ctx, uint8_t* base, Gues
 #define CRACKDOWN_DEFINE_RENDER_PASS(n)                                                             \
   void crackdown::hooks::RenderPass##n(PPCContext& ctx, uint8_t* base, GuestFunction original) {    \
     const uint32_t previous = crackdown::HleEnterRenderPass(n);                                    \
+    crackdown::WriteHleMarker(base, n, 1);                                                         \
     original(ctx, base);                                                                           \
+    crackdown::WriteHleMarker(base, n, 2);                                                         \
     crackdown::HleLeaveRenderPass(previous);                                                       \
   }
 CRACKDOWN_RENDER_PASSES(CRACKDOWN_DEFINE_RENDER_PASS)
@@ -1043,7 +1070,9 @@ void crackdown::hooks::RenderObjects(PPCContext& ctx, uint8_t* base, GuestFuncti
     return;
   }
   const uint32_t previous = crackdown::HleEnterRenderPass(pass);
+  crackdown::WriteHleMarker(base, pass, 1);
   original(ctx, base);
+  crackdown::WriteHleMarker(base, pass, 2);
   crackdown::HleLeaveRenderPass(previous);
 }
 
@@ -1054,7 +1083,9 @@ void crackdown::hooks::RenderHud(PPCContext& ctx, uint8_t* base, GuestFunction o
     return;
   }
   const uint32_t previous = crackdown::HleEnterRenderPass(29);
+  crackdown::WriteHleMarker(base, 29, 1);
   original(ctx, base);
+  crackdown::WriteHleMarker(base, 29, 2);
   crackdown::HleLeaveRenderPass(previous);
 }
 
