@@ -59,12 +59,12 @@
     {
       "id": "H1b",
       "name": "Vulkan opaque",
-      "status": "in progress"
+      "status": "done"
     },
     {
       "id": "H2",
       "name": "pass switch",
-      "status": "planned"
+      "status": "in progress"
     },
     {
       "id": "H3",
@@ -117,5 +117,5 @@
     "shadow atlas": "validated"
   },
   "_comment_passes": "passes: native renderer stage per tagged render pass (tools/progress_map.py STAGES: emulated, records, dry run, native draw, validated, native); unlisted passes are emulated.",
-  "_comment_atlas": "shadow atlas: native per draw matched the emulation 100% in one window (2026-10-30); 36-78% in others, under study."
+  "_comment_atlas": "shadow atlas: native per draw equals the emulated draws 100% in every window (2026-10-30), using the emulated draws shaders; next the record-side shader hash and the switch."
 }
