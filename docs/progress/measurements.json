@@ -114,7 +114,8 @@
     "hud"
   ],
   "passes": {
-    "shadow atlas": "native draw"
+    "shadow atlas": "validated"
   },
-  "_comment_passes": "passes: native renderer stage per tagged render pass (tools/progress_map.py STAGES: emulated, records, dry run, native draw, validated, native); unlisted passes are emulated."
+  "_comment_passes": "passes: native renderer stage per tagged render pass (tools/progress_map.py STAGES: emulated, records, dry run, native draw, validated, native); unlisted passes are emulated.",
+  "_comment_atlas": "shadow atlas: validated for static geometry (2026-10-30); dynamic (skinned) geometry needs the native pass to run in place (H2)."
 }

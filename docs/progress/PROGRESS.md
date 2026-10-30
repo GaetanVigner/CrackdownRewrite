@@ -295,7 +295,7 @@ The recompiled functions of `default.xex` by address area: natively replaced (ho
 | shadow map | emulated |
 | shadow helper a | emulated |
 | shadow helper b | emulated |
-| shadow atlas | native draw |
+| shadow atlas | validated |
 | opaque scene | emulated |
 | depth resolve | emulated |
 | normal resolve | emulated |

@@ -5742,7 +5742,7 @@
 <rect x="930" y="508" width="11" height="11" rx="2" fill="#cf222e"/>
 <text class="t" x="946" y="518">missing</text>
 <text class="t" x="690" y="538">today from the ReXGlue runtime: each a PC implementation to write</text>
-<text class="h" x="20" y="560">Render passes by native renderer stage (0 of 29 native)</text>
+<text class="h" x="20" y="560">Render passes by native renderer stage (1 of 29 native)</text>
 <rect x="20" y="570" width="106" height="44" rx="3" fill="#6e7681"><title>early target: emulated</title></rect>
 <text x="25" y="587" fill="#ffffff" font-size="11">early target</text>
 <text x="25" y="603" fill="#ffffff" fill-opacity=".75" font-size="10">emulated</text>
@@ -5755,9 +5755,9 @@
 <rect x="344" y="570" width="106" height="44" rx="3" fill="#6e7681"><title>shadow helper b: emulated</title></rect>
 <text x="349" y="587" fill="#ffffff" font-size="11">shadow helper b</text>
 <text x="349" y="603" fill="#ffffff" fill-opacity=".75" font-size="10">emulated</text>
-<rect x="452" y="570" width="106" height="44" rx="3" fill="#bf8700"><title>shadow atlas: native draw</title></rect>
+<rect x="452" y="570" width="106" height="44" rx="3" fill="#2da44e"><title>shadow atlas: validated</title></rect>
 <text x="457" y="587" fill="#ffffff" font-size="11">shadow atlas</text>
-<text x="457" y="603" fill="#ffffff" fill-opacity=".75" font-size="10">native draw</text>
+<text x="457" y="603" fill="#ffffff" fill-opacity=".75" font-size="10">validated</text>
 <rect x="560" y="570" width="106" height="44" rx="3" fill="#6e7681"><title>opaque scene: emulated</title></rect>
 <text x="565" y="587" fill="#ffffff" font-size="11">opaque scene</text>
 <text x="565" y="603" fill="#ffffff" fill-opacity=".75" font-size="10">emulated</text>
