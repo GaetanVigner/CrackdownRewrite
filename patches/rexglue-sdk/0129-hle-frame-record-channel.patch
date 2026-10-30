@@ -132,10 +132,10 @@ index 0000000..5b1d42b
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..1efad55 100644
+index 4f8a0cb..7a3674a 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
-@@ -470,6 +470,92 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -470,6 +470,108 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -160,6 +160,9 @@ index 4f8a0cb..1efad55 100644
 +    // the last clear's RB_DEPTH_CLEAR.
 +    uint32_t z_functions = 0, z_enabled = 0, z_writes = 0, clears = 0, depth_clear = 0;
 +    uint32_t skipped_copies = 0, skipped_no_raster = 0;  // records IssueDraw would not draw either
++    // The native pass stops at the pass's first depth resolve record: the EDRAM target holds one resolve's worth
++    // (a cascade of the atlas) at a time, and that is what the reference copy at the first resolve shows.
++    uint32_t after_first_resolve = 0;
 +    bool ran = false;
 +  } hle_dry_run_;
 +  // The native pass's depth target (kept between runs; recreated when the format or size changes).
@@ -214,6 +217,19 @@ index 4f8a0cb..1efad55 100644
 +  std::vector<uint8_t> hle_state_system_constants_;
 +  std::vector<float> hle_state_viewport_z_;
 +  int32_t hle_capture_last_index_ = -1;
++  // How far IssueDraw got for the captured draws: the stage of the last one (counted when the next draw starts or the
++  // capture ends). 1 entered, 2 vertex shader, 3 rasterization decided, 4 primitives processed, 5 render targets,
++  // 6 system constants.
++  uint32_t hle_capture_stage_ = 0;
++  // Shadow draws (bisection of the native pass): in alternate windows each captured emulated draw is issued a
++  // second time, with the emulation's own bindings and pipeline, into the native depth image; the comparison then
++  // tells the native pass's setup from its target and readback.
++  bool hle_shadow_mode_ = false;
++  bool hle_shadow_this_draw_ = false;
++  bool hle_shadow_target_ready_ = false;
++  uint32_t hle_shadow_draws_ = 0, hle_shadow_skipped_ = 0;
++  bool HleEnterShadowTarget();
++  uint32_t hle_capture_stages_[7] = {};
 +  std::unordered_map<uint32_t, uint32_t> hle_system_constant_diffs_;  // dword index -> native draws differing
 +  uint32_t hle_system_constants_compared_ = 0, hle_viewport_z_diffs_ = 0, hle_system_constants_unmatched_ = 0;
 +  float hle_viewport_z_example_[4] = {};  // native min, max, emulated min, max of the last mismatch
@@ -446,7 +462,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..269eb58 100644
+index d71d508..8bb9cad 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,11 @@
@@ -492,15 +508,64 @@ index d71d508..269eb58 100644
  REXCVAR_DEFINE_BOOL(vulkan_occlusion_queries_in_render_pass, false, "GPU/Vulkan",
                      "Run occlusion queries inside the guest's render passes (a host query per pass a guest query "
                      "spans, summed) instead of ending the render pass around each query")
-@@ -2503,6 +2525,26 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -2503,6 +2525,75 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
    vertex_buffers_in_sync_[0] = 0;
    vertex_buffers_in_sync_[1] = 0;
  
 +  // The dry run / native pass runs at the end of the captured frame, so the emulated reference, the emulated draws'
 +  // state and the records are the same frame's; a pass whose target is not known yet runs it at once to learn it.
++  if (hle_state_capture_active_ && hle_shadow_mode_) {
++    if (hle_shadow_target_ready_ && hle_reference_captured_ && !hle_compare_pending_ &&
++        EnsureHleReadback(VkDeviceSize(64) << 20)) {
++      EndRenderPass();
++      const VkExtent2D extent = hle_native_framebuffer_.host_extent;
++      if (VkDeviceSize(extent.width) * extent.height * 4 <= hle_readback_size_) {
++        PushImageMemoryBarrier(hle_native_depth_image_,
++                               ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
++                                                                            VK_IMAGE_ASPECT_STENCIL_BIT),
++                               VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
++                                   VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
++                               VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
++                               VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
++                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
++        SubmitBarriers(true);
++        VkBufferImageCopy region = {};
++        region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
++        region.imageSubresource.layerCount = 1;
++        region.imageExtent = {extent.width, extent.height, 1};
++        deferred_command_buffer_.CmdVkCopyImageToBuffer(hle_native_depth_image_,
++                                                        VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
++                                                        hle_readback_buffers_[1], 1, &region);
++        hle_native_depth_layout_ = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
++        hle_native_extent_ = extent;
++        hle_native_clear_depth_ = 1.0f;
++        hle_compare_pending_ = true;
++        hle_compare_submission_ = GetCurrentSubmission();
++        hle_compare_frame_ = 0;
++        hle_compare_pass_ = hle_current_pass_ + " (shadow draws)";
++      }
++    }
++    hle_reference_captured_ = false;
++    hle_shadow_target_ready_ = false;
++    hle_dry_run_pending_ = false;  // this window's comparison is the shadow draws'
++    REXGPU_INFO("HLE shadow draws: pass {}, {} emulated draws issued again into the native image ({} skipped: "
++                "colour targets bound or no dynamic rendering)",
++                hle_current_pass_, hle_shadow_draws_, hle_shadow_skipped_);
++    hle_shadow_draws_ = hle_shadow_skipped_ = 0;
++  }
 +  if (hle_state_capture_active_) {
 +    hle_state_capture_active_ = false;
++    if (hle_capture_stage_) {
++      ++hle_capture_stages_[hle_capture_stage_];
++      hle_capture_stage_ = 0;
++    }
 +    HleCompareState();
++    hle_state_line_ += fmt::format(
++        "; emulated IssueDraw reached: entered only {}, vertex shader {}, rasterization decided {}, primitives {}, "
++        "render targets {}, system constants (drawn) {}",
++        hle_capture_stages_[1], hle_capture_stages_[2], hle_capture_stages_[3], hle_capture_stages_[4],
++        hle_capture_stages_[5], hle_capture_stages_[6]);
++    std::memset(hle_capture_stages_, 0, sizeof(hle_capture_stages_));
 +    if (hle_dry_run_pending_) {
 +      hle_dry_run_pending_ = false;
 +      HleDryRun();
@@ -519,21 +584,60 @@ index d71d508..269eb58 100644
    if (!graphics_system_)
      return;
    ui::Presenter* presenter = graphics_system_->presenter();
-@@ -3886,6 +3928,10 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3886,6 +3977,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
  
    const RegisterFile& regs = *register_file_;
    (void)index_buffer_info;
 +  hle_capture_last_index_ = -1;
++  if (hle_capture_stage_) {
++    ++hle_capture_stages_[hle_capture_stage_];
++    hle_capture_stage_ = 0;
++  }
 +  if (hle_state_capture_active_) {
 +    HleCaptureEmulatedDraw();
++    if (hle_capture_last_index_ >= 0) hle_capture_stage_ = 1;
++    hle_shadow_this_draw_ = hle_shadow_mode_ && hle_capture_last_index_ >= 0 && !hle_reference_captured_;
 +  }
    draw_timing_ = REXCVAR_GET(gpu_frame_stats);
    if (draw_timing_) {
      draw_mark_ = DrawTicks();
-@@ -4280,6 +4326,18 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3924,6 +4025,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+     return draw_fail("missing_vertex_shader");
+   }
+   pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
++  if (hle_capture_stage_) hle_capture_stage_ = 2;
+   bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
+   if (memexport_used_vertex) {
+     if (!device_properties.vertexPipelineStoresAndAtomics) {
+@@ -3964,6 +4066,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+       return true;
+     }
+   }
++  if (hle_capture_stage_) hle_capture_stage_ = 3;
+   bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
+   if (memexport_used_pixel) {
+     if (!device_properties.fragmentStoresAndAtomics) {
+@@ -4023,6 +4126,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+     // produced by the primitive processor and are handled by the Vulkan
+     // pipeline cache.
+     DRAW_SECTION(1);
++    if (hle_capture_stage_) hle_capture_stage_ = 4;
+     Shader::HostVertexShaderType host_vertex_shader_type =
+         primitive_processing_result.host_vertex_shader_type;
+     if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex &&
+@@ -4149,6 +4253,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+   if (!render_target_updated) {
+     return draw_fail("render_target_update");
+   }
++  if (hle_capture_stage_) hle_capture_stage_ = 5;
+ 
+   // Create the pipeline (for this, need the render pass from the render target
+   // cache), translating the shaders - doing this now to obtain the used
+@@ -4280,6 +4385,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
                               shader_32bit_index_dma, 0, viewport_info, used_texture_mask,
                               normalized_depth_control, normalized_color_mask);
++  if (hle_capture_stage_) hle_capture_stage_ = 6;
 +  if (hle_capture_last_index_ >= 0) {
 +    const size_t index = size_t(hle_capture_last_index_);
 +    constexpr size_t kSize = sizeof(SpirvShaderTranslator::SystemConstants);
@@ -549,11 +653,36 @@ index d71d508..269eb58 100644
  
    // Update uniform buffers and descriptor sets after binding the pipeline with
    // the new layout.
-@@ -4711,6 +4769,27 @@ bool VulkanCommandProcessor::IssueCopy() {
+@@ -4468,6 +4586,22 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+     deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1,
+                                               0, 0, 0);
+   }
++  if (hle_shadow_this_draw_) {
++    hle_shadow_this_draw_ = false;
++    // The same draw again (pipeline, descriptor sets, index buffer and dynamic state stay bound) into the native
++    // depth image, if the emulation's render pass has the depth target only (the pipeline is then compatible).
++    if (render_target_cache_->last_update_render_pass_key().depth_and_color_used == 1 && HleEnterShadowTarget()) {
++      if (primitive_processing_result.index_buffer_type == PrimitiveProcessor::ProcessedIndexBufferType::kNone ||
++          shader_32bit_index_dma) {
++        deferred_command_buffer_.CmdVkDraw(primitive_processing_result.host_draw_vertex_count, 1, 0, 0);
++      } else {
++        deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1, 0, 0, 0);
++      }
++      ++hle_shadow_draws_;
++    } else {
++      ++hle_shadow_skipped_;
++    }
++  }
+ 
+   // Invalidate textures in memexported memory and watch for changes.
+   if (!memexport_ranges_.empty()) {
+@@ -4711,6 +4845,29 @@ bool VulkanCommandProcessor::IssueCopy() {
    }
    GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
  
-+  if (hle_reference_armed_ && hle_atlas_known_) {
++  // Only a resolve after the pass's own draws in the captured frame (an earlier one of the same EDRAM base belongs
++  // to another pass).
++  if (hle_reference_armed_ && hle_atlas_known_ && hle_state_capture_active_ && hle_state_captured_draws_) {
 +    ++hle_armed_copies_;
 +    if ((register_file_->values[XE_GPU_REG_RB_COPY_CONTROL] & 7) == 4) {
 +      ++hle_armed_depth_copies_;
@@ -577,7 +706,7 @@ index d71d508..269eb58 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +5865,800 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +5943,870 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -852,6 +981,50 @@ index d71d508..269eb58 100644
 +  ++hle_state_captured_draws_;
 +}
 +
++bool VulkanCommandProcessor::HleEnterShadowTarget() {
++  const ui::vulkan::VulkanDevice::Properties& device_properties = GetVulkanDevice()->properties();
++  if (!(REXCVAR_GET(vulkan_dynamic_rendering) && device_properties.dynamicRendering)) return false;
++  const VulkanRenderTargetCache::RenderPassKey key = render_target_cache_->last_update_render_pass_key();
++  if (!hle_shadow_target_ready_) {
++    const RegisterFile& regs = *register_file_;
++    const uint32_t pitch = std::max(uint32_t(regs.Get<reg::RB_SURFACE_INFO>().surface_pitch), 1u);
++    const uint32_t width = std::min(pitch * render_target_cache_->draw_resolution_scale_x(),
++                                    device_properties.maxImageDimension2D);
++    const uint32_t height = std::min(std::min(2048u * 80u * 16u / pitch, 8192u) *
++                                         render_target_cache_->draw_resolution_scale_y(),
++                                     device_properties.maxImageDimension2D);
++    if (!EnsureHleNativeDepth(render_target_cache_->GetDepthVulkanFormat(key.depth_format), width, height,
++                              VK_NULL_HANDLE)) {
++      return false;
++    }
++    EndRenderPass();
++    PushImageMemoryBarrier(hle_native_depth_image_,
++                           ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
++                                                                        VK_IMAGE_ASPECT_STENCIL_BIT),
++                           VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
++                           VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
++                           VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
++                           VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
++                           VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
++                           VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, false);
++    hle_native_depth_layout_ = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++    SubmitBarriersAndEnterRenderTargetCacheRenderPass(VK_NULL_HANDLE, &hle_native_framebuffer_,
++                                                      hle_native_depth_view_, true);
++    VkClearAttachment clear = {};
++    clear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
++    clear.clearValue.depthStencil = {1.0f, 0};
++    VkClearRect clear_rect = {};
++    clear_rect.rect.extent = hle_native_framebuffer_.host_extent;
++    clear_rect.layerCount = 1;
++    deferred_command_buffer_.CmdVkClearAttachments(1, &clear, 1, &clear_rect);
++    hle_shadow_target_ready_ = true;
++    return true;
++  }
++  SubmitBarriersAndEnterRenderTargetCacheRenderPass(VK_NULL_HANDLE, &hle_native_framebuffer_, hle_native_depth_view_,
++                                                    true);
++  return true;
++}
++
 +void VulkanCommandProcessor::HleCompareNativeConstants(const draw_util::ViewportInfo& viewport_info) {
 +  constexpr uint32_t kDwords = kHleStateEnd - kHleStateFirst;
 +  constexpr size_t kSize = sizeof(SpirvShaderTranslator::SystemConstants);
@@ -1031,6 +1204,7 @@ index d71d508..269eb58 100644
 +  };
 +  const ui::vulkan::VulkanDevice::Properties& device_properties = GetVulkanDevice()->properties();
 +  bool draw_native = REXCVAR_GET(gpu_hle_native_pass);
++  bool native_stopped = false;
 +  bool native_target_ready = false;
 +  VkRenderPass native_render_pass = VK_NULL_HANDLE;
 +  const uint32_t count = uint32_t(latest.records.size() / latest.record_size);
@@ -1039,6 +1213,21 @@ index d71d508..269eb58 100644
 +    uint32_t kind, pass;
 +    std::memcpy(&kind, record, 4);
 +    std::memcpy(&pass, record + 4, 4);
++    if (kind == 7 && stats.native_draws && !native_stopped) {
++      // A depth resolve (RB_COPY_CONTROL source 4) after the pass's first native draws, whatever pass it is tagged
++      // with (the title resolves each atlas cascade outside the pass function): the reference shows up to there.
++      uint32_t render_state;
++      std::memcpy(&render_state, record + latest.state_offset, 4);
++      for (size_t g = 0, position = 0; g + 1 < latest.groups.size(); g += 2) {
++        const uint32_t first = latest.groups[g], dwords = latest.groups[g + 1];
++        if (XE_GPU_REG_RB_COPY_CONTROL >= first && XE_GPU_REG_RB_COPY_CONTROL < first + dwords &&
++            (arena(render_state + uint32_t(position) + (XE_GPU_REG_RB_COPY_CONTROL - first)) & 7) == 4) {
++          native_stopped = true;
++        }
++        position += dwords;
++      }
++      continue;
++    }
 +    if (kind == 6 && pass == wanted_pass) {
 +      // A D3D Clear of the pass: its depth clear value (the native target is cleared to the last one before the
 +      // first native draw, as the guest's depth is).
@@ -1184,6 +1373,16 @@ index d71d508..269eb58 100644
 +      ++stats.failed_pipeline;
 +    }
 +    if (!draw_native || placeholder || pipeline == VK_NULL_HANDLE) continue;
++    if (native_stopped) {
++      ++stats.after_first_resolve;
++      continue;
++    }
++    // Colour passes are not drawn natively yet (the depth-only render pass under a colour pass's pipelines took the
++    // driver down once): dry run and state comparison only.
++    if (edram_mode == xenos::EdramMode::kColorDepth) {
++      ++stats.native_failed;
++      continue;
++    }
 +
 +    // The native draw (step 3b-2.3): IssueDraw's binding path, into the plugin's own depth image.
 +    if (surface_info.msaa_samples != xenos::MsaaSamples::k1X) {
@@ -1378,7 +1577,7 @@ index d71d508..269eb58 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6738,223 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +6886,225 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -1390,13 +1589,13 @@ index d71d508..269eb58 100644
 +          "shader, primitives processed {} ({} failed, {} host vertices, host types 0x{:X}), translated {} ({} "
 +          "failed), pipelines {} ready, {} compiling, {} failed; depth format {}, MSAA {}; native draws {} ({} "
 +          "failed) into {}x{}; depth test on {} (functions 0x{:X}, writes {}), clears {} (RB_DEPTH_CLEAR "
-+          "{:08X}); not drawn: resolves {}, no rasterization {}",
++          "{:08X}); not drawn: resolves {}, no rasterization {}, after the first depth resolve {}",
 +          ab_tag, dry.frame, hle_current_pass_, dry.records, dry.expanded, dry.skipped,
 +          dry.no_shader, dry.processed, dry.failed_process, dry.host_vertices, dry.host_primitive_types,
 +          dry.translated, dry.failed_translation, dry.pipelines, dry.placeholders, dry.failed_pipeline,
 +          dry.depth_format, dry.msaa, dry.native_draws, dry.native_failed, dry.native_width, dry.native_height,
 +          dry.z_enabled, dry.z_functions, dry.z_writes, dry.clears, dry.depth_clear, dry.skipped_copies,
-+          dry.skipped_no_raster);
++          dry.skipped_no_raster, dry.after_first_resolve);
 +      hle_dry_run_ = {};
 +    }
 +    if (hle.frames) {
@@ -1425,6 +1624,8 @@ index d71d508..269eb58 100644
 +        }
 +      }
 +      hle_dry_run_pending_ = !hle_current_pass_.empty();
++      // Odd windows: shadow draws (needs the native pass on; see HleEnterShadowTarget).
++      hle_shadow_mode_ = REXCVAR_GET(gpu_hle_native_pass) && (hle_pass_window_ & 1) == 0;
 +      HleCompareDepths();
 +      if (!hle_compare_line_.empty()) {
 +        REXGPU_INFO("HLE depth compare{}: {}", ab_tag, hle_compare_line_);

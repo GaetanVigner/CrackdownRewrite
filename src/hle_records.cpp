@@ -209,6 +209,13 @@ struct State {
   uint32_t overlay_values[kOverlayDwords];
   // Command buffer walk (HleBufferBegin..HleBufferEnd): the render state image (big-endian, 0x2000-0x23FF), its
   // shaders' microcode, the device, and the float pages the buffer's constant writes touched since its last draw.
+  // PA_SC_WINDOW_OFFSET and the window scissor (0x2080-0x2082) as PM4 outside the device's flush last wrote them
+  // (big-endian), and the device's own values when that value was first used: the GPU keeps the written value until
+  // the device's copy changes (then its flush rewrites it).
+  bool window_written[3] = {};
+  bool window_fresh[3] = {};
+  uint32_t window_values[3] = {};
+  uint32_t window_device[3] = {};
   bool buffer_active = false;
   uint32_t buffer_registers[0x400];
   uint32_t buffer_ucode[4];
@@ -540,6 +547,21 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
     std::memcpy(gathered + position, dev + group.device_offset, group.count * 4);
     position += group.count * 4;
   }
+  // The window offset and scissor the engine's PM4 wrote (the 0x2080 group, gathered second, after 16 dwords),
+  // until the device's own copy of the register changes.
+  for (uint32_t k = 0; k < 3; ++k) {
+    if (!state.window_written[k]) continue;
+    uint32_t device_value;
+    std::memcpy(&device_value, gathered + (16 + k) * 4, 4);
+    if (state.window_fresh[k]) {
+      state.window_device[k] = device_value;
+      state.window_fresh[k] = false;
+    } else if (device_value != state.window_device[k]) {
+      state.window_written[k] = false;
+      continue;
+    }
+    std::memcpy(gathered + (16 + k) * 4, &state.window_values[k], 4);
+  }
   // The resolve registers the GPU holds from a resolve's own writes (all in the 0x2300 group, gathered 7th).
   constexpr uint32_t kResolveGroupPosition = (16 + 3 + 21 + 5 + 12 + 21) * 4;
   for (uint32_t registers = state.register_overlay; registers;) {
@@ -605,8 +627,18 @@ void HleNoteStateWrite(HleStateSpace space, uint32_t first, uint32_t dwords, con
   uint32_t base_index = space == HleStateSpace::kFloat ? 0 : kOverlayFetch;
   uint32_t limit = space == HleStateSpace::kFloat ? 2048 : kFetchDwords;
   if (space == HleStateSpace::kRegister) {
-    // Only the resolve registers are kept: clip the run to them.
     const uint32_t first_register = 0x2000 + first;
+    // The window offset and scissor, written by the engine's own PM4 (not the device's flush).
+    if (HleRecordsEnabled() && first_register < 0x2083 && first_register + dwords > 0x2080) {
+      State& state = g_state;
+      SpinLock lock(state.lock);
+      for (uint32_t r = std::max(first_register, 0x2080u); r < std::min(first_register + dwords, 0x2083u); ++r) {
+        std::memcpy(&state.window_values[r - 0x2080], values + 4 * (r - first_register), 4);
+        state.window_written[r - 0x2080] = true;
+        state.window_fresh[r - 0x2080] = true;
+      }
+    }
+    // Otherwise only the resolve registers are kept: clip the run to them.
     const uint32_t end = std::min(first_register + dwords, kOverlayFirstRegister + kOverlayRegisterCount);
     if (first_register >= end || end <= kOverlayFirstRegister) return;
     const uint32_t skip = first_register < kOverlayFirstRegister ? kOverlayFirstRegister - first_register : 0;
