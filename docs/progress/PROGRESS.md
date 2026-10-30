@@ -275,17 +275,17 @@ The recompiled functions of `default.xex` by address area: natively replaced (ho
 | Area | Native | Verified | Recompiled | Total | % native |
 |---|---|---|---|---|---|
 | D3D runtime | 24 | 291 | 427 | 742 | 3.2% |
-| code 821xxxxx | 6 | 0 | 3865 | 3871 | 0.2% |
-| code 822xxxxx | 6 | 0 | 2429 | 2435 | 0.2% |
-| code 823xxxxx | 17 | 0 | 3835 | 3852 | 0.4% |
-| code 824xxxxx | 17 | 0 | 3336 | 3353 | 0.5% |
-| code 825xxxxx | 28 | 0 | 3811 | 3839 | 0.7% |
-| code 826xxxxx | 12 | 0 | 3165 | 3177 | 0.4% |
-| code 827xxxxx | 4 | 0 | 2499 | 2503 | 0.2% |
-| code 828xxxxx | 0 | 0 | 2226 | 2226 | 0.0% |
-| code 829xxxxx | 3 | 0 | 3944 | 3947 | 0.1% |
-| code 82Axxxxx | 9 | 0 | 4617 | 4626 | 0.2% |
-| code 82Bxxxxx | 1 | 0 | 6647 | 6648 | 0.0% |
+| code 821xxxxx | 27 | 0 | 3844 | 3871 | 0.7% |
+| code 822xxxxx | 27 | 0 | 2408 | 2435 | 1.1% |
+| code 823xxxxx | 38 | 0 | 3814 | 3852 | 1.0% |
+| code 824xxxxx | 34 | 0 | 3319 | 3353 | 1.0% |
+| code 825xxxxx | 44 | 0 | 3795 | 3839 | 1.1% |
+| code 826xxxxx | 21 | 0 | 3156 | 3177 | 0.7% |
+| code 827xxxxx | 18 | 0 | 2485 | 2503 | 0.7% |
+| code 828xxxxx | 14 | 0 | 2212 | 2226 | 0.6% |
+| code 829xxxxx | 17 | 0 | 3930 | 3947 | 0.4% |
+| code 82Axxxxx | 23 | 0 | 4603 | 4626 | 0.5% |
+| code 82Bxxxxx | 15 | 0 | 6633 | 6648 | 0.2% |
 
 ## Render passes
 
@@ -295,7 +295,7 @@ The recompiled functions of `default.xex` by address area: natively replaced (ho
 | shadow map | emulated |
 | shadow helper a | emulated |
 | shadow helper b | emulated |
-| shadow atlas | validated |
+| shadow atlas | native |
 | opaque scene | emulated |
 | depth resolve | emulated |
 | normal resolve | emulated |

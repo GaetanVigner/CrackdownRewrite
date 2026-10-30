@@ -50,7 +50,12 @@ $Batteries = [ordered]@{
         # window (the emulated frame must not change; the report's dry run line gives the native draw count).
         @{ Name = 'Vulkan, HLE native shadow atlas drawn'
            Settings = $Vulkan + [ordered]@{ crackdown_hle_records = 'true'; crackdown_hle_plugin_channel = 'true'; gpu_hle_native_pass = 'true'; crackdown_hle_markers = 'true'; crackdown_hle_stream_pass = '5'; gpu_hle_compare_dumps = '6'; gpu_hle_dry_run_pass = '"shadow atlas"' }
-           Do = "$CitySpot Watch for any visual change (there should be none)." }
+           Do = "$CitySpot Watch for any visual change (there should be none)." },
+        # H2: in the per-draw windows the atlas's matched draws are drawn natively into the emulated render target in
+        # place of the emulated draws (the report's depth compare: the EDRAM they leave against the emulated draws).
+        @{ Name = 'Vulkan, HLE shadow atlas replaced by native draws'
+           Settings = $Vulkan + [ordered]@{ crackdown_hle_records = 'true'; crackdown_hle_plugin_channel = 'true'; gpu_hle_native_pass = 'true'; gpu_hle_replace_pass = 'true'; crackdown_hle_markers = 'true'; crackdown_hle_stream_pass = '5'; gpu_hle_compare_dumps = '6'; gpu_hle_dry_run_pass = '"shadow atlas"' }
+           Do = "$CitySpot Watch the shadows (they must not flicker or change)." }
     )
     'vulkan-gpu' = @(
         @{ Name = 'Vulkan'; Settings = $Vulkan; Do = $CitySpot },

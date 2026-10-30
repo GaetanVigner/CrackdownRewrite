@@ -114,8 +114,8 @@
     "hud"
   ],
   "passes": {
-    "shadow atlas": "validated"
+    "shadow atlas": "native"
   },
   "_comment_passes": "passes: native renderer stage per tagged render pass (tools/progress_map.py STAGES: emulated, records, dry run, native draw, validated, native); unlisted passes are emulated.",
-  "_comment_atlas": "shadow atlas: native per draw equals the emulated draws 100% in every window (2026-10-30), using the emulated draws shaders; next the record-side shader hash and the switch."
+  "_comment_atlas": "shadow atlas: first cascade drawn natively from the records into the emulated render target in place of the emulated draws, the EDRAM equal to the emulated draws 100% in every window (2026-10-30, gpu_hle_replace_pass)."
 }
