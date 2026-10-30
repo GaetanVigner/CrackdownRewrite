@@ -1,0 +1,1062 @@
+{
+ "system_calls": {
+  "xboxkrnl": [
+   {
+    "name": "DbgBreakPoint",
+    "state": "implemented"
+   },
+   {
+    "name": "DbgPrint",
+    "state": "missing"
+   },
+   {
+    "name": "ExCreateThread",
+    "state": "implemented"
+   },
+   {
+    "name": "ExGetXConfigSetting",
+    "state": "implemented"
+   },
+   {
+    "name": "ExRegisterTitleTerminateNotification",
+    "state": "implemented"
+   },
+   {
+    "name": "ExTerminateThread",
+    "state": "implemented"
+   },
+   {
+    "name": "HalReturnToFirmware",
+    "state": "implemented"
+   },
+   {
+    "name": "IoDismountVolumeByFileHandle",
+    "state": "implemented"
+   },
+   {
+    "name": "KeAcquireSpinLockAtRaisedIrql",
+    "state": "implemented"
+   },
+   {
+    "name": "KeBugCheck",
+    "state": "implemented"
+   },
+   {
+    "name": "KeBugCheckEx",
+    "state": "implemented"
+   },
+   {
+    "name": "KeDelayExecutionThread",
+    "state": "implemented"
+   },
+   {
+    "name": "KeEnableFpuExceptions",
+    "state": "implemented"
+   },
+   {
+    "name": "KeEnterCriticalRegion",
+    "state": "implemented"
+   },
+   {
+    "name": "KeGetCurrentProcessType",
+    "state": "implemented"
+   },
+   {
+    "name": "KeInitializeSemaphore",
+    "state": "implemented"
+   },
+   {
+    "name": "KeLeaveCriticalRegion",
+    "state": "implemented"
+   },
+   {
+    "name": "KeLockL2",
+    "state": "implemented"
+   },
+   {
+    "name": "KeQueryPerformanceFrequency",
+    "state": "implemented"
+   },
+   {
+    "name": "KeQuerySystemTime",
+    "state": "implemented"
+   },
+   {
+    "name": "KeRaiseIrqlToDpcLevel",
+    "state": "implemented"
+   },
+   {
+    "name": "KeReleaseSemaphore",
+    "state": "implemented"
+   },
+   {
+    "name": "KeReleaseSpinLockFromRaisedIrql",
+    "state": "implemented"
+   },
+   {
+    "name": "KeResetEvent",
+    "state": "implemented"
+   },
+   {
+    "name": "KeRestoreFloatingPointState",
+    "state": "stub"
+   },
+   {
+    "name": "KeResumeThread",
+    "state": "implemented"
+   },
+   {
+    "name": "KeSaveFloatingPointState",
+    "state": "stub"
+   },
+   {
+    "name": "KeSetAffinityThread",
+    "state": "implemented"
+   },
+   {
+    "name": "KeSetBasePriorityThread",
+    "state": "implemented"
+   },
+   {
+    "name": "KeSetEvent",
+    "state": "implemented"
+   },
+   {
+    "name": "KeTlsAlloc",
+    "state": "implemented"
+   },
+   {
+    "name": "KeTlsFree",
+    "state": "implemented"
+   },
+   {
+    "name": "KeTlsGetValue",
+    "state": "implemented"
+   },
+   {
+    "name": "KeTlsSetValue",
+    "state": "implemented"
+   },
+   {
+    "name": "KeUnlockL2",
+    "state": "implemented"
+   },
+   {
+    "name": "KeWaitForMultipleObjects",
+    "state": "implemented"
+   },
+   {
+    "name": "KeWaitForSingleObject",
+    "state": "implemented"
+   },
+   {
+    "name": "KfAcquireSpinLock",
+    "state": "implemented"
+   },
+   {
+    "name": "KfLowerIrql",
+    "state": "implemented"
+   },
+   {
+    "name": "KfReleaseSpinLock",
+    "state": "implemented"
+   },
+   {
+    "name": "KiApcNormalRoutineNop",
+    "state": "implemented"
+   },
+   {
+    "name": "MmAllocatePhysicalMemoryEx",
+    "state": "implemented"
+   },
+   {
+    "name": "MmFreePhysicalMemory",
+    "state": "implemented"
+   },
+   {
+    "name": "MmGetPhysicalAddress",
+    "state": "implemented"
+   },
+   {
+    "name": "MmQueryAddressProtect",
+    "state": "implemented"
+   },
+   {
+    "name": "MmQueryStatistics",
+    "state": "implemented"
+   },
+   {
+    "name": "MmSetAddressProtect",
+    "state": "implemented"
+   },
+   {
+    "name": "NtAllocateVirtualMemory",
+    "state": "implemented"
+   },
+   {
+    "name": "NtCancelTimer",
+    "state": "implemented"
+   },
+   {
+    "name": "NtClearEvent",
+    "state": "implemented"
+   },
+   {
+    "name": "NtClose",
+    "state": "implemented"
+   },
+   {
+    "name": "NtCreateEvent",
+    "state": "implemented"
+   },
+   {
+    "name": "NtCreateFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtCreateMutant",
+    "state": "implemented"
+   },
+   {
+    "name": "NtCreateSemaphore",
+    "state": "implemented"
+   },
+   {
+    "name": "NtCreateTimer",
+    "state": "implemented"
+   },
+   {
+    "name": "NtDeviceIoControlFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtDuplicateObject",
+    "state": "implemented"
+   },
+   {
+    "name": "NtFlushBuffersFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtFreeVirtualMemory",
+    "state": "implemented"
+   },
+   {
+    "name": "NtOpenFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtQueryDirectoryFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtQueryFullAttributesFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtQueryInformationFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtQueryVirtualMemory",
+    "state": "implemented"
+   },
+   {
+    "name": "NtQueryVolumeInformationFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtReadFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtReleaseMutant",
+    "state": "implemented"
+   },
+   {
+    "name": "NtReleaseSemaphore",
+    "state": "implemented"
+   },
+   {
+    "name": "NtResumeThread",
+    "state": "implemented"
+   },
+   {
+    "name": "NtSetEvent",
+    "state": "implemented"
+   },
+   {
+    "name": "NtSetInformationFile",
+    "state": "implemented"
+   },
+   {
+    "name": "NtSetTimerEx",
+    "state": "implemented"
+   },
+   {
+    "name": "NtSuspendThread",
+    "state": "implemented"
+   },
+   {
+    "name": "NtWaitForMultipleObjectsEx",
+    "state": "implemented"
+   },
+   {
+    "name": "NtWaitForSingleObjectEx",
+    "state": "implemented"
+   },
+   {
+    "name": "NtWriteFile",
+    "state": "implemented"
+   },
+   {
+    "name": "ObCreateSymbolicLink",
+    "state": "implemented"
+   },
+   {
+    "name": "ObDeleteSymbolicLink",
+    "state": "implemented"
+   },
+   {
+    "name": "ObDereferenceObject",
+    "state": "implemented"
+   },
+   {
+    "name": "ObReferenceObjectByHandle",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlCaptureContext",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlCompareMemoryUlong",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlEnterCriticalSection",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlFillMemoryUlong",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlFreeAnsiString",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlImageXexHeaderField",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlInitAnsiString",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlInitUnicodeString",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlInitializeCriticalSection",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlInitializeCriticalSectionAndSpinCount",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlLeaveCriticalSection",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlMultiByteToUnicodeN",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlNtStatusToDosError",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlRaiseException",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlTimeFieldsToTime",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlTimeToTimeFields",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlTryEnterCriticalSection",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlUnicodeStringToAnsiString",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlUnicodeToMultiByteN",
+    "state": "implemented"
+   },
+   {
+    "name": "RtlUnwind",
+    "state": "implemented"
+   },
+   {
+    "name": "StfsControlDevice",
+    "state": "implemented"
+   },
+   {
+    "name": "StfsCreateDevice",
+    "state": "implemented"
+   },
+   {
+    "name": "VdCallGraphicsNotificationRoutines",
+    "state": "implemented"
+   },
+   {
+    "name": "VdEnableDisableClockGating",
+    "state": "implemented"
+   },
+   {
+    "name": "VdEnableRingBufferRPtrWriteBack",
+    "state": "implemented"
+   },
+   {
+    "name": "VdGetCurrentDisplayGamma",
+    "state": "implemented"
+   },
+   {
+    "name": "VdGetCurrentDisplayInformation",
+    "state": "implemented"
+   },
+   {
+    "name": "VdGetSystemCommandBuffer",
+    "state": "implemented"
+   },
+   {
+    "name": "VdInitializeEngines",
+    "state": "implemented"
+   },
+   {
+    "name": "VdInitializeRingBuffer",
+    "state": "implemented"
+   },
+   {
+    "name": "VdInitializeScalerCommandBuffer",
+    "state": "implemented"
+   },
+   {
+    "name": "VdIsHSIOTrainingSucceeded",
+    "state": "implemented"
+   },
+   {
+    "name": "VdPersistDisplay",
+    "state": "implemented"
+   },
+   {
+    "name": "VdQueryVideoFlags",
+    "state": "implemented"
+   },
+   {
+    "name": "VdQueryVideoMode",
+    "state": "implemented"
+   },
+   {
+    "name": "VdRetrainEDRAM",
+    "state": "implemented"
+   },
+   {
+    "name": "VdRetrainEDRAMWorker",
+    "state": "implemented"
+   },
+   {
+    "name": "VdSetDisplayMode",
+    "state": "implemented"
+   },
+   {
+    "name": "VdSetGraphicsInterruptCallback",
+    "state": "implemented"
+   },
+   {
+    "name": "VdSetSystemCommandBufferGpuIdentifierAddress",
+    "state": "implemented"
+   },
+   {
+    "name": "VdShutdownEngines",
+    "state": "implemented"
+   },
+   {
+    "name": "VdSwap",
+    "state": "implemented"
+   },
+   {
+    "name": "XAudioGetVoiceCategoryVolume",
+    "state": "implemented"
+   },
+   {
+    "name": "XAudioGetVoiceCategoryVolumeChangeMask",
+    "state": "implemented"
+   },
+   {
+    "name": "XAudioRegisterRenderDriverClient",
+    "state": "implemented"
+   },
+   {
+    "name": "XAudioSubmitRenderDriverFrame",
+    "state": "implemented"
+   },
+   {
+    "name": "XAudioUnregisterRenderDriverClient",
+    "state": "implemented"
+   },
+   {
+    "name": "XMACreateContext",
+    "state": "implemented"
+   },
+   {
+    "name": "XMAReleaseContext",
+    "state": "implemented"
+   },
+   {
+    "name": "XeCryptBnQwBeSigVerify",
+    "state": "stub"
+   },
+   {
+    "name": "XeCryptRotSumSha",
+    "state": "stub"
+   },
+   {
+    "name": "XeCryptSha",
+    "state": "implemented"
+   },
+   {
+    "name": "XeKeysConsolePrivateKeySign",
+    "state": "implemented"
+   },
+   {
+    "name": "XeKeysConsoleSignatureVerification",
+    "state": "implemented"
+   },
+   {
+    "name": "XeKeysGetKey",
+    "state": "stub"
+   },
+   {
+    "name": "XexCheckExecutablePrivilege",
+    "state": "implemented"
+   },
+   {
+    "name": "XexGetModuleHandle",
+    "state": "implemented"
+   },
+   {
+    "name": "XexGetModuleSection",
+    "state": "implemented"
+   },
+   {
+    "name": "XexGetProcedureAddress",
+    "state": "implemented"
+   },
+   {
+    "name": "XexLoadImage",
+    "state": "implemented"
+   },
+   {
+    "name": "XexUnloadImage",
+    "state": "implemented"
+   },
+   {
+    "name": "__C_specific_handler",
+    "state": "implemented"
+   },
+   {
+    "name": "_snwprintf",
+    "state": "missing"
+   },
+   {
+    "name": "_vscwprintf",
+    "state": "missing"
+   },
+   {
+    "name": "_vsnprintf",
+    "state": "missing"
+   },
+   {
+    "name": "sprintf",
+    "state": "missing"
+   },
+   {
+    "name": "swprintf",
+    "state": "missing"
+   },
+   {
+    "name": "vswprintf",
+    "state": "missing"
+   }
+  ],
+  "xam": [
+   {
+    "name": "NetDll_WSACloseEvent",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_WSACreateEvent",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_WSAEventSelect",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_WSAGetLastError",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_WSAStartup",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_WSAWaitForMultipleEvents",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_XNetConnect",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_XNetCreateKey",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_XNetGetConnectStatus",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_XNetGetTitleXnAddr",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_XNetInAddrToString",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_XNetInAddrToXnAddr",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_XNetQosListen",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_XNetQosLookup",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_XNetQosRelease",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_XNetRandom",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_XNetRegisterKey",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_XNetServerToInAddr",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_XNetStartup",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_XNetUnregisterKey",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_XNetXnAddrToInAddr",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll___WSAFDIsSet",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_accept",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_bind",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_closesocket",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_connect",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_getpeername",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_getsockname",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_getsockopt",
+    "state": "stub"
+   },
+   {
+    "name": "NetDll_inet_addr",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_ioctlsocket",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_listen",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_recv",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_recvfrom",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_select",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_send",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_sendto",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_setsockopt",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_shutdown",
+    "state": "implemented"
+   },
+   {
+    "name": "NetDll_socket",
+    "state": "implemented"
+   },
+   {
+    "name": "XGetAVPack",
+    "state": "implemented"
+   },
+   {
+    "name": "XGetGameRegion",
+    "state": "implemented"
+   },
+   {
+    "name": "XGetLanguage",
+    "state": "implemented"
+   },
+   {
+    "name": "XGetVideoMode",
+    "state": "implemented"
+   },
+   {
+    "name": "XMsgCancelIORequest",
+    "state": "implemented"
+   },
+   {
+    "name": "XMsgInProcessCall",
+    "state": "implemented"
+   },
+   {
+    "name": "XMsgStartIORequest",
+    "state": "implemented"
+   },
+   {
+    "name": "XMsgStartIORequestEx",
+    "state": "implemented"
+   },
+   {
+    "name": "XNetLogonGetTitleID",
+    "state": "stub"
+   },
+   {
+    "name": "XNotifyGetNext",
+    "state": "implemented"
+   },
+   {
+    "name": "XamAlloc",
+    "state": "implemented"
+   },
+   {
+    "name": "XamContentClose",
+    "state": "implemented"
+   },
+   {
+    "name": "XamContentCreateEnumerator",
+    "state": "implemented"
+   },
+   {
+    "name": "XamContentCreateEx",
+    "state": "implemented"
+   },
+   {
+    "name": "XamContentDelete",
+    "state": "implemented"
+   },
+   {
+    "name": "XamContentGetDeviceState",
+    "state": "implemented"
+   },
+   {
+    "name": "XamContentLaunchImage",
+    "state": "stub"
+   },
+   {
+    "name": "XamCreateEnumeratorHandle",
+    "state": "implemented"
+   },
+   {
+    "name": "XamEnumerate",
+    "state": "implemented"
+   },
+   {
+    "name": "XamFree",
+    "state": "implemented"
+   },
+   {
+    "name": "XamGetExecutionId",
+    "state": "implemented"
+   },
+   {
+    "name": "XamGetPrivateEnumStructureFromHandle",
+    "state": "implemented"
+   },
+   {
+    "name": "XamGetSystemVersion",
+    "state": "implemented"
+   },
+   {
+    "name": "XamInputGetCapabilities",
+    "state": "implemented"
+   },
+   {
+    "name": "XamInputGetKeystrokeEx",
+    "state": "implemented"
+   },
+   {
+    "name": "XamInputGetState",
+    "state": "implemented"
+   },
+   {
+    "name": "XamInputSetState",
+    "state": "implemented"
+   },
+   {
+    "name": "XamLoaderLaunchTitle",
+    "state": "implemented"
+   },
+   {
+    "name": "XamLoaderSetLaunchData",
+    "state": "implemented"
+   },
+   {
+    "name": "XamLoaderTerminateTitle",
+    "state": "implemented"
+   },
+   {
+    "name": "XamNotifyCreateListener",
+    "state": "implemented"
+   },
+   {
+    "name": "XamParseGamerTileKey",
+    "state": "implemented"
+   },
+   {
+    "name": "XamReadTileToTexture",
+    "state": "implemented"
+   },
+   {
+    "name": "XamSessionCreateHandle",
+    "state": "implemented"
+   },
+   {
+    "name": "XamSessionRefObjByHandle",
+    "state": "implemented"
+   },
+   {
+    "name": "XamShowDeviceSelectorUI",
+    "state": "implemented"
+   },
+   {
+    "name": "XamShowFriendsUI",
+    "state": "stub"
+   },
+   {
+    "name": "XamShowGamerCardUIForXUID",
+    "state": "stub"
+   },
+   {
+    "name": "XamShowMarketplaceUI",
+    "state": "stub"
+   },
+   {
+    "name": "XamShowMessageBoxUIEx",
+    "state": "implemented"
+   },
+   {
+    "name": "XamShowSigninUI",
+    "state": "implemented"
+   },
+   {
+    "name": "XamTaskCloseHandle",
+    "state": "implemented"
+   },
+   {
+    "name": "XamTaskSchedule",
+    "state": "implemented"
+   },
+   {
+    "name": "XamTaskShouldExit",
+    "state": "implemented"
+   },
+   {
+    "name": "XamUserAreUsersFriends",
+    "state": "implemented"
+   },
+   {
+    "name": "XamUserCheckPrivilege",
+    "state": "implemented"
+   },
+   {
+    "name": "XamUserCreateAchievementEnumerator",
+    "state": "implemented"
+   },
+   {
+    "name": "XamUserCreateStatsEnumerator",
+    "state": "stub"
+   },
+   {
+    "name": "XamUserGetMembershipTierFromXUID",
+    "state": "stub"
+   },
+   {
+    "name": "XamUserGetName",
+    "state": "implemented"
+   },
+   {
+    "name": "XamUserGetOnlineCountryFromXUID",
+    "state": "stub"
+   },
+   {
+    "name": "XamUserGetSigninState",
+    "state": "implemented"
+   },
+   {
+    "name": "XamUserGetXUID",
+    "state": "implemented"
+   },
+   {
+    "name": "XamUserReadProfileSettings",
+    "state": "implemented"
+   },
+   {
+    "name": "XamUserWriteProfileSettings",
+    "state": "implemented"
+   },
+   {
+    "name": "XamVoiceClose",
+    "state": "implemented"
+   },
+   {
+    "name": "XamVoiceCreate",
+    "state": "implemented"
+   },
+   {
+    "name": "XamVoiceHeadsetPresent",
+    "state": "implemented"
+   },
+   {
+    "name": "XamVoiceSubmitPacket",
+    "state": "stub"
+   }
+  ]
+ },
+ "functions": {
+  "D3D runtime": {
+   "native": 24,
+   "verified": 291,
+   "recompiled": 427
+  },
+  "code 821xxxxx": {
+   "native": 0,
+   "verified": 0,
+   "recompiled": 3871
+  },
+  "code 822xxxxx": {
+   "native": 5,
+   "verified": 0,
+   "recompiled": 2430
+  },
+  "code 823xxxxx": {
+   "native": 13,
+   "verified": 0,
+   "recompiled": 3839
+  },
+  "code 824xxxxx": {
+   "native": 13,
+   "verified": 0,
+   "recompiled": 3340
+  },
+  "code 825xxxxx": {
+   "native": 27,
+   "verified": 0,
+   "recompiled": 3812
+  },
+  "code 826xxxxx": {
+   "native": 12,
+   "verified": 0,
+   "recompiled": 3165
+  },
+  "code 827xxxxx": {
+   "native": 2,
+   "verified": 0,
+   "recompiled": 2501
+  },
+  "code 828xxxxx": {
+   "native": 0,
+   "verified": 0,
+   "recompiled": 2226
+  },
+  "code 829xxxxx": {
+   "native": 0,
+   "verified": 0,
+   "recompiled": 3947
+  },
+  "code 82Axxxxx": {
+   "native": 7,
+   "verified": 0,
+   "recompiled": 4619
+  },
+  "code 82Bxxxxx": {
+   "native": 0,
+   "verified": 0,
+   "recompiled": 6648
+  }
+ }
+}

@@ -148,6 +148,11 @@ def main():
     (OUT / 'progress.svg').write_text(svg(history, measurements, len(api)), encoding='utf-8')
     print(f'{len(history)} days, {len(history[-1][1]["hooked"])} of {len(api)} D3D entry points hooked; '
           f'wrote {OUT / "history.json"} and {OUT / "progress.svg"}')
+    # The progress map (treemaps and tables of what is native).
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    import progress_map
+    progress_map.main()
 
 
 if __name__ == '__main__':
