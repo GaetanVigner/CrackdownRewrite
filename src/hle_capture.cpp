@@ -730,6 +730,22 @@ const DrawRecord* CallWithRecord(PPCContext& ctx, uint8_t* base, RecordKind kind
   if (!record) {
     return nullptr;
   }
+  if (kind == RecordKind::kDraw || kind == RecordKind::kDrawIndexed) {
+    // The draw call's own shader loads (a patched copy may be loaded from the ring): the record takes their hashes.
+    const uint32_t post = Load32(base, device + kWritePointer);
+    WalkRing(pre, pre_switches, post, [](uint32_t physical, uint32_t dwords) {
+      thread_local DecodedPm4 decoded;
+      decoded.ops.clear();
+      decoded.pool.clear();
+      DecodePm4(physical, dwords, decoded);
+      for (const WalkOp& op : decoded.ops) {
+        if (op.kind == WalkOp::kShader && op.code <= 1 && op.count && op.count <= 0x10000) {
+          HleNoteShaderLoad(op.code == 1, XXH3_64bits(PhysicalBase() + (op.first & 0x1FFFFFFF), size_t(op.count) * 4),
+                            true);
+        }
+      }
+    });
+  }
   // After a Begin* call the ring holds the vertices the game writes next, not PM4: the cursor is unknown until the
   // next call ends.
   const bool begin = kind == RecordKind::kBeginVertices || kind == RecordKind::kBeginIndexedVertices;

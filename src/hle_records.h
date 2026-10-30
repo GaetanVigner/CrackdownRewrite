@@ -128,6 +128,11 @@ void HleNoteSegment(uint32_t physical, uint32_t dwords);
 void HleBufferBegin(uint8_t* base, uint32_t device, bool ring_gap = false);
 void HleBufferRegisters(uint32_t first, uint32_t dwords, const uint8_t* values);
 void HleBufferShader(bool pixel, uint32_t physical, uint32_t dwords, uint64_t hash);
+
+// A shader load (IM_LOAD / IM_LOAD_IMMEDIATE) the GPU will run, with the hash of the microcode it loads: the shaders
+// the GPU holds are state, as the runtime can load a patched copy from the ring instead of the shader object's
+// microcode. A draw call's own loads update the record just made.
+void HleNoteShaderLoad(bool pixel, uint64_t hash, bool for_last_record);
 void HleBufferBoolLoop(uint32_t first, uint32_t dwords, const uint8_t* values);
 void HleBufferDraw(const uint32_t draw[3]);
 void HleBufferEnd();

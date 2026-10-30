@@ -236,6 +236,8 @@ struct State {
   uint32_t buffer_registers[0x400];
   uint32_t buffer_ucode[4];
   uint64_t buffer_ucode_hash[2];
+  // The microcode hashes of the shaders the GPU holds, from the shader loads walked (0 unknown).
+  uint64_t loaded_hash[2] = {};
   uint32_t buffer_bool_loop[kBoolLoopDwords];
   bool buffer_bool_loop_changed = false;
   const uint8_t* buffer_dev = nullptr;
@@ -567,6 +569,10 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
   record.pixel_shader = Load32(base, device + kPixelShader);
   ShaderMicrocode(base, record.vertex_shader, true, &record.ucode[0], &record.ucode_hash[0]);
   ShaderMicrocode(base, record.pixel_shader, false, &record.ucode[2], &record.ucode_hash[1]);
+  // What the GPU holds wins over the shader objects' microcode (the call's own loads, walked next, update it).
+  for (uint32_t i = 0; i < 2; ++i) {
+    if (state.loaded_hash[i]) record.ucode_hash[i] = state.loaded_hash[i];
+  }
   LastDrawPacket(base, device, record.draw);
 
   const uint32_t touched = ApplyOverlay(state, masks);
@@ -733,10 +739,19 @@ void HleBufferRegisters(uint32_t first, uint32_t dwords, const uint8_t* values) 
   std::memcpy(state.buffer_registers + first, values, std::min(dwords, 0x400 - first) * 4);
 }
 
+void HleNoteShaderLoad(bool pixel, uint64_t hash, bool for_last_record) {
+  if (!HleRecordsEnabled()) return;
+  State& state = g_state;
+  SpinLock lock(state.lock);
+  state.loaded_hash[pixel ? 1 : 0] = hash;
+  if (for_last_record && t_record_pending) t_record.ucode_hash[pixel ? 1 : 0] = hash;
+}
+
 void HleBufferShader(bool pixel, uint32_t physical, uint32_t dwords, uint64_t hash) {
   State& state = g_state;
   if (!state.buffer_active) return;
   SpinLock lock(state.lock);
+  state.loaded_hash[pixel ? 1 : 0] = hash;
   state.buffer_ucode[pixel ? 2 : 0] = physical;
   state.buffer_ucode[pixel ? 3 : 1] = dwords;
   state.buffer_ucode_hash[pixel ? 1 : 0] = hash;
