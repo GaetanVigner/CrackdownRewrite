@@ -693,7 +693,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..533013e 100644
+index d71d508..0dd83aa 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,12 @@
@@ -1129,7 +1129,7 @@ index d71d508..533013e 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +6121,1144 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +6121,1147 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1937,7 +1937,10 @@ index d71d508..533013e 100644
 +      if (!address || !dwords || dwords > 0x10000 || address >= 0x20000000 - dwords * 4) return nullptr;
 +      return pipeline_cache_->FindShader(memory_->TranslatePhysical<const uint32_t*>(address), dwords);
 +    };
-+    VulkanShader* vertex_shader = find(ucode[0], ucode[1]);
++    // Per draw, the emulated draw's own shaders: the title's runtime patches a vertex shader's microcode in place for
++    // each vertex declaration, so hashing the microcode later can find another declaration's variant.
++    VulkanShader* vertex_shader = per_draw ? static_cast<VulkanShader*>(active_vertex_shader())
++                                           : find(ucode[0], ucode[1]);
 +    if (!vertex_shader) {
 +      ++stats.no_shader;
 +      continue;
@@ -1960,7 +1963,7 @@ index d71d508..533013e 100644
 +    }
 +    VulkanShader* pixel_shader = nullptr;
 +    if (rasterization && edram_mode == xenos::EdramMode::kColorDepth && ucode[2]) {
-+      pixel_shader = find(ucode[2], ucode[3]);
++      pixel_shader = per_draw ? static_cast<VulkanShader*>(active_pixel_shader()) : find(ucode[2], ucode[3]);
 +      if (pixel_shader) {
 +        pipeline_cache_->AnalyzeShaderUcode(*pixel_shader);
 +        if (!draw_util::IsPixelShaderNeededWithRasterization(*pixel_shader, regs)) pixel_shader = nullptr;
@@ -2274,7 +2277,7 @@ index d71d508..533013e 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +7338,269 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +7341,269 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
