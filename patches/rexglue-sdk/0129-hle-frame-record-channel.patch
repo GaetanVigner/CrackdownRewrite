@@ -541,7 +541,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..756c919 100644
+index d71d508..ec78b9f 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,11 @@
@@ -1698,7 +1698,7 @@ index d71d508..756c919 100644
 +      hle_compare_pending_ = true;
 +      hle_compare_submission_ = GetCurrentSubmission();
 +      hle_compare_frame_ = stats.frame;
-+      hle_compare_pass_ = hle_current_pass_;
++      hle_compare_pass_ = hle_current_pass_ + (hle_state_capture_active_ ? " in place" : "");
 +    }
 +    hle_reference_captured_ = false;
 +    // What the native draws bound reflects the records, not the registers now restored: the emulated draws that
@@ -1728,7 +1728,7 @@ index d71d508..756c919 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6951,258 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +6951,267 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -1825,7 +1825,16 @@ index d71d508..756c919 100644
 +    // HLE renderer H1b step 3a: the latest frame's draws resolved against the shaders emulation loaded (same
 +    // microcode hash), the first thing a native pass needs from a record.
 +    HleFrameSink::Latest latest;
-+    if (hle.frames && HleFrameSink::Get().CopyLatest(latest) && latest.ucode_offset) {
++    bool have_latest = false;
++    for (uint32_t age = 0; age < HleFrameSink::kKeptFrames; ++age) {
++      HleFrameSink::Latest candidate;
++      if (!HleFrameSink::Get().CopyFrame(age, candidate)) break;
++      if (!have_latest || candidate.records.size() > latest.records.size()) {
++        latest = std::move(candidate);
++        have_latest = true;
++      }
++    }
++    if (hle.frames && have_latest && latest.ucode_offset) {
 +      uint32_t draws = 0, vs_found = 0, ps_found = 0, both = 0, no_ps = 0, bad = 0;
 +      const uint32_t count = uint32_t(latest.records.size() / latest.record_size);
 +      // Step 3b-1: what each tagged pass would need natively (the register values come from the record's render
