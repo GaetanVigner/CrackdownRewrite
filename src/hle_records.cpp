@@ -163,7 +163,7 @@ constexpr uint32_t kTraceBoolLoop = kTraceFetch + 192;
 struct Counters {
   uint64_t records = 0;
   uint64_t by_pass[kRenderPassCount + 1] = {};
-  uint64_t by_kind[9] = {};
+  uint64_t by_kind[10] = {};
   uint64_t render_state_blocks = 0;
   uint64_t fetch_blocks = 0;
   uint64_t bool_loop_blocks = 0;
@@ -207,6 +207,15 @@ struct State {
   uint32_t register_overlay = 0;
   bool fetch_changed = true;
   uint32_t overlay_values[kOverlayDwords];
+  // Command buffer walk (HleBufferBegin..HleBufferEnd): the render state image (big-endian, 0x2000-0x23FF), its
+  // shaders' microcode, the device, and the float pages the buffer's constant writes touched since its last draw.
+  bool buffer_active = false;
+  uint32_t buffer_registers[0x400];
+  uint32_t buffer_ucode[4];
+  uint32_t buffer_bool_loop[kBoolLoopDwords];
+  bool buffer_bool_loop_changed = false;
+  const uint8_t* buffer_dev = nullptr;
+  uint32_t buffer_touched = 0;
   std::vector<uint32_t> pending_before;  // {first, count, values...} in the overlay's index space
   std::vector<uint32_t> pending_after;
   // Command buffer segments seen so far ((address << 20) | dwords): how many a decoded-segment cache would hold.
@@ -592,6 +601,7 @@ void HleExpandRecord(const DrawRecord& record, uint32_t* values) {
 
 void HleNoteStateWrite(HleStateSpace space, uint32_t first, uint32_t dwords, const uint8_t* values,
                        HleWritePhase phase) {
+  if (space == HleStateSpace::kBoolLoop) return;  // command buffer walks only (HleBufferBoolLoop)
   uint32_t base_index = space == HleStateSpace::kFloat ? 0 : kOverlayFetch;
   uint32_t limit = space == HleStateSpace::kFloat ? 2048 : kFetchDwords;
   if (space == HleStateSpace::kRegister) {
@@ -615,8 +625,103 @@ void HleNoteStateWrite(HleStateSpace space, uint32_t first, uint32_t dwords, con
   Queue(pending, base_index + first, std::min(dwords, limit - first), values);
   if (phase == HleWritePhase::kAfterRecord) {
     // The record is built: the next one sees these values unless its flush replaces them, like any earlier write.
-    ApplyPending(state, state.pending_after);
+    state.buffer_touched |= ApplyPending(state, state.pending_after);
   }
+}
+
+void HleBufferBegin(uint8_t* base, uint32_t device) {
+  if (!HleRecordsEnabled()) return;
+  State& state = g_state;
+  SpinLock lock(state.lock);
+  if (state.render_state == UINT32_MAX) return;
+  // The image starts as the call's render state (its record was just built).
+  std::memset(state.buffer_registers, 0, sizeof(state.buffer_registers));
+  uint32_t position = state.render_state;
+  for (const Group& group : kRenderStateGroups) {
+    std::memcpy(state.buffer_registers + (group.first_register - 0x2000), state.arena.data() + position,
+                group.count * 4);
+    position += group.count;
+  }
+  std::copy(std::begin(t_record.ucode), std::end(t_record.ucode), state.buffer_ucode);
+  if (state.bool_loop != UINT32_MAX) {
+    std::memcpy(state.buffer_bool_loop, state.arena.data() + state.bool_loop, sizeof(state.buffer_bool_loop));
+  }
+  state.buffer_bool_loop_changed = false;
+  state.buffer_dev = base + device;
+  state.buffer_touched = 0;
+  state.buffer_active = true;
+}
+
+void HleBufferRegisters(uint32_t first, uint32_t dwords, const uint8_t* values) {
+  State& state = g_state;
+  if (!state.buffer_active || first >= 0x400) return;
+  SpinLock lock(state.lock);
+  std::memcpy(state.buffer_registers + first, values, std::min(dwords, 0x400 - first) * 4);
+}
+
+void HleBufferShader(bool pixel, uint32_t physical, uint32_t dwords) {
+  State& state = g_state;
+  if (!state.buffer_active) return;
+  SpinLock lock(state.lock);
+  state.buffer_ucode[pixel ? 2 : 0] = physical;
+  state.buffer_ucode[pixel ? 3 : 1] = dwords;
+}
+
+void HleBufferBoolLoop(uint32_t first, uint32_t dwords, const uint8_t* values) {
+  State& state = g_state;
+  if (!state.buffer_active || first >= kBoolLoopDwords) return;
+  SpinLock lock(state.lock);
+  std::memcpy(state.buffer_bool_loop + first, values, std::min(dwords, kBoolLoopDwords - first) * 4);
+  state.buffer_bool_loop_changed = true;
+}
+
+void HleBufferDraw(const uint32_t draw[3]) {
+  State& state = g_state;
+  if (!state.buffer_active) return;
+  const uint64_t start = __rdtsc();
+  SpinLock lock(state.lock);
+  DrawRecord record = {};
+  record.kind = RecordKind::kBufferDraw;
+  record.pass = t_pass;
+  std::copy(state.buffer_ucode, state.buffer_ucode + 4, record.ucode);
+  std::copy(draw, draw + 3, record.draw);
+  uint8_t gathered[kRenderStateDwords * 4];
+  uint32_t position = 0;
+  for (const Group& group : kRenderStateGroups) {
+    std::memcpy(gathered + position, state.buffer_registers + (group.first_register - 0x2000), group.count * 4);
+    position += group.count * 4;
+  }
+  state.render_state =
+      Refresh(state, state.render_state, gathered, kRenderStateDwords, state.counters.render_state_blocks);
+  RefreshFetch(state, state.buffer_dev, 0);
+  if (state.buffer_bool_loop_changed) {
+    state.bool_loop = Refresh(state, state.bool_loop, reinterpret_cast<const uint8_t*>(state.buffer_bool_loop),
+                              kBoolLoopDwords, state.counters.bool_loop_blocks);
+    state.buffer_bool_loop_changed = false;
+  }
+  RefreshPages(state, 0, state.vs_pages, state.buffer_dev + kVsConstants, 0, state.buffer_touched, !state.pages_valid);
+  RefreshPages(state, 1, state.ps_pages, state.buffer_dev + kPsConstants, 0, state.buffer_touched, !state.pages_valid);
+  state.pages_valid = true;
+  state.buffer_touched = 0;
+  record.render_state = state.render_state;
+  record.fetch = state.fetch;
+  record.bool_loop = state.bool_loop;
+  std::copy(std::begin(state.vs_pages), std::end(state.vs_pages), record.vs_pages);
+  std::copy(std::begin(state.ps_pages), std::end(state.ps_pages), record.ps_pages);
+  if (PluginChannelEnabled()) state.frame_records.push_back(record);
+  ++state.counters.records;
+  ++state.counters.by_kind[uint32_t(RecordKind::kBufferDraw)];
+  ++state.counters.by_pass[t_pass];
+  state.counters.cycles += __rdtsc() - start;
+}
+
+void HleBufferEnd() {
+  State& state = g_state;
+  if (!state.buffer_active) return;
+  SpinLock lock(state.lock);
+  // The buffer's render state stays on the GPU; the device's next flush rewrites what it dirtied, and the render
+  // state block follows the device again at the next call's record.
+  state.buffer_active = false;
 }
 
 void HleNoteUpVertices(uint8_t* base, uint32_t device, uint32_t physical, uint32_t dwords) {

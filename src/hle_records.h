@@ -20,7 +20,15 @@ enum class RecordKind : uint32_t {
   kClear = 6,
   kResolve = 7,
   kGprFlush = 8,
+  // A draw packet inside a command buffer the game replays (RunCommandBuffer): its state is the call's with the
+  // buffer's own register, constant and shader writes up to the draw over it.
+  kBufferDraw = 9,
 };
+
+// Whether a record kind is a draw the native renderer issues.
+inline bool IsDrawRecordKind(RecordKind kind) {
+  return (kind >= RecordKind::kDraw && kind <= RecordKind::kBeginIndexedVertices) || kind == RecordKind::kBufferDraw;
+}
 
 struct DrawRecord {
   static constexpr uint32_t kConstantPages = 16;  // 16 pages of 16 float4 per shader stage
@@ -86,7 +94,9 @@ void HleExpandRecord(const DrawRecord& record, uint32_t* values);
 // c0 = 1024; fetch constants in dwords), by when it reaches the GPU: PM4 written between hooked calls (before the
 // next call's flush), a shader's literal loads during a call (after its flush, before its record), or a replayed
 // command buffer's own writes (after the call's record: they apply at once).
-enum class HleStateSpace { kFloat, kFetch, kRegister };  // kRegister: from 0x2000
+// kRegister: from 0x2000; kBoolLoop: from 0x4900 (bool constants, then loop constants from 0x4908), kept only by
+// command buffer walks (the device's flush writes the others).
+enum class HleStateSpace { kFloat, kFetch, kRegister, kBoolLoop };
 enum class HleWritePhase { kBeforeFlush, kDuringCall, kAfterRecord };
 void HleNoteStateWrite(HleStateSpace space, uint32_t first, uint32_t dwords, const uint8_t* values,
                        HleWritePhase phase);
@@ -94,6 +104,17 @@ void HleNoteStateWrite(HleStateSpace space, uint32_t first, uint32_t dwords, con
 // Adds to the record just built: BeginVertices' vertex range, and a replayed command buffer segment.
 void HleNoteUpVertices(uint8_t* base, uint32_t device, uint32_t physical, uint32_t dwords);
 void HleNoteSegment(uint32_t physical, uint32_t dwords);
+
+// Command buffer draws: while a RunCommandBuffer call's output and segments are walked, a render state image starts
+// from the call's record and takes the buffer's register writes (big-endian values, from 0x2000) and shader loads
+// (guest physical microcode, dwords); each draw packet then becomes a kBufferDraw record (VGT_DRAW_INITIATOR,
+// VGT_DMA_BASE, VGT_DMA_SIZE).
+void HleBufferBegin(uint8_t* base, uint32_t device);
+void HleBufferRegisters(uint32_t first, uint32_t dwords, const uint8_t* values);
+void HleBufferShader(bool pixel, uint32_t physical, uint32_t dwords);
+void HleBufferBoolLoop(uint32_t first, uint32_t dwords, const uint8_t* values);
+void HleBufferDraw(const uint32_t draw[3]);
+void HleBufferEnd();
 
 // Diagnostics: a predicated packet the walk ran (passes) or skipped, with the bin mask and select it evaluated.
 void HleNotePredicated(bool passes, uint64_t bin_mask, uint64_t bin_select);

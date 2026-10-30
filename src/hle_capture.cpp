@@ -504,6 +504,8 @@ uint64_t g_record_bin_select = ~uint64_t(0);
 // bin mask/select packets it has logged.
 uint32_t g_walk_source = 0;
 uint32_t g_bin_packets_logged = 0;
+// Whether the walk is a RunCommandBuffer call's output: its draws become kBufferDraw records.
+bool g_buffer_walk = false;
 
 // The type-3 opcodes the title's D3D library and engine emit (HLE_RENDERER_FEASIBILITY.md 1.2), and NOP: the walk
 // stops at anything else, which means the ring holds data (vertices of an unhooked call), not packets.
@@ -520,8 +522,10 @@ bool KnownOpcode(uint32_t opcode) {
 
 // A walked packet reduced to what the records need. kBin: `code` the opcode, `first`/`count` its two data dwords;
 // kWrite: `code` the HleStateSpace, `values` an offset in the value pool; kIndirect: `first` address, `count` dwords.
+// kDraw: `code` the opcode, `first` VGT_DRAW_INITIATOR, `count` VGT_DMA_BASE, `values` VGT_DMA_SIZE; kShader: `code`
+// 0 vertex / 1 pixel, `first` the microcode's guest physical address, `count` its dwords.
 struct WalkOp {
-  enum Kind : uint8_t { kBin, kWrite, kIndirect } kind;
+  enum Kind : uint8_t { kBin, kWrite, kIndirect, kDraw, kShader } kind;
   uint8_t code;
   bool predicated;
   uint32_t first;
@@ -579,6 +583,9 @@ void DecodePm4(uint32_t physical, uint32_t dwords, DecodedPm4& out) {
         AddWrite(out, HleStateSpace::kFloat, false, first - 0x4000, count, at + 4);
       } else if (!one_register && first >= 0x4800 && first < 0x48C0) {
         AddWrite(out, HleStateSpace::kFetch, false, first - 0x4800, count, at + 4);
+      } else if (first >= 0x4900 && first < 0x4928) {
+        AddWrite(out, HleStateSpace::kBoolLoop, false, first - 0x4900, one_register ? 1 : count,
+                 at + 4 * (one_register ? count : 1));
       }
     } else {
       const uint32_t opcode = (header >> 8) & 0x7F;
@@ -595,6 +602,8 @@ void DecodePm4(uint32_t physical, uint32_t dwords, DecodedPm4& out) {
         if (space == 0) AddWrite(out, HleStateSpace::kFloat, predicated, first, count - 1, at + 8);
         if (space == 1) AddWrite(out, HleStateSpace::kFetch, predicated, first, count - 1, at + 8);
         if (space == 4) AddWrite(out, HleStateSpace::kRegister, predicated, first, count - 1, at + 8);
+        if (space == 2) AddWrite(out, HleStateSpace::kBoolLoop, predicated, first, count - 1, at + 8);
+        if (space == 3) AddWrite(out, HleStateSpace::kBoolLoop, predicated, 8 + first, count - 1, at + 8);
       } else if (opcode == 0x2F && count >= 3) {  // LOAD_ALU_CONSTANT: address, offset and type, size
         const uint32_t address = data(0) & 0x1FFFFFFF;
         const uint32_t offset_type = data(1);
@@ -602,6 +611,19 @@ void DecodePm4(uint32_t physical, uint32_t dwords, DecodedPm4& out) {
         const uint32_t space = (offset_type >> 16) & 0xFF;
         if (space == 0) AddWrite(out, HleStateSpace::kFloat, predicated, offset_type & 0x7FF, size, address);
         if (space == 1) AddWrite(out, HleStateSpace::kFetch, predicated, offset_type & 0x7FF, size, address);
+      } else if (opcode == 0x22 && count >= 2) {  // DRAW_INDX: viz query, initiator, [DMA base, DMA size]
+        const uint32_t initiator = data(1);
+        const bool dma = ((initiator >> 6) & 3) == 0;
+        out.ops.push_back({WalkOp::kDraw, uint8_t(opcode), predicated, initiator,
+                           dma && count >= 4 ? data(2) : 0, dma && count >= 4 ? data(3) : 0});
+      } else if (opcode == 0x36 && count >= 1) {  // DRAW_INDX_2: initiator, immediate indices
+        out.ops.push_back({WalkOp::kDraw, uint8_t(opcode), predicated, data(0), 0, 0});
+      } else if (opcode == 0x27 && count >= 2) {  // IM_LOAD: address | type, start << 16 | size
+        out.ops.push_back({WalkOp::kShader, uint8_t(data(0) & 3), predicated, data(0) & 0x1FFFFFFC,
+                           data(1) & 0xFFFF, 0});
+      } else if (opcode == 0x2B && count >= 2) {  // IM_LOAD_IMMEDIATE: type, start << 16 | size, microcode
+        out.ops.push_back({WalkOp::kShader, uint8_t(data(0) & 3), predicated, (at + 12) & 0x1FFFFFFF,
+                           data(1) & 0xFFFF, 0});
       } else if ((opcode == 0x3F || opcode == 0x37) && count >= 2 && (data(1) & 0xFFFFF) <= kMaxCallDwords) {
         out.ops.push_back({WalkOp::kIndirect, uint8_t(opcode), predicated, data(0) & 0x1FFFFFFF,
                            data(1) & 0xFFFFF, 0});
@@ -675,6 +697,21 @@ void ExecuteOps(const DecodedPm4& decoded, uint32_t depth, HleWritePhase phase) 
       case WalkOp::kWrite:
         HleNoteStateWrite(HleStateSpace(op.code), op.first, op.count,
                           reinterpret_cast<const uint8_t*>(decoded.pool.data() + op.values), phase);
+        if (g_buffer_walk && HleStateSpace(op.code) == HleStateSpace::kRegister) {
+          HleBufferRegisters(op.first, op.count, reinterpret_cast<const uint8_t*>(decoded.pool.data() + op.values));
+        }
+        if (g_buffer_walk && HleStateSpace(op.code) == HleStateSpace::kBoolLoop) {
+          HleBufferBoolLoop(op.first, op.count, reinterpret_cast<const uint8_t*>(decoded.pool.data() + op.values));
+        }
+        break;
+      case WalkOp::kDraw:
+        if (g_buffer_walk) {
+          const uint32_t draw[3] = {op.first, op.count, op.values};
+          HleBufferDraw(draw);
+        }
+        break;
+      case WalkOp::kShader:
+        if (g_buffer_walk && op.code <= 1) HleBufferShader(op.code == 1, op.first, op.count);
         break;
       case WalkOp::kIndirect:
         if (depth < kMaxIndirectDepth) ExecuteIndirect(op.first, op.count, depth + 1, phase);
@@ -787,6 +824,10 @@ const DrawRecord* CallWithRecord(PPCContext& ctx, uint8_t* base, RecordKind kind
     // These calls write their own state to the ring (a command buffer through its segments); the constants they
     // leave on the GPU apply to the draws after them.
     const uint32_t post = Load32(base, device + kWritePointer);
+    if (kind == RecordKind::kCommandBuffer) {
+      HleBufferBegin(base, device);
+      g_buffer_walk = true;
+    }
     const bool walkable = WalkRing(pre, pre_switches, post, [&](uint32_t physical, uint32_t dwords) {
       if (kind == RecordKind::kCommandBuffer) NoteSegments(physical, dwords);
       WalkConstantWrites(physical, dwords, uint32_t(kind), HleWritePhase::kAfterRecord);
@@ -814,6 +855,10 @@ const DrawRecord* CallWithRecord(PPCContext& ctx, uint8_t* base, RecordKind kind
         }
         node = Load32(base, node);
       }
+    }
+    if (g_buffer_walk) {
+      g_buffer_walk = false;
+      HleBufferEnd();
     }
   }
   return record;
