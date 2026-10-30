@@ -39,10 +39,10 @@ miss) and native nearer (errors), and the first gpu_hle_compare_dumps pairs are 
 
 diff --git a/include/rex/graphics/hle_frame.h b/include/rex/graphics/hle_frame.h
 new file mode 100644
-index 0000000..5b1d42b
+index 0000000..b9f609b
 --- /dev/null
 +++ b/include/rex/graphics/hle_frame.h
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,99 @@
 +/**
 + * @file        graphics/hle_frame.h
 + * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
@@ -54,6 +54,7 @@ index 0000000..5b1d42b
 +#pragma once
 +
 +#include <cstdint>
++#include <deque>
 +#include <mutex>
 +#include <string>
 +#include <vector>
@@ -114,7 +115,11 @@ index 0000000..5b1d42b
 +    std::vector<uint32_t> groups;
 +    std::vector<std::string> pass_names;
 +  };
-+  bool CopyLatest(Latest& latest);
++  bool CopyLatest(Latest& latest) { return CopyFrame(0, latest); }
++  // `age` frames before the latest (0 the latest, up to kKeptFrames - 1): the GPU may still be on an older frame
++  // than the game, so the native pass picks the one matching the frame it drew.
++  static constexpr uint32_t kKeptFrames = 4;
++  bool CopyFrame(uint32_t age, Latest& latest);
 +
 + private:
 +  std::mutex mutex_;
@@ -123,6 +128,12 @@ index 0000000..5b1d42b
 +  uint32_t ucode_offset_ = 0;
 +  uint32_t state_offset_ = 0;
 +  uint32_t draw_offset_ = 0;
++  struct Kept {
++    uint64_t frame = 0;
++    std::vector<uint8_t> records;
++    std::vector<uint32_t> arena;
++  };
++  std::deque<Kept> older_;  // the frames before the latest, newest first
 +  std::vector<uint32_t> groups_;
 +  std::vector<std::string> pass_names_;
 +  std::vector<uint8_t> records_;
@@ -132,10 +143,10 @@ index 0000000..5b1d42b
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..7a3674a 100644
+index 4f8a0cb..b5db5ea 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
-@@ -470,6 +470,108 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -470,6 +470,112 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -197,7 +208,11 @@ index 4f8a0cb..7a3674a 100644
 +  // (its RB_DEPTH_INFO and RB_SURFACE_INFO) keep their registers 0x2000-0x4927; at the swap that ends the frame the
 +  // latest records are matched to them by index buffer (VGT_DMA_BASE) and the differing registers counted.
 +  void HleCaptureEmulatedDraw();
-+  void HleCompareState();
++  // The captured emulated draws against the records `age` frames before the latest; returns the identical ones
++  // (with `report`, also writes the comparison line).
++  uint32_t HleCompareState(uint32_t age, bool report);
++  uint32_t hle_frame_age_ = 0;  // the records' frame the native pass draws (matched to the captured frame)
++  uint64_t hle_frame_number_ = UINT64_MAX;  // and its frame number (the game may submit another in between)
 +  static constexpr uint32_t kHleStateFirst = 0x2000, kHleStateEnd = 0x4928, kHleStateMaxDraws = 1024;
 +  uint32_t hle_atlas_surface_info_ = 0;
 +  bool hle_state_capture_pending_ = false;
@@ -344,10 +359,10 @@ index 2bf96ca..a2d471a 100644
      flags.cpp
 diff --git a/src/graphics/hle_frame.cpp b/src/graphics/hle_frame.cpp
 new file mode 100644
-index 0000000..ce13f22
+index 0000000..91b0458
 --- /dev/null
 +++ b/src/graphics/hle_frame.cpp
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,96 @@
 +/**
 + * @file        graphics/hle_frame.cpp
 + * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
@@ -379,6 +394,14 @@ index 0000000..ce13f22
 +  }
 +  const size_t record_bytes = size_t(frame.record_count) * frame.record_size;
 +  std::lock_guard<std::mutex> lock(mutex_);
++  if (record_size_ == frame.record_size && !records_.empty()) {
++    older_.push_front({frame_, std::move(records_), std::move(arena_)});
++    if (older_.size() > kKeptFrames - 1) older_.pop_back();
++    records_.clear();
++    arena_.clear();
++  } else {
++    older_.clear();
++  }
 +  frame_ = frame.frame;
 +  record_size_ = frame.record_size;
 +  ucode_offset_ = frame.ucode_offset;
@@ -413,18 +436,18 @@ index 0000000..ce13f22
 +  return true;
 +}
 +
-+bool HleFrameSink::CopyLatest(Latest& latest) {
++bool HleFrameSink::CopyFrame(uint32_t age, Latest& latest) {
 +  std::lock_guard<std::mutex> lock(mutex_);
-+  if (!record_size_) return false;
-+  latest.records = records_;
++  if (!record_size_ || (age && age > older_.size())) return false;
++  latest.records = age ? older_[age - 1].records : records_;
 +  latest.record_size = record_size_;
 +  latest.ucode_offset = ucode_offset_;
 +  latest.state_offset = state_offset_;
 +  latest.draw_offset = draw_offset_;
-+  latest.arena = arena_;
++  latest.arena = age ? older_[age - 1].arena : arena_;
 +  latest.groups = groups_;
 +  latest.pass_names = pass_names_;
-+  latest.frame = frame_;
++  latest.frame = age ? older_[age - 1].frame : frame_;
 +  return true;
 +}
 +
@@ -462,7 +485,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..4d1dac3 100644
+index d71d508..a5e8060 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,11 @@
@@ -508,7 +531,7 @@ index d71d508..4d1dac3 100644
  REXCVAR_DEFINE_BOOL(vulkan_occlusion_queries_in_render_pass, false, "GPU/Vulkan",
                      "Run occlusion queries inside the guest's render passes (a host query per pass a guest query "
                      "spans, summed) instead of ending the render pass around each query")
-@@ -2503,6 +2525,75 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -2503,6 +2525,85 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
    vertex_buffers_in_sync_[0] = 0;
    vertex_buffers_in_sync_[1] = 0;
  
@@ -559,7 +582,17 @@ index d71d508..4d1dac3 100644
 +      ++hle_capture_stages_[hle_capture_stage_];
 +      hle_capture_stage_ = 0;
 +    }
-+    HleCompareState();
++    // The records' frame that matches the captured one best (the game may be ahead of the GPU).
++    uint32_t best_identical = 0;
++    hle_frame_age_ = 0;
++    for (uint32_t age = 0; age < HleFrameSink::kKeptFrames; ++age) {
++      const uint32_t identical = HleCompareState(age, false);
++      if (identical > best_identical) {
++        best_identical = identical;
++        hle_frame_age_ = age;
++      }
++    }
++    HleCompareState(hle_frame_age_, true);
 +    hle_state_line_ += fmt::format(
 +        "; emulated IssueDraw reached: entered only {}, vertex shader {}, rasterization decided {}, primitives {}, "
 +        "render targets {}, system constants (drawn) {}",
@@ -584,7 +617,7 @@ index d71d508..4d1dac3 100644
    if (!graphics_system_)
      return;
    ui::Presenter* presenter = graphics_system_->presenter();
-@@ -3886,6 +3977,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3886,6 +3987,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
  
    const RegisterFile& regs = *register_file_;
    (void)index_buffer_info;
@@ -601,7 +634,7 @@ index d71d508..4d1dac3 100644
    draw_timing_ = REXCVAR_GET(gpu_frame_stats);
    if (draw_timing_) {
      draw_mark_ = DrawTicks();
-@@ -3924,6 +4025,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3924,6 +4035,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      return draw_fail("missing_vertex_shader");
    }
    pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
@@ -609,7 +642,7 @@ index d71d508..4d1dac3 100644
    bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
    if (memexport_used_vertex) {
      if (!device_properties.vertexPipelineStoresAndAtomics) {
-@@ -3964,6 +4066,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3964,6 +4076,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
        return true;
      }
    }
@@ -617,7 +650,7 @@ index d71d508..4d1dac3 100644
    bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
    if (memexport_used_pixel) {
      if (!device_properties.fragmentStoresAndAtomics) {
-@@ -4023,6 +4126,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4023,6 +4136,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      // produced by the primitive processor and are handled by the Vulkan
      // pipeline cache.
      DRAW_SECTION(1);
@@ -625,7 +658,7 @@ index d71d508..4d1dac3 100644
      Shader::HostVertexShaderType host_vertex_shader_type =
          primitive_processing_result.host_vertex_shader_type;
      if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex &&
-@@ -4149,6 +4253,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4149,6 +4263,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    if (!render_target_updated) {
      return draw_fail("render_target_update");
    }
@@ -633,7 +666,7 @@ index d71d508..4d1dac3 100644
  
    // Create the pipeline (for this, need the render pass from the render target
    // cache), translating the shaders - doing this now to obtain the used
-@@ -4280,6 +4385,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4280,6 +4395,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
                               shader_32bit_index_dma, 0, viewport_info, used_texture_mask,
                               normalized_depth_control, normalized_color_mask);
@@ -653,7 +686,7 @@ index d71d508..4d1dac3 100644
  
    // Update uniform buffers and descriptor sets after binding the pipeline with
    // the new layout.
-@@ -4468,6 +4586,22 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4468,6 +4596,22 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1,
                                                0, 0, 0);
    }
@@ -676,7 +709,7 @@ index d71d508..4d1dac3 100644
  
    // Invalidate textures in memexported memory and watch for changes.
    if (!memexport_ranges_.empty()) {
-@@ -4711,6 +4845,29 @@ bool VulkanCommandProcessor::IssueCopy() {
+@@ -4711,6 +4855,29 @@ bool VulkanCommandProcessor::IssueCopy() {
    }
    GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
  
@@ -706,7 +739,7 @@ index d71d508..4d1dac3 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +5943,869 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +5953,881 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1065,15 +1098,15 @@ index d71d508..4d1dac3 100644
 +  }
 +}
 +
-+void VulkanCommandProcessor::HleCompareState() {
++uint32_t VulkanCommandProcessor::HleCompareState(uint32_t age, bool report) {
 +  HleFrameSink::Latest latest;
 +  const std::string wanted = hle_current_pass_;
-+  if (!HleFrameSink::Get().CopyLatest(latest) || !latest.state_offset || !latest.draw_offset) return;
++  if (!HleFrameSink::Get().CopyFrame(age, latest) || !latest.state_offset || !latest.draw_offset) return 0;
 +  uint32_t wanted_pass = UINT32_MAX;
 +  for (uint32_t i = 0; i < latest.pass_names.size(); ++i) {
 +    if (latest.pass_names[i] == wanted) wanted_pass = i;
 +  }
-+  if (wanted_pass == UINT32_MAX) return;
++  if (wanted_pass == UINT32_MAX) return 0;
 +  constexpr uint32_t kDwords = kHleStateEnd - kHleStateFirst;
 +  auto arena = [&](uint32_t offset) -> uint32_t {
 +    return offset < latest.arena.size() ? rex::byte_swap(latest.arena[offset]) : 0;
@@ -1170,19 +1203,31 @@ index d71d508..4d1dac3 100644
 +  for (size_t i = 0; i < top.size() && i < 16; ++i) {
 +    registers += fmt::format("{}{:04X}:{}", i ? " " : "", top[i].first, top[i].second);
 +  }
-+  hle_state_line_ = fmt::format(
-+      "pass {}, frame {}: {} emulated draws into the pass's target, {} records; matched by index buffer {} (unmatched {}), "
-+      "identical {}; differing registers by space: render state {}, float constants {}, fetch {}, bool/loop {}; "
-+      "most often: {}",
-+      wanted, latest.frame, hle_state_captured_draws_, records, matched, unmatched, identical, render_state_diffs,
-+      float_diffs, fetch_diffs, bool_loop_diffs, registers);
++  if (report) {
++    hle_frame_number_ = latest.frame;
++    hle_state_line_ = fmt::format(
++        "pass {}, frame {} ({} before the latest): {} emulated draws into the pass's target, {} records; matched by "
++        "index buffer {} (unmatched {}), identical {}; differing registers by space: render state {}, float "
++        "constants {}, fetch {}, bool/loop {}; most often: {}",
++        wanted, latest.frame, age, hle_state_captured_draws_, records, matched, unmatched, identical,
++        render_state_diffs, float_diffs, fetch_diffs, bool_loop_diffs, registers);
++  }
++  return identical;
 +}
 +
 +void VulkanCommandProcessor::HleDryRun() {
 +  HleDryRunStats stats;
 +  const std::string wanted = hle_current_pass_;
 +  HleFrameSink::Latest latest;
-+  if (wanted.empty() || !HleFrameSink::Get().CopyLatest(latest) || !latest.state_offset || !latest.ucode_offset ||
++  bool found = false;
++  for (uint32_t age = 0; age < HleFrameSink::kKeptFrames && !found; ++age) {
++    found = HleFrameSink::Get().CopyFrame(age, latest) &&
++            (hle_frame_number_ == UINT64_MAX || latest.frame == hle_frame_number_);
++  }
++  if (!found) HleFrameSink::Get().CopyLatest(latest);
++  hle_frame_number_ = UINT64_MAX;
++  if (wanted.empty() || latest.records.empty() || !latest.state_offset ||
++      !latest.ucode_offset ||
 +      !latest.draw_offset) {
 +    return;
 +  }
@@ -1576,7 +1621,7 @@ index d71d508..4d1dac3 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6885,225 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +6907,225 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
