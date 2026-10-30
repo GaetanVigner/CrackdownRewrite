@@ -228,4 +228,31 @@ void Sub_82A85FD0(PPCContext&, uint8_t*);  // constructor of a callback table; r
 void Sub_82B0FF08(PPCContext&, uint8_t*);  // default colour set from two constants (fourth)
 void Sub_82B0FF58(PPCContext&, uint8_t*);  // default colour set from one constant
 
+// Batch 10 (2026-10-31): 25 loop-free leaf functions of 19-82 instructions.
+void Sub_82140C90(PPCContext&, uint8_t*);  // f1 = random value in [f1; f2] from the object's LCG
+void Sub_82199AA8(PPCContext&, uint8_t*);  // accumulates two bytes and two floats into a double; counter + 4 (second)
+void Sub_821A9C00(PPCContext&, uint8_t*);  // accumulates two bytes and two floats into a double; counter + 4 (third)
+void Sub_822979C8(PPCContext&, uint8_t*);  // constructor of a 400-byte curve set
+void Sub_823159A0(PPCContext&, uint8_t*);  // resets an object from two globals (three words at +12)
+void Sub_8232AD48(PPCContext&, uint8_t*);  // session count increment when flagged
+void Sub_823EA600(PPCContext&, uint8_t*);  // orb map view parameters from a scale (second set of constants)
+void Sub_8240C038(PPCContext&, uint8_t*);  // accumulates four bytes and two floats into a double; counter + 6
+void Sub_8247A720(PPCContext&, uint8_t*);  // starts five modes on r4; *r3 = the mode global
+void Sub_82481B08(PPCContext&, uint8_t*);  // copies twelve floats of the source's block
+void Sub_8258C098(PPCContext&, uint8_t*);  // reports five fields into a statistics block
+void Sub_825DD2B0(PPCContext&, uint8_t*);  // blends two colours byte by byte
+void Sub_825F1890(PPCContext&, uint8_t*);  // constructor of a texture view from a stream cursor
+void Sub_8272A530(PPCContext&, uint8_t*);  // constructor of a 64-byte track
+void Sub_82793DF8(PPCContext&, uint8_t*);  // constructor: vtable; kind 3; 32 bytes copied
+void Sub_827C5CC8(PPCContext&, uint8_t*);  // clears a 64-byte stream descriptor with two -1
+void Sub_828397B8(PPCContext&, uint8_t*);  // sets a channel of a table entry to f1; returns 0
+void Sub_8284DBD8(PPCContext&, uint8_t*);  // marks a pair in a symmetric bit matrix
+void Sub_8285B180(PPCContext&, uint8_t*);  // unlinks a tagged list node (links to objects 32 bytes before)
+void Sub_829EC830(PPCContext&, uint8_t*);  // constructor (null-tolerant) with an embedded object
+void Sub_829F1438(PPCContext&, uint8_t*);  // constructor: vtable; five 1.0f; two sentinels
+void Sub_82AAAB88(PPCContext&, uint8_t*);  // constructor of a self-linked 32-byte node
+void Sub_82AED2C0(PPCContext&, uint8_t*);  // resets an 88-byte stream state
+void Sub_82B0FB40(PPCContext&, uint8_t*);  // eight global float triples set to a constant
+void Sub_82B22708(PPCContext&, uint8_t*);  // 24 global floats set to a constant
+
 }  // namespace crackdown::hooks::decomp
