@@ -30,6 +30,8 @@
 #include "hang_watchdog.h"
 #include "hle_records.h"
 #include "pm4_decode.h"
+#define XXH_INLINE_ALL
+#include <xxhash.h>
 #include "platform.h"
 #include "single_tile_scene.h"
 
@@ -604,7 +606,10 @@ void ExecuteOps(const DecodedPm4& decoded, uint32_t depth, HleWritePhase phase) 
         }
         break;
       case WalkOp::kShader:
-        if (g_buffer_walk && op.code <= 1) HleBufferShader(op.code == 1, op.first, op.count);
+        if (g_buffer_walk && op.code <= 1 && op.count && op.count <= 0x10000) {
+          HleBufferShader(op.code == 1, op.first, op.count,
+                          XXH3_64bits(PhysicalBase() + (op.first & 0x1FFFFFFF), size_t(op.count) * 4));
+        }
         break;
       case WalkOp::kIndirect:
         if (depth < kMaxIndirectDepth) ExecuteIndirect(op.first, op.count, depth + 1, phase);

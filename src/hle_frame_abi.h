@@ -23,7 +23,11 @@ struct HleFrameAbi {
   const char* const* pass_names;  // pass_count + 1 names, index 0 the untagged records
   uint32_t pass_count;
   uint32_t draw_offset;  // byte offset in each record of {VGT_DRAW_INITIATOR, VGT_DMA_BASE, VGT_DMA_SIZE}
+  // Byte offset in each record of the vertex and pixel shaders' microcode hashes (XXH3-64 of the microcode as it was
+  // when the record was made: the runtime patches vertex shader microcode in place for each vertex declaration).
+  uint32_t hash_offset;
+  uint32_t reserved;
 };
-inline constexpr uint32_t kHleFrameAbiVersion = 4;
+inline constexpr uint32_t kHleFrameAbiVersion = 5;
 
 }  // namespace crackdown

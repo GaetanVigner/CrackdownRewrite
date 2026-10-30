@@ -58,6 +58,8 @@ struct DrawRecord {
   // and VGT_DMA_SIZE when its indices come by DMA (the index buffer, which no state group carries); all 0 when the
   // call wrote none (BeginVertices draws at EndVertices).
   uint32_t draw[3];
+  // XXH3-64 of the vertex and pixel shaders' microcode when the record was made (0 none): the shader cache's key.
+  uint64_t ucode_hash[2];
 };
 
 // The render pass each record belongs to (0: none of the tagged passes), set by the pass hooks for the duration of the
@@ -125,7 +127,7 @@ void HleNoteSegment(uint32_t physical, uint32_t dwords);
 // come after the previous call's record, which is added to the frame first.
 void HleBufferBegin(uint8_t* base, uint32_t device, bool ring_gap = false);
 void HleBufferRegisters(uint32_t first, uint32_t dwords, const uint8_t* values);
-void HleBufferShader(bool pixel, uint32_t physical, uint32_t dwords);
+void HleBufferShader(bool pixel, uint32_t physical, uint32_t dwords, uint64_t hash);
 void HleBufferBoolLoop(uint32_t first, uint32_t dwords, const uint8_t* values);
 void HleBufferDraw(const uint32_t draw[3]);
 void HleBufferEnd();

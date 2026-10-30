@@ -27,6 +27,8 @@
 #include <rex/logging.h>
 
 #include "guest_memory.h"
+#define XXH_INLINE_ALL
+#include <xxhash.h>
 #include "hle_frame_abi.h"
 
 #if defined(_WIN32)
@@ -119,8 +121,9 @@ void LastDrawPacket(uint8_t* base, uint32_t device, uint32_t out[3]) {
 // blob = obj + [obj+64], code at [obj+24] + [blob+40], [blob+44] bytes. Vertex shader: variant v (1 when bit 0x20 of
 // [obj+872] is set), blob = obj + [obj+896+8v], code at [obj+32] + [blob+872], [blob+876] bytes; the runtime patches
 // that code in place for the vertex declaration before loading it.
-void ShaderMicrocode(uint8_t* base, uint32_t object, bool vertex, uint32_t out[2]) {
+void ShaderMicrocode(uint8_t* base, uint32_t object, bool vertex, uint32_t out[2], uint64_t* hash) {
   out[0] = out[1] = 0;
+  *hash = 0;
   if (object < 0x40000000) return;
   uint32_t code, bytes;
   if (vertex) {
@@ -135,6 +138,8 @@ void ShaderMicrocode(uint8_t* base, uint32_t object, bool vertex, uint32_t out[2
   }
   out[0] = (code & 0x1FFFFFFF) + ((((code >> 20) + 0x200) & 0x1000));
   out[1] = bytes >> 2;
+  // As the shader cache keys it (the microcode bytes as they are now, patched for this draw's declaration).
+  if (out[1] && out[1] <= 0x10000) *hash = XXH3_64bits(base + code, size_t(out[1]) * 4);
 }
 constexpr uint32_t kPageDwords = 64;  // 16 float4
 // The overlay's index space: float constants (VS c0-c255 then PS, in dwords), the fetch constants, then the resolve
@@ -230,6 +235,7 @@ struct State {
   bool buffer_gap = false;  // a ring gap walk: its constant writes apply at once (they precede the next flush)
   uint32_t buffer_registers[0x400];
   uint32_t buffer_ucode[4];
+  uint64_t buffer_ucode_hash[2];
   uint32_t buffer_bool_loop[kBoolLoopDwords];
   bool buffer_bool_loop_changed = false;
   const uint8_t* buffer_dev = nullptr;
@@ -559,8 +565,8 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
   record.segment_count = 0;
   record.vertex_shader = Load32(base, device + kVertexShader);
   record.pixel_shader = Load32(base, device + kPixelShader);
-  ShaderMicrocode(base, record.vertex_shader, true, &record.ucode[0]);
-  ShaderMicrocode(base, record.pixel_shader, false, &record.ucode[2]);
+  ShaderMicrocode(base, record.vertex_shader, true, &record.ucode[0], &record.ucode_hash[0]);
+  ShaderMicrocode(base, record.pixel_shader, false, &record.ucode[2], &record.ucode_hash[1]);
   LastDrawPacket(base, device, record.draw);
 
   const uint32_t touched = ApplyOverlay(state, masks);
@@ -710,6 +716,7 @@ void HleBufferBegin(uint8_t* base, uint32_t device, bool ring_gap) {
     position += group.count;
   }
   std::copy(std::begin(t_record.ucode), std::end(t_record.ucode), state.buffer_ucode);
+  std::copy(std::begin(t_record.ucode_hash), std::end(t_record.ucode_hash), state.buffer_ucode_hash);
   if (state.bool_loop != UINT32_MAX) {
     std::memcpy(state.buffer_bool_loop, state.arena.data() + state.bool_loop, sizeof(state.buffer_bool_loop));
   }
@@ -726,12 +733,13 @@ void HleBufferRegisters(uint32_t first, uint32_t dwords, const uint8_t* values) 
   std::memcpy(state.buffer_registers + first, values, std::min(dwords, 0x400 - first) * 4);
 }
 
-void HleBufferShader(bool pixel, uint32_t physical, uint32_t dwords) {
+void HleBufferShader(bool pixel, uint32_t physical, uint32_t dwords, uint64_t hash) {
   State& state = g_state;
   if (!state.buffer_active) return;
   SpinLock lock(state.lock);
   state.buffer_ucode[pixel ? 2 : 0] = physical;
   state.buffer_ucode[pixel ? 3 : 1] = dwords;
+  state.buffer_ucode_hash[pixel ? 1 : 0] = hash;
 }
 
 void HleBufferBoolLoop(uint32_t first, uint32_t dwords, const uint8_t* values) {
@@ -751,6 +759,7 @@ void HleBufferDraw(const uint32_t draw[3]) {
   record.kind = RecordKind::kBufferDraw;
   record.pass = t_pass;
   std::copy(state.buffer_ucode, state.buffer_ucode + 4, record.ucode);
+  std::copy(state.buffer_ucode_hash, state.buffer_ucode_hash + 2, record.ucode_hash);
   std::copy(draw, draw + 3, record.draw);
   uint8_t gathered[kRenderStateDwords * 4];
   uint32_t position = 0;
@@ -866,6 +875,7 @@ void SubmitToPlugin(State& state) {
   frame.pass_names = kRenderPassNames;
   frame.pass_count = kRenderPassCount;
   frame.draw_offset = uint32_t(offsetof(DrawRecord, draw));
+  frame.hash_offset = uint32_t(offsetof(DrawRecord, ucode_hash));
   submit(&frame);
 }
 
