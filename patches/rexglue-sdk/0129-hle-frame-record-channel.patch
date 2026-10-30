@@ -462,7 +462,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..8bb9cad 100644
+index d71d508..4d1dac3 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,11 @@
@@ -706,7 +706,7 @@ index d71d508..8bb9cad 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +5943,870 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +5943,869 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1214,18 +1214,11 @@ index d71d508..8bb9cad 100644
 +    std::memcpy(&kind, record, 4);
 +    std::memcpy(&pass, record + 4, 4);
 +    if (kind == 7 && stats.native_draws && !native_stopped) {
-+      // A depth resolve (RB_COPY_CONTROL source 4) after the pass's first native draws, whatever pass it is tagged
-+      // with (the title resolves each atlas cascade outside the pass function): the reference shows up to there.
-+      uint32_t render_state;
-+      std::memcpy(&render_state, record + latest.state_offset, 4);
-+      for (size_t g = 0, position = 0; g + 1 < latest.groups.size(); g += 2) {
-+        const uint32_t first = latest.groups[g], dwords = latest.groups[g + 1];
-+        if (XE_GPU_REG_RB_COPY_CONTROL >= first && XE_GPU_REG_RB_COPY_CONTROL < first + dwords &&
-+            (arena(render_state + uint32_t(position) + (XE_GPU_REG_RB_COPY_CONTROL - first)) & 7) == 4) {
-+          native_stopped = true;
-+        }
-+        position += dwords;
-+      }
++      // The first resolve after the pass's native draws, whatever pass it is tagged with (the title resolves each
++      // atlas cascade outside the pass function): the reference shows up to there. Its record cannot tell the copy
++      // source (the device zeroes its resolve registers once the call has run; the GPU keeps them).
++      native_stopped = true;
++      ++stats.skipped_copies;
 +      continue;
 +    }
 +    if (kind == 6 && pass == wanted_pass) {
@@ -1289,6 +1282,12 @@ index d71d508..8bb9cad 100644
 +    // nothing; neither is drawn.
 +    if (edram_mode == xenos::EdramMode::kCopy || !rasterization) {
 +      ++(edram_mode == xenos::EdramMode::kCopy ? stats.skipped_copies : stats.skipped_no_raster);
++      // A depth resolve inside a replayed command buffer (the atlas resolves each cascade so) after native draws:
++      // the reference shows up to there.
++      if (edram_mode == xenos::EdramMode::kCopy && stats.native_draws &&
++          (regs.values[XE_GPU_REG_RB_COPY_CONTROL] & 7) == 4) {
++        native_stopped = true;
++      }
 +      continue;
 +    }
 +    VulkanShader* pixel_shader = nullptr;
@@ -1577,7 +1576,7 @@ index d71d508..8bb9cad 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6886,225 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +6885,225 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
