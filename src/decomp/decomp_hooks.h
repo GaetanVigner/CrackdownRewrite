@@ -120,4 +120,31 @@ void Sub_82A792E0(PPCContext&, uint8_t*);  // constructor: vtable; 1.0f; cleared
 void Sub_82B37038(PPCContext&, uint8_t*);  // clears ten global words
 void Sub_82B37118(PPCContext&, uint8_t*);  // clears ten global words (second)
 
+// Batch 6 (2026-10-30): 25 loop-free leaf functions of 15-54 instructions.
+void Sub_8213E3C8(PPCContext&, uint8_t*);  // twelve words set to a constant
+void Sub_82185E40(PPCContext&, uint8_t*);  // distance between two points into *r7; returns 1
+void Sub_8218DC98(PPCContext&, uint8_t*);  // accumulates a byte and two floats into a double; counter + 3
+void Sub_82213798(PPCContext&, uint8_t*);  // resets an object from a global and a constant
+void Sub_822E9A98(PPCContext&, uint8_t*);  // copies three flag bits between bytes
+void Sub_822F9FA0(PPCContext&, uint8_t*);  // flag bytes and the owner's byte at +424
+void Sub_82303670(PPCContext&, uint8_t*);  // fills r4 from the owner's bytes and halfword
+void Sub_823CA8F0(PPCContext&, uint8_t*);  // appends a slot to a bucket list (first table)
+void Sub_823CAA10(PPCContext&, uint8_t*);  // appends a slot to a bucket list (second table)
+void Sub_8240B648(PPCContext&, uint8_t*);  // accumulates two bytes into a double; counter + 2
+void Sub_82476C50(PPCContext&, uint8_t*);  // starts two modes on r4; *r3 = a global
+void Sub_82581ED0(PPCContext&, uint8_t*);  // frame counter in state 3; done flag at the definition's count
+void Sub_82597840(PPCContext&, uint8_t*);  // resets the target state of r4; *r3 = a global
+void Sub_826011F8(PPCContext&, uint8_t*);  // three random floats from the global LCG
+void Sub_82652B30(PPCContext&, uint8_t*);  // accumulates a word; two floats and two bytes into a double; counter + 5
+void Sub_82726F50(PPCContext&, uint8_t*);  // little-endian float from a byte stream
+void Sub_82726FC8(PPCContext&, uint8_t*);  // little-endian word from a byte stream
+void Sub_82807698(PPCContext&, uint8_t*);  // stamps the remaining count once the halfword at +202 reaches 512; returns 0
+void Sub_8284D670(PPCContext&, uint8_t*);  // two-bit field of a 64-bit big-endian bit array
+void Sub_8298FA58(PPCContext&, uint8_t*);  // quad at +12 copied to r4
+void Sub_829F0F40(PPCContext&, uint8_t*);  // constructor: vtable; 1.0f pair; 0x80000000
+void Sub_82AB52F0(PPCContext&, uint8_t*);  // lower-cases an ASCII letter code
+void Sub_82AB5FD0(PPCContext&, uint8_t*);  // floor through fsel
+void Sub_82B48FE8(PPCContext&, uint8_t*);  // installs a vtable pointer into a global object
+void Sub_82B4A590(PPCContext&, uint8_t*);  // installs a vtable pointer into a global object (second)
+
 }  // namespace crackdown::hooks::decomp

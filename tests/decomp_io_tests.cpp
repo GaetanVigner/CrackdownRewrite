@@ -66,6 +66,12 @@ struct Scene {
     std::memcpy(&bits, &value, 4);
     Word(address, bits);
   }
+  void Double(uint32_t address, double value) {
+    uint64_t bits;
+    std::memcpy(&bits, &value, 8);
+    Word(address, uint32_t(bits >> 32));
+    Word(address + 4, uint32_t(bits));
+  }
   void Bytes(uint32_t address, const char* text) {
     // Written as words so the pre-image is known; the trailing bytes of the last word stay zero.
     std::string s(text);
@@ -152,6 +158,12 @@ Outcome Run(const Case& c, guest_sandbox::GuestFunction function, uint32_t seed)
   scene.Word(0x82DE44A8, uint32_t(rng()));
   scene.Word(0x820E7484, rng() % 64);
   scene.Word(0x82D07F9C, kBlockB);
+  // Batch 6 globals: constants, the LCG seed, two doubles of the floor helper.
+  for (uint32_t address : {0x820ED650u, 0x82BADF60u, 0x82C63D5Cu, 0x830D218Cu, 0x82CFDF48u}) scene.Word(address, uint32_t(rng()));
+  scene.Float(0x820EDB48, scene.RandomFloat(rng));
+  scene.Float(0x82BAB364, scene.RandomFloat(rng));
+  scene.Double(0x82063D20, rng() % 2 ? 4503599627370496.0 : double(scene.RandomFloat(rng)));
+  scene.Double(0x820ED510, rng() % 2 ? -1.0 : double(scene.RandomFloat(rng)));
 
   rex::ppc::FPSCRRegister::Platform::setcsr(g_default_csr);
   PPCContext ctx{};
@@ -528,6 +540,32 @@ const Case kCases[] = {
     {0x82A792E0, &crackdown::hooks::decomp::Sub_82A792E0, false, false, nullptr},
     {0x82B37038, &crackdown::hooks::decomp::Sub_82B37038, false, false, nullptr},
     {0x82B37118, &crackdown::hooks::decomp::Sub_82B37118, false, false, nullptr},
+    // batch 6
+    {0x8213E3C8, &crackdown::hooks::decomp::Sub_8213E3C8, false, false, nullptr},
+    {0x82185E40, &crackdown::hooks::decomp::Sub_82185E40, true, false, nullptr},
+    {0x8218DC98, &crackdown::hooks::decomp::Sub_8218DC98, false, false, nullptr},
+    {0x82213798, &crackdown::hooks::decomp::Sub_82213798, false, false, nullptr},
+    {0x822E9A98, &crackdown::hooks::decomp::Sub_822E9A98, false, false, nullptr},
+    {0x822F9FA0, &crackdown::hooks::decomp::Sub_822F9FA0, false, false, nullptr},
+    {0x82303670, &crackdown::hooks::decomp::Sub_82303670, false, false, nullptr},
+    {0x823CA8F0, &crackdown::hooks::decomp::Sub_823CA8F0, false, false, nullptr},
+    {0x823CAA10, &crackdown::hooks::decomp::Sub_823CAA10, false, false, nullptr},
+    {0x8240B648, &crackdown::hooks::decomp::Sub_8240B648, false, false, nullptr},
+    {0x82476C50, &crackdown::hooks::decomp::Sub_82476C50, false, false, nullptr},
+    {0x82581ED0, &crackdown::hooks::decomp::Sub_82581ED0, false, false, nullptr},
+    {0x82597840, &crackdown::hooks::decomp::Sub_82597840, false, false, nullptr},
+    {0x826011F8, &crackdown::hooks::decomp::Sub_826011F8, false, false, nullptr},
+    {0x82652B30, &crackdown::hooks::decomp::Sub_82652B30, false, false, nullptr},
+    {0x82726F50, &crackdown::hooks::decomp::Sub_82726F50, false, true, nullptr},
+    {0x82726FC8, &crackdown::hooks::decomp::Sub_82726FC8, true, false, nullptr},
+    {0x82807698, &crackdown::hooks::decomp::Sub_82807698, true, false, nullptr},
+    {0x8284D670, &crackdown::hooks::decomp::Sub_8284D670, true, false, nullptr},
+    {0x8298FA58, &crackdown::hooks::decomp::Sub_8298FA58, false, false, nullptr},
+    {0x829F0F40, &crackdown::hooks::decomp::Sub_829F0F40, false, false, nullptr},
+    {0x82AB52F0, &crackdown::hooks::decomp::Sub_82AB52F0, true, false, nullptr},
+    {0x82AB5FD0, &crackdown::hooks::decomp::Sub_82AB5FD0, false, true, nullptr},
+    {0x82B48FE8, &crackdown::hooks::decomp::Sub_82B48FE8, false, false, nullptr},
+    {0x82B4A590, &crackdown::hooks::decomp::Sub_82B4A590, false, false, nullptr},
 };
 
 }  // namespace
