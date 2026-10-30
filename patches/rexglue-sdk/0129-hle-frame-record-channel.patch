@@ -132,10 +132,10 @@ index 0000000..67cb9d7
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..276da0d 100644
+index 4f8a0cb..110f0ec 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
-@@ -470,6 +470,59 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -470,6 +470,63 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -156,6 +156,9 @@ index 4f8a0cb..276da0d 100644
 +    // gpu_hle_native_pass: draws issued into the native depth image, and those that could not be.
 +    uint32_t native_draws = 0, native_failed = 0;
 +    uint32_t native_width = 0, native_height = 0;
++    // The pass's depth tests (bit per CompareFunction, and how many enable it), its clears (D3D Clear records) and
++    // the last clear's RB_DEPTH_CLEAR.
++    uint32_t z_functions = 0, z_enabled = 0, z_writes = 0, clears = 0, depth_clear = 0;
 +    bool ran = false;
 +  } hle_dry_run_;
 +  // The native pass's depth target (kept between runs; recreated when the format or size changes).
@@ -185,6 +188,7 @@ index 4f8a0cb..276da0d 100644
 +  uint64_t hle_compare_submission_ = 0;
 +  uint64_t hle_compare_frame_ = 0;
 +  VkExtent2D hle_native_extent_{};
++  float hle_native_clear_depth_ = 1.0f;
 +  uint32_t hle_dumps_written_ = 0;
 +  std::string hle_compare_line_;
 +  // Why no reference was captured while armed: copies seen, with a depth source, with the pass's RB_DEPTH_INFO, the
@@ -413,7 +417,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..a4688ce 100644
+index d71d508..9311107 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,10 @@
@@ -497,7 +501,7 @@ index d71d508..a4688ce 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +5832,588 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +5832,617 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -704,6 +708,7 @@ index d71d508..a4688ce 100644
 +    return value;
 +  };
 +  const double epsilon = 4.0 / 16777215.0;
++  const double native_clear = double(hle_native_clear_depth_);
 +  uint64_t native_written = 0, emulated_written = 0, equal = 0, native_farther = 0, native_nearer = 0;
 +  double nearer_max = 0.0;
 +  const bool dump = int32_t(hle_dumps_written_) < REXCVAR_GET(gpu_hle_compare_dumps);
@@ -720,8 +725,8 @@ index d71d508..a4688ce 100644
 +        dump_pixels[0][size_t(y) * width + x] = uint16_t(std::clamp(emulated, 0.0, 1.0) * 65535.0 + 0.5);
 +        dump_pixels[1][size_t(y) * width + x] = uint16_t(std::clamp(native, 0.0, 1.0) * 65535.0 + 0.5);
 +      }
-+      emulated_written += emulated < 1.0;
-+      if (native >= 1.0) continue;
++      emulated_written += std::abs(emulated - native_clear) > epsilon;
++      if (std::abs(native - native_clear) <= epsilon) continue;
 +      ++native_written;
 +      if (std::abs(native - emulated) <= epsilon) {
 +        ++equal;
@@ -738,7 +743,8 @@ index d71d508..a4688ce 100644
 +      "(draws the records miss), native nearer {} (errors; max {:.6f})",
 +      hle_compare_frame_, width, height, native_written, emulated_written, equal,
 +      native_written ? 100.0 * equal / native_written : 0.0, native_farther, native_nearer, nearer_max);
-+  if (dump) {
++  // Only pairs where the native pass drew something worth looking at.
++  if (dump && native_written >= 10000) {
 +    ++hle_dumps_written_;
 +    std::error_code error;
 +    std::filesystem::create_directories("logs", error);
@@ -776,6 +782,7 @@ index d71d508..a4688ce 100644
 +  };
 +  const ui::vulkan::VulkanDevice::Properties& device_properties = GetVulkanDevice()->properties();
 +  bool draw_native = REXCVAR_GET(gpu_hle_native_pass);
++  bool native_clear_known = false;
 +  bool native_target_ready = false;
 +  VkRenderPass native_render_pass = VK_NULL_HANDLE;
 +  const uint32_t count = uint32_t(latest.records.size() / latest.record_size);
@@ -784,6 +791,22 @@ index d71d508..a4688ce 100644
 +    uint32_t kind, pass;
 +    std::memcpy(&kind, record, 4);
 +    std::memcpy(&pass, record + 4, 4);
++    if (kind == 6 && pass == wanted_pass) {
++      // A D3D Clear of the pass: its depth clear value (the native target is cleared to the last one before the
++      // first native draw, as the guest's depth is).
++      uint32_t render_state;
++      std::memcpy(&render_state, record + latest.state_offset, 4);
++      for (size_t g = 0, position = 0; g + 1 < latest.groups.size(); g += 2) {
++        const uint32_t first = latest.groups[g], dwords = latest.groups[g + 1];
++        if (XE_GPU_REG_RB_DEPTH_CLEAR >= first && XE_GPU_REG_RB_DEPTH_CLEAR < first + dwords) {
++          stats.depth_clear = arena(render_state + uint32_t(position) + (XE_GPU_REG_RB_DEPTH_CLEAR - first));
++          native_clear_known = true;
++        }
++        position += dwords;
++      }
++      ++stats.clears;
++      continue;
++    }
 +    if (kind < 1 || kind > 4 || pass != wanted_pass) continue;
 +    ++stats.records;
 +    uint32_t blocks[35], ucode[4], draw[3];
@@ -835,6 +858,11 @@ index d71d508..a4688ce 100644
 +      }
 +    }
 +    const reg::RB_DEPTHCONTROL normalized_depth_control = draw_util::GetNormalizedDepthControl(regs);
++    if (normalized_depth_control.z_enable) {
++      ++stats.z_enabled;
++      stats.z_functions |= 1u << uint32_t(normalized_depth_control.zfunc);
++      stats.z_writes += normalized_depth_control.z_write_enable;
++    }
 +    uint32_t ps_param_gen_pos = UINT32_MAX;
 +    const uint32_t interpolator_mask =
 +        pixel_shader ? (vertex_shader->writes_interpolators() &
@@ -947,7 +975,11 @@ index d71d508..a4688ce 100644
 +                                                        hle_native_depth_view_, true);
 +      VkClearAttachment clear = {};
 +      clear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-+      clear.clearValue.depthStencil = {1.0f, 0};
++      // The pass's own depth clear (RB_DEPTH_CLEAR: 24-bit depth in the high bits, stencil in the low 8), else the
++      // far plane.
++      clear.clearValue.depthStencil = {
++          native_clear_known ? float(double(stats.depth_clear >> 8) / 16777215.0) : 1.0f,
++          native_clear_known ? (stats.depth_clear & 0xFF) : 0u};
 +      VkClearRect clear_rect = {};
 +      clear_rect.rect.extent = hle_native_framebuffer_.host_extent;
 +      clear_rect.layerCount = 1;
@@ -1054,6 +1086,7 @@ index d71d508..a4688ce 100644
 +      // The next run's barrier starts from UNDEFINED (the image is cleared again).
 +      hle_native_depth_layout_ = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 +      hle_native_extent_ = {stats.native_width, stats.native_height};
++      hle_native_clear_depth_ = native_clear_known ? float(double(stats.depth_clear >> 8) / 16777215.0) : 1.0f;
 +      hle_compare_pending_ = true;
 +      hle_compare_submission_ = GetCurrentSubmission();
 +      hle_compare_frame_ = stats.frame;
@@ -1086,7 +1119,7 @@ index d71d508..a4688ce 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6493,171 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +6522,173 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -1097,11 +1130,13 @@ index d71d508..a4688ce 100644
 +          "HLE dry run{} (frame {}, pass {}): {} records, {} expanded ({} without a draw packet), {} without a "
 +          "shader, primitives processed {} ({} failed, {} host vertices, host types 0x{:X}), translated {} ({} "
 +          "failed), pipelines {} ready, {} compiling, {} failed; depth format {}, MSAA {}; native draws {} ({} "
-+          "failed) into {}x{}",
++          "failed) into {}x{}; depth test on {} (functions 0x{:X}, writes {}), clears {} (RB_DEPTH_CLEAR "
++          "{:08X})",
 +          ab_tag, dry.frame, REXCVAR_GET(gpu_hle_dry_run_pass), dry.records, dry.expanded, dry.skipped,
 +          dry.no_shader, dry.processed, dry.failed_process, dry.host_vertices, dry.host_primitive_types,
 +          dry.translated, dry.failed_translation, dry.pipelines, dry.placeholders, dry.failed_pipeline,
-+          dry.depth_format, dry.msaa, dry.native_draws, dry.native_failed, dry.native_width, dry.native_height);
++          dry.depth_format, dry.msaa, dry.native_draws, dry.native_failed, dry.native_width, dry.native_height,
++          dry.z_enabled, dry.z_functions, dry.z_writes, dry.clears, dry.depth_clear);
 +      hle_dry_run_ = {};
 +    }
 +    if (hle.frames) {
