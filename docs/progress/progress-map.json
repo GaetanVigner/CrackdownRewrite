@@ -1004,9 +1004,9 @@
    "recompiled": 427
   },
   "code 821xxxxx": {
-   "native": 37,
+   "native": 41,
    "verified": 0,
-   "recompiled": 3834
+   "recompiled": 3830
   },
   "code 822xxxxx": {
    "native": 28,
@@ -1014,14 +1014,14 @@
    "recompiled": 2407
   },
   "code 823xxxxx": {
-   "native": 48,
+   "native": 52,
    "verified": 0,
-   "recompiled": 3804
+   "recompiled": 3800
   },
   "code 824xxxxx": {
-   "native": 43,
+   "native": 47,
    "verified": 0,
-   "recompiled": 3310
+   "recompiled": 3306
   },
   "code 825xxxxx": {
    "native": 51,
@@ -1034,9 +1034,9 @@
    "recompiled": 3156
   },
   "code 827xxxxx": {
-   "native": 27,
+   "native": 31,
    "verified": 0,
-   "recompiled": 2476
+   "recompiled": 2472
   },
   "code 828xxxxx": {
    "native": 21,
@@ -1044,19 +1044,19 @@
    "recompiled": 2205
   },
   "code 829xxxxx": {
-   "native": 25,
+   "native": 28,
    "verified": 0,
-   "recompiled": 3922
+   "recompiled": 3919
   },
   "code 82Axxxxx": {
-   "native": 30,
+   "native": 33,
    "verified": 0,
-   "recompiled": 4596
+   "recompiled": 4593
   },
   "code 82Bxxxxx": {
-   "native": 22,
+   "native": 25,
    "verified": 0,
-   "recompiled": 6626
+   "recompiled": 6623
   }
  }
 }

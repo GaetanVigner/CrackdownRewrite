@@ -59,6 +59,15 @@ loads the frame's records (once; later cascades' markers extend them) and, until
 pass in every cascade is drawn natively into the emulated render target in place of the emulated draw, with no plugin
 image, second image, queries or comparisons ("frames replaced throughout").
 
+Early replacement (H2): in steady frames the match is made at the start of IssueDraw, before any emulated work; the
+record's native draw sets up the textures, the render targets (as IssueDraw would, from the record's registers) and
+its own vertex data and primitive processing, and draws into the emulated render target. A native draw that cannot
+be made falls back to the emulated draw, the reason counted ("draws left to the emulation").
+
+Shared frames: the sink keeps each received frame's records and state blocks as shared immutable buffers
+(HleShared), so readers taking a frame (every pass begin marker in steady frames, up to four kept frames each) copy
+no data.
+
 diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
 index 7a5bdd2..4a849fc 100644
 --- a/include/rex/graphics/command_processor.h
@@ -164,10 +173,10 @@ index 0000000..5e1619a
 +}  // namespace rex::graphics::hle
 diff --git b/include/rex/graphics/hle_frame.h b/include/rex/graphics/hle_frame.h
 new file mode 100644
-index 0000000..9615331
+index 0000000..33f3511
 --- /dev/null
 +++ b/include/rex/graphics/hle_frame.h
-@@ -0,0 +1,105 @@
+@@ -0,0 +1,117 @@
 +/**
 + * @file        graphics/hle_frame.h
 + * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
@@ -180,6 +189,7 @@ index 0000000..9615331
 +
 +#include <cstdint>
 +#include <deque>
++#include <memory>
 +#include <mutex>
 +#include <string>
 +#include <vector>
@@ -214,6 +224,17 @@ index 0000000..9615331
 +
 +// The plugin's copy of the latest frame, and counters for gpu_frame_stats. The game thread submits, the GPU command
 +// thread reads; the native renderer will take its records from here.
++// A frame's records or state blocks, shared by the sink and its readers (never changed once received): handing a
++// frame over copies no data (the state blocks are megabytes a frame, and readers take a frame at every pass begin).
++template <typename T>
++struct HleShared {
++  std::shared_ptr<const std::vector<T>> ptr;
++  const T* data() const { return ptr ? ptr->data() : nullptr; }
++  size_t size() const { return ptr ? ptr->size() : 0; }
++  bool empty() const { return !size(); }
++  const T& operator[](size_t i) const { return (*ptr)[i]; }
++};
++
 +class HleFrameSink {
 + public:
 +  static HleFrameSink& Get();
@@ -234,14 +255,14 @@ index 0000000..9615331
 +
 +  // A copy of the latest frame's records (record_size bytes each) and where their shader microcode fields are.
 +  struct Latest {
-+    std::vector<uint8_t> records;
++    HleShared<uint8_t> records;
 +    uint32_t record_size = 0;
 +    uint32_t ucode_offset = 0;
 +    uint32_t state_offset = 0;
 +    uint32_t draw_offset = 0;
 +    uint32_t hash_offset = 0;
 +    uint64_t frame = 0;
-+    std::vector<uint32_t> arena;  // big-endian dwords, as the game keeps them
++    HleShared<uint32_t> arena;  // big-endian dwords, as the game keeps them
 +    std::vector<uint32_t> groups;
 +    std::vector<std::string> pass_names;
 +  };
@@ -261,20 +282,20 @@ index 0000000..9615331
 +  uint32_t hash_offset_ = 0;
 +  struct Kept {
 +    uint64_t frame = 0;
-+    std::vector<uint8_t> records;
-+    std::vector<uint32_t> arena;
++    std::shared_ptr<const std::vector<uint8_t>> records;
++    std::shared_ptr<const std::vector<uint32_t>> arena;
 +  };
 +  std::deque<Kept> older_;  // the frames before the latest, newest first
 +  std::vector<uint32_t> groups_;
 +  std::vector<std::string> pass_names_;
-+  std::vector<uint8_t> records_;
-+  std::vector<uint32_t> arena_;
++  std::shared_ptr<const std::vector<uint8_t>> records_;
++  std::shared_ptr<const std::vector<uint32_t>> arena_;
 +  Stats stats_;
 +};
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..9be6bc8 100644
+index 4f8a0cb..8573042 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
 @@ -11,6 +11,9 @@
@@ -287,7 +308,7 @@ index 4f8a0cb..9be6bc8 100644
  #include <atomic>
  #include <chrono>
  #include <climits>
-@@ -470,6 +473,188 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -470,6 +473,194 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -352,6 +373,11 @@ index 4f8a0cb..9be6bc8 100644
 +  // plugin image, no queries).
 +  bool hle_replace_steady_ = false;
 +  uint32_t hle_replace_frames_ = 0;
++  // Steady frames replace a matched draw at the start of IssueDraw (none of the emulated work is done); a native draw
++  // that cannot be made falls back to the emulated draw. Why each fallback happened (HleDryRunStats counters).
++  uint32_t hle_replace_fallbacks_ = 0;
++  uint32_t hle_replace_why_[8] = {};  // no shader, no draw, copy / no raster, process, translation, pipeline,
++                                      // placeholder, native (render targets, MSAA, colour)
 +  // Per draw, the samples each draw passes the emulated way (query 2i) and natively (2i + 1), and what the draw is,
 +  // to list the draws whose native rendering differs.
 +  static constexpr uint32_t kHleDrawQueries = 256;
@@ -393,6 +419,7 @@ index 4f8a0cb..9be6bc8 100644
 +    uint32_t after_first_resolve = 0;
 +    bool ran = false;
 +  } hle_dry_run_;
++  HleDryRunStats hle_replace_stats_;  // the last early replacement's
 +  // The native pass's depth target (kept between runs; recreated when the format or size changes).
 +  bool EnsureHleNativeDepth(VkFormat format, uint32_t width, uint32_t height, VkRenderPass render_pass);
 +  VkImage hle_native_depth_image_ = VK_NULL_HANDLE;
@@ -600,10 +627,10 @@ index 11d06a9..aebe726 100644
  }
 diff --git b/src/graphics/hle_frame.cpp b/src/graphics/hle_frame.cpp
 new file mode 100644
-index 0000000..265f076
+index 0000000..2f9617c
 --- /dev/null
 +++ b/src/graphics/hle_frame.cpp
-@@ -0,0 +1,100 @@
+@@ -0,0 +1,99 @@
 +/**
 + * @file        graphics/hle_frame.cpp
 + * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
@@ -637,11 +664,9 @@ index 0000000..265f076
 +  }
 +  const size_t record_bytes = size_t(frame.record_count) * frame.record_size;
 +  std::lock_guard<std::mutex> lock(mutex_);
-+  if (record_size_ == frame.record_size && !records_.empty()) {
++  if (record_size_ == frame.record_size && records_ && !records_->empty()) {
 +    older_.push_front({frame_, std::move(records_), std::move(arena_)});
 +    if (older_.size() > kKeptFrames - 1) older_.pop_back();
-+    records_.clear();
-+    arena_.clear();
 +  } else {
 +    older_.clear();
 +  }
@@ -656,9 +681,10 @@ index 0000000..265f076
 +    pass_names_.clear();
 +    for (uint32_t i = 0; i <= frame.pass_count; ++i) pass_names_.emplace_back(frame.pass_names[i]);
 +  }
-+  records_.resize(record_bytes);
-+  if (record_bytes) std::memcpy(records_.data(), frame.records, record_bytes);
-+  arena_.assign(frame.arena, frame.arena + frame.arena_dwords);
++  auto records = std::make_shared<std::vector<uint8_t>>(record_bytes);
++  if (record_bytes) std::memcpy(records->data(), frame.records, record_bytes);
++  records_ = std::move(records);
++  arena_ = std::make_shared<const std::vector<uint32_t>>(frame.arena, frame.arena + frame.arena_dwords);
 +
 +  ++stats_.frames;
 +  stats_.records += frame.record_count;
@@ -666,7 +692,7 @@ index 0000000..265f076
 +  stats_.arena_bytes += uint64_t(frame.arena_dwords) * 4;
 +  for (uint32_t i = 0; i < frame.record_count; ++i) {
 +    uint32_t kind;
-+    std::memcpy(&kind, records_.data() + size_t(i) * frame.record_size, 4);
++    std::memcpy(&kind, records_->data() + size_t(i) * frame.record_size, 4);
 +    if ((kind >= 1 && kind <= 4) || kind == 9) {  // 9: a draw inside a replayed command buffer
 +      ++stats_.draws;
 +    } else if (kind == 5) {
@@ -683,13 +709,13 @@ index 0000000..265f076
 +bool HleFrameSink::CopyFrame(uint32_t age, Latest& latest) {
 +  std::lock_guard<std::mutex> lock(mutex_);
 +  if (!record_size_ || (age && age > older_.size())) return false;
-+  latest.records = age ? older_[age - 1].records : records_;
++  latest.records.ptr = age ? older_[age - 1].records : records_;
 +  latest.record_size = record_size_;
 +  latest.ucode_offset = ucode_offset_;
 +  latest.state_offset = state_offset_;
 +  latest.draw_offset = draw_offset_;
 +  latest.hash_offset = hash_offset_;
-+  latest.arena = age ? older_[age - 1].arena : arena_;
++  latest.arena.ptr = age ? older_[age - 1].arena : arena_;
 +  latest.groups = groups_;
 +  latest.pass_names = pass_names_;
 +  latest.frame = age ? older_[age - 1].frame : frame_;
@@ -730,7 +756,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..044fb36 100644
+index d71d508..923606a 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,12 @@
@@ -999,7 +1025,7 @@ index d71d508..044fb36 100644
    draw_timing_ = REXCVAR_GET(gpu_frame_stats);
    if (draw_timing_) {
      draw_mark_ = DrawTicks();
-@@ -3906,6 +4130,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3906,10 +4130,45 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    };
  
    xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
@@ -1009,7 +1035,43 @@ index d71d508..044fb36 100644
    if (edram_mode == xenos::EdramMode::kCopy) {
      // Special copy handling.
      return IssueCopy();
-@@ -3924,6 +4151,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+   }
++  if (hle_replace_steady_ && hle_per_draw_active_ && !active_occlusion_query_.valid && !hle_pass_stack_.empty() &&
++      hle_pass_stack_.back() == hle_current_pass_index_) {
++    // Steady replacement: the matched draw is drawn natively from its record instead of all of the emulated work;
++    // if the native draw cannot be made, the emulated draw follows.
++    const size_t record = hle_per_draw_matcher_.Match(
++        {regs.values[XE_GPU_REG_VGT_DMA_BASE], regs.values[XE_GPU_REG_VGT_DRAW_INITIATOR],
++         hle::HashDwords(&regs.values[XE_GPU_REG_SHADER_CONSTANT_000_X], 1024)});
++    if (record != hle::DrawMatcher::kNoRecord) {
++      hle_per_draw_record_ = uint32_t(record);
++      hle_emulated_primitive_valid_ = false;
++      hle_replace_this_draw_ = true;
++      hle_replace_drawn_ = false;
++      HleDryRun();
++      hle_per_draw_record_ = UINT32_MAX;
++      hle_replace_this_draw_ = false;
++      if (hle_replace_drawn_) {
++        ++hle_replaced_draws_;
++        return true;
++      }
++      ++hle_replace_fallbacks_;
++      const HleDryRunStats& s = hle_replace_stats_;
++      const uint32_t why = s.no_shader                              ? 0
++                           : s.skipped                              ? 1
++                           : (s.skipped_copies || s.skipped_no_raster) ? 2
++                           : s.failed_process                       ? 3
++                           : s.failed_translation                   ? 4
++                           : s.failed_pipeline                      ? 5
++                           : s.placeholders                         ? 6
++                                                                    : 7;
++      ++hle_replace_why_[why];
++    }
++  }
+ 
+   bool surface_pitch_is_zero = regs.Get<reg::RB_SURFACE_INFO>().surface_pitch == 0;
+ 
+@@ -3924,6 +4183,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      return draw_fail("missing_vertex_shader");
    }
    pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
@@ -1017,7 +1079,7 @@ index d71d508..044fb36 100644
    bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
    if (memexport_used_vertex) {
      if (!device_properties.vertexPipelineStoresAndAtomics) {
-@@ -3964,6 +4192,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3964,6 +4224,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
        return true;
      }
    }
@@ -1025,7 +1087,7 @@ index d71d508..044fb36 100644
    bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
    if (memexport_used_pixel) {
      if (!device_properties.fragmentStoresAndAtomics) {
-@@ -4023,6 +4252,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4023,6 +4284,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      // produced by the primitive processor and are handled by the Vulkan
      // pipeline cache.
      DRAW_SECTION(1);
@@ -1033,7 +1095,7 @@ index d71d508..044fb36 100644
      Shader::HostVertexShaderType host_vertex_shader_type =
          primitive_processing_result.host_vertex_shader_type;
      if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex &&
-@@ -4149,6 +4379,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4149,6 +4411,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    if (!render_target_updated) {
      return draw_fail("render_target_update");
    }
@@ -1041,7 +1103,7 @@ index d71d508..044fb36 100644
  
    // Create the pipeline (for this, need the render pass from the render target
    // cache), translating the shaders - doing this now to obtain the used
-@@ -4280,6 +4511,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4280,6 +4543,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
                               shader_32bit_index_dma, 0, viewport_info, used_texture_mask,
                               normalized_depth_control, normalized_color_mask);
@@ -1061,12 +1123,12 @@ index d71d508..044fb36 100644
  
    // Update uniform buffers and descriptor sets after binding the pipeline with
    // the new layout.
-@@ -4430,11 +4674,26 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4430,11 +4706,26 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
        render_target_cache_->last_update_framebuffer());
  
    DRAW_SECTION(13);
 -  // Draw.
-+  const bool hle_match_draw = hle_per_draw_active_ && (hle_replace_steady_ || !hle_reference_captured_) &&
++  const bool hle_match_draw = hle_per_draw_active_ && !hle_replace_steady_ && !hle_reference_captured_ &&
 +                              !hle_pass_stack_.empty() &&
 +                              hle_pass_stack_.back() == hle_current_pass_index_;
 +  const size_t hle_record =
@@ -1076,7 +1138,7 @@ index d71d508..044fb36 100644
 +                                                                    1024)})
 +                     : hle::DrawMatcher::kNoRecord;
 +  // Replaced: drawn natively from its record into this render target (in HleDryRun) instead of here.
-+  hle_replace_this_draw_ = (hle_replace_window_ || hle_replace_steady_) && hle_record != hle::DrawMatcher::kNoRecord &&
++  hle_replace_this_draw_ = hle_replace_window_ && hle_record != hle::DrawMatcher::kNoRecord &&
 +                           !active_occlusion_query_.valid &&
 +                           render_target_cache_->last_update_render_pass_key().depth_and_color_used == 1;
 +  // Draw (a replaced draw's index buffer is still bound: the second image's emulated draw uses it).
@@ -1090,7 +1152,7 @@ index d71d508..044fb36 100644
    } else {
      std::pair<VkBuffer, VkDeviceSize> index_buffer;
      switch (primitive_processing_result.index_buffer_type) {
-@@ -4465,8 +4724,99 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4465,8 +4756,99 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
          primitive_processing_result.host_index_format == xenos::IndexFormat::kInt16
              ? VK_INDEX_TYPE_UINT16
              : VK_INDEX_TYPE_UINT32);
@@ -1192,7 +1254,7 @@ index d71d508..044fb36 100644
    }
  
    // Invalidate textures in memexported memory and watch for changes.
-@@ -4711,6 +5061,30 @@ bool VulkanCommandProcessor::IssueCopy() {
+@@ -4711,6 +5093,30 @@ bool VulkanCommandProcessor::IssueCopy() {
    }
    GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
  
@@ -1223,7 +1285,7 @@ index d71d508..044fb36 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +6160,1205 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +6192,1218 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1952,7 +2014,8 @@ index d71d508..044fb36 100644
 +  // Everything a record sets: render state 0x2000-0x23FF, float constants 0x4000-0x47FF, fetch 0x4800-0x48BF,
 +  // bool/loop 0x4900-0x4927. Saved whole and put back after the run.
 +  constexpr uint32_t kFirst = 0x2000, kEnd = 0x4928;
-+  std::vector<uint32_t> saved(regs.values + kFirst, regs.values + kEnd);
++  thread_local std::vector<uint32_t> saved;
++  saved.assign(regs.values + kFirst, regs.values + kEnd);
 +  auto arena = [&](uint32_t offset) -> uint32_t {
 +    return offset < latest.arena.size() ? rex::byte_swap(latest.arena[offset]) : 0;
 +  };
@@ -2141,6 +2204,16 @@ index d71d508..044fb36 100644
 +    hle_atlas_surface_info_ = regs.values[XE_GPU_REG_RB_SURFACE_INFO];
 +    hle_atlas_known_ = true;
 +    stats.msaa = uint32_t(surface_info.msaa_samples);
++    if (per_draw && hle_replace_steady_) {
++      texture_cache_->RequestTextures(vertex_shader->GetUsedTextureMaskAfterTranslation() |
++                                      (pixel_shader ? pixel_shader->GetUsedTextureMaskAfterTranslation() : 0));
++      if (!render_target_cache_->Update(rasterization, normalized_depth_control, 0, *vertex_shader) ||
++          render_target_cache_->last_update_render_pass_key().depth_and_color_used != 1) {
++        ++stats.native_failed;
++        continue;
++      }
++      render_pass_key = render_target_cache_->last_update_render_pass_key();
++    }
 +    // Depth only: the native pass has no colour targets yet (a colour pass becomes its depth prepass).
 +    const uint32_t normalized_color_mask = 0;
 +    VkPipeline pipeline;
@@ -2268,7 +2341,8 @@ index d71d508..044fb36 100644
 +    const Shader::ConstantRegisterMap& constant_map = vertex_shader->constant_register_map();
 +    // Per draw, the emulated draw just made its vertex data resident: requesting it again would upload what the game
 +    // writes meanwhile (its next skinned vertices: torn data). Native draws must use the draw's own snapshot.
-+    for (uint32_t i = 0; i < rex::countof(constant_map.vertex_fetch_bitmap) && vertices_ready && !per_draw; ++i) {
++    for (uint32_t i = 0; i < rex::countof(constant_map.vertex_fetch_bitmap) && vertices_ready && (!per_draw || hle_replace_steady_);
++         ++i) {
 +      uint32_t bits = constant_map.vertex_fetch_bitmap[i];
 +      uint32_t j;
 +      while (rex::bit_scan_forward(bits, &j)) {
@@ -2417,6 +2491,7 @@ index d71d508..044fb36 100644
 +    dynamic_stencil_reference_front_update_needed_ = true;
 +    dynamic_stencil_reference_back_update_needed_ = true;
 +  }
++  if (per_draw && hle_replace_steady_) hle_replace_stats_ = stats;
 +  if (per_draw && !hle_replace_steady_) {
 +    hle_per_draw_target_ready_ = native_target_ready;
 +    hle_per_draw_render_pass_ = native_render_pass;
@@ -2429,7 +2504,7 @@ index d71d508..044fb36 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +7438,276 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +7483,281 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -2501,9 +2576,14 @@ index d71d508..044fb36 100644
 +                            hle_current_pass_index_ != UINT32_MAX;
 +      if (hle_replaced_draws_ || hle_replace_failed_) {
 +        REXGPU_INFO("HLE replaced pass{}: {} emulated draws replaced by native draws in the render target, {} "
-+                    "replacements failed (drawn neither way); {} frames replaced throughout (every cascade)",
-+                    ab_tag, hle_replaced_draws_, hle_replace_failed_, hle_replace_frames_);
-+        hle_replaced_draws_ = hle_replace_failed_ = hle_replace_frames_ = 0;
++                    "replacements failed (drawn neither way); {} frames replaced throughout (every cascade), {} "
++                    "draws left to the emulation (no shader {}, no draw {}, copy or no raster {}, process {}, "
++                    "translation {}, pipeline {}, placeholder {}, render targets {})",
++                    ab_tag, hle_replaced_draws_, hle_replace_failed_, hle_replace_frames_, hle_replace_fallbacks_,
++                    hle_replace_why_[0], hle_replace_why_[1], hle_replace_why_[2], hle_replace_why_[3],
++                    hle_replace_why_[4], hle_replace_why_[5], hle_replace_why_[6], hle_replace_why_[7]);
++        hle_replaced_draws_ = hle_replace_failed_ = hle_replace_frames_ = hle_replace_fallbacks_ = 0;
++        std::memset(hle_replace_why_, 0, sizeof(hle_replace_why_));
 +      }
 +      hle_replace_window_ = hle_per_draw_armed_ && REXCVAR_GET(gpu_hle_replace_pass);
 +      hle_inplace_armed_ = false;

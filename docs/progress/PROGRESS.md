@@ -275,17 +275,17 @@ The recompiled functions of `default.xex` by address area: natively replaced (ho
 | Area | Native | Verified | Recompiled | Total | % native |
 |---|---|---|---|---|---|
 | D3D runtime | 24 | 291 | 427 | 742 | 3.2% |
-| code 821xxxxx | 37 | 0 | 3834 | 3871 | 1.0% |
+| code 821xxxxx | 41 | 0 | 3830 | 3871 | 1.1% |
 | code 822xxxxx | 28 | 0 | 2407 | 2435 | 1.1% |
-| code 823xxxxx | 48 | 0 | 3804 | 3852 | 1.2% |
-| code 824xxxxx | 43 | 0 | 3310 | 3353 | 1.3% |
+| code 823xxxxx | 52 | 0 | 3800 | 3852 | 1.3% |
+| code 824xxxxx | 47 | 0 | 3306 | 3353 | 1.4% |
 | code 825xxxxx | 51 | 0 | 3788 | 3839 | 1.3% |
 | code 826xxxxx | 21 | 0 | 3156 | 3177 | 0.7% |
-| code 827xxxxx | 27 | 0 | 2476 | 2503 | 1.1% |
+| code 827xxxxx | 31 | 0 | 2472 | 2503 | 1.2% |
 | code 828xxxxx | 21 | 0 | 2205 | 2226 | 0.9% |
-| code 829xxxxx | 25 | 0 | 3922 | 3947 | 0.6% |
-| code 82Axxxxx | 30 | 0 | 4596 | 4626 | 0.6% |
-| code 82Bxxxxx | 22 | 0 | 6626 | 6648 | 0.3% |
+| code 829xxxxx | 28 | 0 | 3919 | 3947 | 0.7% |
+| code 82Axxxxx | 33 | 0 | 4593 | 4626 | 0.7% |
+| code 82Bxxxxx | 25 | 0 | 6623 | 6648 | 0.4% |
 
 ## Render passes
 
