@@ -147,4 +147,31 @@ void Sub_82AB5FD0(PPCContext&, uint8_t*);  // floor through fsel
 void Sub_82B48FE8(PPCContext&, uint8_t*);  // installs a vtable pointer into a global object
 void Sub_82B4A590(PPCContext&, uint8_t*);  // installs a vtable pointer into a global object (second)
 
+// Batch 7 (2026-10-30): 25 loop-free leaf functions of 16-72 instructions.
+void Sub_821577C0(PPCContext&, uint8_t*);  // camera target block: flag and a 96-bit value
+void Sub_821584F8(PPCContext&, uint8_t*);  // camera pair setter (first)
+void Sub_82158588(PPCContext&, uint8_t*);  // camera pair setter (second)
+void Sub_82271AD8(PPCContext&, uint8_t*);  // random float in the object's range from a global LCG
+void Sub_822F9AD8(PPCContext&, uint8_t*);  // flag bytes: clears six bits
+void Sub_822FD2E8(PPCContext&, uint8_t*);  // flag bytes: sets two; clears four
+void Sub_8230E280(PPCContext&, uint8_t*);  // flag bytes: sets two; keeps 0x3E; clears two
+void Sub_8232EFB0(PPCContext&, uint8_t*);  // render state write into the global shadow and dirty mask
+void Sub_823CD950(PPCContext&, uint8_t*);  // accumulates a list length into a double; counter + 1
+void Sub_8240B7B8(PPCContext&, uint8_t*);  // accumulates two bytes and two floats into a double; counter + 4
+void Sub_82474CE0(PPCContext&, uint8_t*);  // copies a mode into a record; *r5 = 1; *r3 = the mode global
+void Sub_82477E88(PPCContext&, uint8_t*);  // starts two modes on r4 with 200; *r3 = the mode global
+void Sub_8250ADE0(PPCContext&, uint8_t*);  // invalidates seven cached handles of a global
+void Sub_825111A8(PPCContext&, uint8_t*);  // accumulates a global LCG draw into a double; counter + 1
+void Sub_826D5C28(PPCContext&, uint8_t*);  // constructor of a 208-byte render state
+void Sub_82730D90(PPCContext&, uint8_t*);  // constructor of a 48-byte node
+void Sub_827C7F08(PPCContext&, uint8_t*);  // resets a stream's limits and flags; returns 0
+void Sub_8283EEC8(PPCContext&, uint8_t*);  // priority of an object (explicit or 2046 / 2047)
+void Sub_82846518(PPCContext&, uint8_t*);  // packs four 2-bit fields selected by a selector
+void Sub_8297DEB0(PPCContext&, uint8_t*);  // pops a halfword pair from a small stack into a slot
+void Sub_8298D7B0(PPCContext&, uint8_t*);  // constructor (null-tolerant); 1.0f replaced by a constant
+void Sub_82A24A70(PPCContext&, uint8_t*);  // distance between two points into *r7; returns 1
+void Sub_82AB52B0(PPCContext&, uint8_t*);  // upper-cases an ASCII letter code
+void Sub_82B4A610(PPCContext&, uint8_t*);  // installs a vtable pointer into a global object (third)
+void Sub_82B4A7A0(PPCContext&, uint8_t*);  // installs a vtable pointer into a global object (fourth)
+
 }  // namespace crackdown::hooks::decomp

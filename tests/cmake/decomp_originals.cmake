@@ -54,6 +54,7 @@ if(EXISTS "${_crackdown_generated}/codegen.partition.json" AND EXISTS "${_decomp
                        "${CRACKDOWN_SRC_DIR}/decomp/leaf_batch4.cpp"
                        "${CRACKDOWN_SRC_DIR}/decomp/leaf_batch5.cpp"
                        "${CRACKDOWN_SRC_DIR}/decomp/leaf_batch6.cpp"
+                       "${CRACKDOWN_SRC_DIR}/decomp/leaf_batch7.cpp"
                        SDK_HEADERS)
     target_include_directories(decomp_io_tests PRIVATE "${_crackdown_generated}")
     target_compile_definitions(decomp_io_tests PRIVATE SPDLOG_COMPILED_LIB SPDLOG_FMT_EXTERNAL)
