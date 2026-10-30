@@ -7,6 +7,8 @@
 
 #include <algorithm>
 #include <atomic>
+#include <bit>
+#include <cmath>
 #include <chrono>
 #include <cstdint>
 #include <cstdio>
@@ -85,11 +87,14 @@ struct Scene {
   void RandomBlock(uint32_t address, uint32_t size, std::mt19937& rng) {
     for (uint32_t i = 0; i < size; i += 4) {
       uint32_t value;
-      switch (rng() % 6) {
+      switch (rng() % 8) {
         case 0: value = 0; break;
         case 1: value = rng() % 16; break;
         case 2: value = rng() % 1024; break;
         case 3: value = Pointer(rng); break;
+        // Float NaNs and infinities (signalling NaNs included): a float copied through the PowerPC's lfs / stfs
+        // comes out quiet, and a translation that copies the bits as they are is caught here.
+        case 4: value = 0x7F800000u | (uint32_t(rng()) & 0x807FFFFFu); break;
         default: value = uint32_t(rng()); break;
       }
       Word(address + i, value);
@@ -115,11 +120,57 @@ struct Case {
   std::function<void(Scene&, PPCContext&, std::mt19937&)> prepare;
 };
 
+// A guest word a run changed, with the other word of its 8-byte group (so a NaN double can be recognised).
+struct Change {
+  uint32_t address, value, partner;
+  bool operator<(const Change& other) const { return address < other.address; }
+};
+
 struct Outcome {
   uint64_t r3 = 0;
   uint64_t f1 = 0;  // bits
-  std::vector<std::pair<uint32_t, uint32_t>> changes;  // (address, new value), sorted
+  std::vector<Change> changes;  // sorted by address
 };
+
+// NaN payloads are not game state: the recompiled code's x86 conversions quiet a signalling NaN where the console's
+// lfs / stfs did not, and the operand order of a NaN-producing addition picks which payload survives. Two values that
+// are both NaNs (as floats, or as the double their 8-byte group forms) count as equal.
+bool FloatNaN(uint32_t bits) { return (bits & 0x7F800000u) == 0x7F800000u && (bits & 0x007FFFFFu) != 0; }
+bool DoubleNaN(const Change& c) {
+  const uint32_t hi = (c.address & 4) ? c.partner : c.value, lo = (c.address & 4) ? c.value : c.partner;
+  return (hi & 0x7FF00000u) == 0x7FF00000u && ((hi & 0x000FFFFFu) != 0 || lo != 0);
+}
+bool NaNWrite(const Change& c) { return FloatNaN(c.value) || DoubleNaN(c); }
+
+// The first difference between two runs' memory changes that is not a NaN payload, or an empty string.
+std::string CompareChanges(const std::vector<Change>& expected, const std::vector<Change>& actual) {
+  char text[160];
+  size_t i = 0, j = 0;
+  while (i < expected.size() || j < actual.size()) {
+    if (i < expected.size() && j < actual.size() && expected[i].address == actual[j].address) {
+      const Change &e = expected[i], &a = actual[j];
+      if (e.value != a.value && !(FloatNaN(e.value) && FloatNaN(a.value)) && !(DoubleNaN(e) && DoubleNaN(a))) {
+        std::snprintf(text, sizeof text, "memory: original wrote %08X=%08X, native %08X", e.address, e.value, a.value);
+        return text;
+      }
+      ++i;
+      ++j;
+    } else if (j >= actual.size() || (i < expected.size() && expected[i].address < actual[j].address)) {
+      if (!NaNWrite(expected[i])) {
+        std::snprintf(text, sizeof text, "memory: native missed the write %08X=%08X", expected[i].address, expected[i].value);
+        return text;
+      }
+      ++i;
+    } else {
+      if (!NaNWrite(actual[j])) {
+        std::snprintf(text, sizeof text, "memory: native wrote %08X=%08X, the original did not", actual[j].address, actual[j].value);
+        return text;
+      }
+      ++j;
+    }
+  }
+  return "";
+}
 
 Outcome Run(const Case& c, guest_sandbox::GuestFunction function, uint32_t seed) {
   Scene scene;
@@ -176,6 +227,15 @@ Outcome Run(const Case& c, guest_sandbox::GuestFunction function, uint32_t seed)
   for (uint32_t address : {0x82BADF5Cu, 0x82C626C0u, 0x8205AFB0u, 0x8205EA10u}) scene.Float(address, scene.RandomFloat(rng));
   scene.Word(0x82D300B4, kBlockA + 0x900);
   scene.Word(kBlockA + 0x904, rng() % 64);
+  // Batch 9 globals: a session pair, the weather constants, more image constants.
+  scene.Word(0x82DE3EA8, rng() % 4 ? kBlockA + 0xA00 : 0);
+  scene.Word(0x82DE3EA0, kBlockA + 0xB00);
+  for (uint32_t address : {0x82DE3FE8u, 0x820ED56Cu, 0x8207092Cu, 0x83098208u, 0x820EDB14u, 0x82000A8Cu, 0x820EE164u,
+                           0x820EE160u, 0x820EE15Cu, 0x820EE158u, 0x820EE154u, 0x82072D7Cu, 0x820704ACu, 0x82071F00u,
+                           0x820ED5F0u}) {
+    scene.Word(address, uint32_t(rng()));
+  }
+  for (uint32_t address : {0x820708BCu, 0x820EDDB0u, 0x82BAE768u}) scene.Float(address, scene.RandomFloat(rng));
 
   rex::ppc::FPSCRRegister::Platform::setcsr(g_default_csr);
   PPCContext ctx{};
@@ -203,7 +263,9 @@ Outcome Run(const Case& c, guest_sandbox::GuestFunction function, uint32_t seed)
     for (uint32_t offset = 0; offset < guest_sandbox::kPageSize; offset += 4) {
       const uint32_t address = page + offset;
       const uint32_t value = scene.memory.Read32(address);
-      if (value != scene.PreImage(address)) outcome.changes.emplace_back(address, value);
+      if (value != scene.PreImage(address)) {
+        outcome.changes.push_back({address, value, scene.memory.Read32(address ^ 4)});
+      }
     }
   }
   std::sort(outcome.changes.begin(), outcome.changes.end());
@@ -630,6 +692,32 @@ const Case kCases[] = {
     {0x82A97790, &crackdown::hooks::decomp::Sub_82A97790, true, false, nullptr},
     {0x82B0FEC0, &crackdown::hooks::decomp::Sub_82B0FEC0, false, false, nullptr},
     {0x82B52010, &crackdown::hooks::decomp::Sub_82B52010, false, false, nullptr},
+    // batch 9
+    {0x82140CE0, &crackdown::hooks::decomp::Sub_82140CE0, false, true, nullptr},
+    {0x8215A4A0, &crackdown::hooks::decomp::Sub_8215A4A0, false, false, nullptr},
+    {0x821AA050, &crackdown::hooks::decomp::Sub_821AA050, false, false, nullptr},
+    {0x822C5EC8, &crackdown::hooks::decomp::Sub_822C5EC8, false, false, nullptr},
+    {0x822DEFD0, &crackdown::hooks::decomp::Sub_822DEFD0, false, false, nullptr},
+    {0x822F0F08, &crackdown::hooks::decomp::Sub_822F0F08, false, false, nullptr},
+    {0x82307B70, &crackdown::hooks::decomp::Sub_82307B70, false, false, nullptr},
+    {0x82309F98, &crackdown::hooks::decomp::Sub_82309F98, false, false, nullptr},
+    {0x8232AD98, &crackdown::hooks::decomp::Sub_8232AD98, false, false, nullptr},
+    {0x8240BC48, &crackdown::hooks::decomp::Sub_8240BC48, false, false, nullptr},
+    {0x82475DD0, &crackdown::hooks::decomp::Sub_82475DD0, false, false, nullptr},
+    {0x824DE458, &crackdown::hooks::decomp::Sub_824DE458, false, false, nullptr},
+    {0x82555B38, &crackdown::hooks::decomp::Sub_82555B38, false, false, nullptr},
+    {0x82581E18, &crackdown::hooks::decomp::Sub_82581E18, false, true, nullptr},
+    {0x825A7068, &crackdown::hooks::decomp::Sub_825A7068, true, false, nullptr},
+    {0x8273CC98, &crackdown::hooks::decomp::Sub_8273CC98, false, false, nullptr},
+    {0x82794140, &crackdown::hooks::decomp::Sub_82794140, false, false, nullptr},
+    {0x82845E00, &crackdown::hooks::decomp::Sub_82845E00, false, false, nullptr},
+    {0x8287CCF0, &crackdown::hooks::decomp::Sub_8287CCF0, false, false, nullptr},
+    {0x8292D4B0, &crackdown::hooks::decomp::Sub_8292D4B0, true, false, nullptr},
+    {0x8298A828, &crackdown::hooks::decomp::Sub_8298A828, false, false, nullptr},
+    {0x82A45648, &crackdown::hooks::decomp::Sub_82A45648, true, false, nullptr},
+    {0x82A85FD0, &crackdown::hooks::decomp::Sub_82A85FD0, true, false, nullptr},
+    {0x82B0FF08, &crackdown::hooks::decomp::Sub_82B0FF08, false, false, nullptr},
+    {0x82B0FF58, &crackdown::hooks::decomp::Sub_82B0FF58, false, false, nullptr},
 };
 
 }  // namespace
@@ -660,26 +748,12 @@ int main(int argc, char** argv) {
       std::string problem;
       if (c.compare_r3 && expected.r3 != actual.r3) {
         problem = "r3 " + std::to_string(expected.r3) + " vs " + std::to_string(actual.r3);
-      } else if (c.compare_f1 && expected.f1 != actual.f1) {
-        double e, a;
-        std::memcpy(&e, &expected.f1, 8);
-        std::memcpy(&a, &actual.f1, 8);
-        problem = "f1 " + std::to_string(e) + " vs " + std::to_string(a);
-      } else if (expected.changes != actual.changes) {
-        size_t i = 0;
-        while (i < expected.changes.size() && i < actual.changes.size() && expected.changes[i] == actual.changes[i]) ++i;
-        char text[160];
-        if (i < expected.changes.size() && i < actual.changes.size()) {
-          std::snprintf(text, sizeof text, "memory: original wrote %08X=%08X, native %08X=%08X", expected.changes[i].first,
-                        expected.changes[i].second, actual.changes[i].first, actual.changes[i].second);
-        } else if (i < expected.changes.size()) {
-          std::snprintf(text, sizeof text, "memory: native missed the write %08X=%08X", expected.changes[i].first,
-                        expected.changes[i].second);
-        } else {
-          std::snprintf(text, sizeof text, "memory: native wrote %08X=%08X, the original did not", actual.changes[i].first,
-                        actual.changes[i].second);
-        }
-        problem = text;
+      } else if (c.compare_f1 && expected.f1 != actual.f1 &&
+                 !(std::isnan(std::bit_cast<double>(expected.f1)) && std::isnan(std::bit_cast<double>(actual.f1)))) {
+        problem = "f1 " + std::to_string(std::bit_cast<double>(expected.f1)) + " vs " +
+                  std::to_string(std::bit_cast<double>(actual.f1));
+      } else {
+        problem = CompareChanges(expected.changes, actual.changes);
       }
       if (!problem.empty()) {
         std::printf("sub_%08X trial %d (seed %08X): %s\n", c.address, trial, seed, problem.c_str());

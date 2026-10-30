@@ -201,4 +201,31 @@ void Sub_82A97790(PPCContext&, uint8_t*);  // min(r4; (k1 / f1) * k2 + half) tru
 void Sub_82B0FEC0(PPCContext&, uint8_t*);  // default colour set from two constants (third)
 void Sub_82B52010(PPCContext&, uint8_t*);  // registers a global object through its RTTI offset
 
+// Batch 9 (2026-10-30): 25 loop-free leaf functions of 18-76 instructions.
+void Sub_82140CE0(PPCContext&, uint8_t*);  // f1 = random float from the object's LCG scaled by f1
+void Sub_8215A4A0(PPCContext&, uint8_t*);  // accumulates the sum of five words into a double; counter + 1
+void Sub_821AA050(PPCContext&, uint8_t*);  // accumulates two bytes and a float into a double; counter + 3
+void Sub_822C5EC8(PPCContext&, uint8_t*);  // constructor of the weather settings from image constants
+void Sub_822DEFD0(PPCContext&, uint8_t*);  // reports five fields into the owner's statistics
+void Sub_822F0F08(PPCContext&, uint8_t*);  // resets a 5232-byte state object
+void Sub_82307B70(PPCContext&, uint8_t*);  // fills r4 from the object and its owner
+void Sub_82309F98(PPCContext&, uint8_t*);  // flag bytes; one more cleared when two object bytes are clear
+void Sub_8232AD98(PPCContext&, uint8_t*);  // session count decrement when flagged
+void Sub_8240BC48(PPCContext&, uint8_t*);  // accumulates a byte; a short and two bytes into a double; counter + 4
+void Sub_82475DD0(PPCContext&, uint8_t*);  // starts six modes on r4; *r3 = the mode global
+void Sub_824DE458(PPCContext&, uint8_t*);  // resets the target block of r4; *r3 = a global
+void Sub_82555B38(PPCContext&, uint8_t*);  // profiler block: four nibbles as floats; mask bit 24
+void Sub_82581E18(PPCContext&, uint8_t*);  // f1 = sum of six counters as floats
+void Sub_825A7068(PPCContext&, uint8_t*);  // tiled texture address of a texel
+void Sub_8273CC98(PPCContext&, uint8_t*);  // constructor of a 76-byte colour set
+void Sub_82794140(PPCContext&, uint8_t*);  // constructor: vtable; kind 6; four arguments; -1
+void Sub_82845E00(PPCContext&, uint8_t*);  // unlinks a tagged list node and splices another in its place
+void Sub_8287CCF0(PPCContext&, uint8_t*);  // moves a tagged list node after a list head
+void Sub_8292D4B0(PPCContext&, uint8_t*);  // FNV-1 of four bytes folded into a hash
+void Sub_8298A828(PPCContext&, uint8_t*);  // constructor: vtable; four constants; 0.0f pair
+void Sub_82A45648(PPCContext&, uint8_t*);  // distance between two positions into *r6; *r7 = 1; returns 1
+void Sub_82A85FD0(PPCContext&, uint8_t*);  // constructor of a callback table; returns 0
+void Sub_82B0FF08(PPCContext&, uint8_t*);  // default colour set from two constants (fourth)
+void Sub_82B0FF58(PPCContext&, uint8_t*);  // default colour set from one constant
+
 }  // namespace crackdown::hooks::decomp
