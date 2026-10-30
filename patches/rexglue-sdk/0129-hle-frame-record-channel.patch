@@ -30,6 +30,13 @@ depth image of the plugin's own (as wide as the guest surface, as high as the ED
 resolution scale, cleared to the far plane each run); then the registers are restored and every binding cache
 invalidated, so the emulated frame is unchanged.
 
+Comparison (steps 3b-2.4/5, with gpu_hle_native_pass): at the next resolve of the dry run pass's depth target
+(RB_COPY_CONTROL depth source, same RB_DEPTH_INFO) the emulated host depth target is copied to a readback buffer
+before the resolve runs (VulkanRenderTargetCache::HleCopyLastUpdateDepth, DeferredCommandBuffer
+CmdVkCopyImageToBuffer); the native image is copied after the native pass. At the next stats window "HLE depth
+compare" counts, over the pixels the native pass wrote: equal, native farther (the command buffer draws the records
+miss) and native nearer (errors), and the first gpu_hle_compare_dumps pairs are written as 16-bit PNGs to logs\.
+
 diff --git a/include/rex/graphics/hle_frame.h b/include/rex/graphics/hle_frame.h
 new file mode 100644
 index 0000000..67cb9d7
@@ -125,10 +132,10 @@ index 0000000..67cb9d7
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..dbd1ffd 100644
+index 4f8a0cb..276da0d 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
-@@ -470,6 +470,35 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -470,6 +470,59 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -161,9 +168,87 @@ index 4f8a0cb..dbd1ffd 100644
 +  VkFormat hle_native_depth_format_ = VK_FORMAT_UNDEFINED;
 +  VkImageLayout hle_native_depth_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
 +  VulkanRenderTargetCache::Framebuffer hle_native_framebuffer_;
++  // Steps 3b-2.4/5: the emulated atlas depth copied at its resolve and the native one at the swap, both read back
++  // and compared at the next stats window (one pair at a time).
++  bool EnsureHleReadback(VkDeviceSize size);
++  void HleCompareDepths();
++  VkBuffer hle_readback_buffers_[2] = {};  // emulated, native
++  VkDeviceMemory hle_readback_memory_[2] = {};
++  void* hle_readback_mapping_[2] = {};
++  VkDeviceSize hle_readback_size_ = 0;
++  uint32_t hle_atlas_depth_info_ = 0;  // RB_DEPTH_INFO of the dry run pass
++  bool hle_atlas_known_ = false;       // whether a dry run has set it (0 is a valid value: base 0, D24S8)
++  bool hle_reference_armed_ = false;
++  bool hle_reference_captured_ = false;
++  VkExtent2D hle_reference_extent_{};
++  bool hle_compare_pending_ = false;
++  uint64_t hle_compare_submission_ = 0;
++  uint64_t hle_compare_frame_ = 0;
++  VkExtent2D hle_native_extent_{};
++  uint32_t hle_dumps_written_ = 0;
++  std::string hle_compare_line_;
++  // Why no reference was captured while armed: copies seen, with a depth source, with the pass's RB_DEPTH_INFO, the
++  // copy refusals by reason, and the last depth-source copy's RB_DEPTH_INFO and bound depth base.
++  uint32_t hle_armed_copies_ = 0, hle_armed_depth_copies_ = 0, hle_armed_info_matches_ = 0;
++  uint32_t hle_copy_refusals_[6] = {};
++  uint32_t hle_last_depth_copy_info_ = 0, hle_last_bound_base_ = 0;
    uint64_t cpu_stats_frames_ = 0;
    std::chrono::steady_clock::time_point cpu_stats_start_;
    uint64_t cpu_stats_processor_ns_ = 0;
+diff --git a/include/rex/graphics/vulkan/deferred_command_buffer.h b/include/rex/graphics/vulkan/deferred_command_buffer.h
+index 2e703c1..49fca0f 100644
+--- a/include/rex/graphics/vulkan/deferred_command_buffer.h
++++ b/include/rex/graphics/vulkan/deferred_command_buffer.h
+@@ -213,6 +213,25 @@ class DeferredCommandBuffer {
+                 regions, sizeof(VkBufferImageCopy) * region_count);
+   }
+ 
++  VkBufferImageCopy* CmdCopyImageToBufferEmplace(VkImage src_image, VkImageLayout src_image_layout,
++                                                 VkBuffer dst_buffer, uint32_t region_count) {
++    const size_t header_size =
++        rex::align(sizeof(ArgsVkCopyImageToBuffer), alignof(VkBufferImageCopy));
++    uint8_t* args_ptr = reinterpret_cast<uint8_t*>(WriteCommand(
++        Command::kVkCopyImageToBuffer, header_size + sizeof(VkBufferImageCopy) * region_count));
++    auto& args = *reinterpret_cast<ArgsVkCopyImageToBuffer*>(args_ptr);
++    args.src_image = src_image;
++    args.src_image_layout = src_image_layout;
++    args.dst_buffer = dst_buffer;
++    args.region_count = region_count;
++    return reinterpret_cast<VkBufferImageCopy*>(args_ptr + header_size);
++  }
++  void CmdVkCopyImageToBuffer(VkImage src_image, VkImageLayout src_image_layout, VkBuffer dst_buffer,
++                              uint32_t region_count, const VkBufferImageCopy* regions) {
++    std::memcpy(CmdCopyImageToBufferEmplace(src_image, src_image_layout, dst_buffer, region_count),
++                regions, sizeof(VkBufferImageCopy) * region_count);
++  }
++
+   VkImageCopy* CmdCopyImageEmplace(VkImage src_image, VkImageLayout src_image_layout,
+                                    VkImage dst_image, VkImageLayout dst_image_layout,
+                                    uint32_t region_count) {
+@@ -390,6 +409,7 @@ class DeferredCommandBuffer {
+     kVkClearColorImage,
+     kVkCopyBuffer,
+     kVkCopyBufferToImage,
++    kVkCopyImageToBuffer,
+     kVkCopyImage,
+     kVkCopyQueryPoolResults,
+     kVkDispatch,
+@@ -504,6 +524,15 @@ class DeferredCommandBuffer {
+     static_assert(alignof(VkBufferCopy) <= alignof(uintmax_t));
+   };
+ 
++  struct ArgsVkCopyImageToBuffer {
++    VkImage src_image;
++    VkImageLayout src_image_layout;
++    VkBuffer dst_buffer;
++    uint32_t region_count;
++    // Followed by aligned VkBufferImageCopy[].
++    static_assert(alignof(VkBufferImageCopy) <= alignof(uintmax_t));
++  };
++
+   struct ArgsVkCopyBufferToImage {
+     VkBuffer src_buffer;
+     VkImage dst_image;
 diff --git a/include/rex/graphics/vulkan/pipeline_cache.h b/include/rex/graphics/vulkan/pipeline_cache.h
 index 7b938b9..401fe2b 100644
 --- a/include/rex/graphics/vulkan/pipeline_cache.h
@@ -177,6 +262,25 @@ index 7b938b9..401fe2b 100644
    // Analyze shader microcode on the translator thread.
    void AnalyzeShaderUcode(Shader& shader) { shader.AnalyzeUcode(ucode_disasm_buffer_); }
  
+diff --git a/include/rex/graphics/vulkan/render_target_cache.h b/include/rex/graphics/vulkan/render_target_cache.h
+index 3d320c9..f8ae5c0 100644
+--- a/include/rex/graphics/vulkan/render_target_cache.h
++++ b/include/rex/graphics/vulkan/render_target_cache.h
+@@ -105,6 +105,14 @@ class VulkanRenderTargetCache final : public RenderTargetCache {
+   // Performs the resolve to a shared memory area according to the current
+   // register values, and also clears the render targets if needed. Must be in a
+   // frame for calling.
++  // HLE renderer (patch 0129): copies the depth aspect of the depth render target the last update bound, if its
++  // EDRAM base is depth_base_tiles, to a buffer (4 bytes a texel, rows of extent_out.width); false if none or it
++  // does not fit. The render target is left in the transfer source layout (its usage says so).
++  // Returns 0 when copied, else why not: 1 not host render targets, 2 no depth target bound, 3 other EDRAM base,
++  // 4 MSAA, 5 too large for the buffer.
++  uint32_t HleCopyLastUpdateDepth(uint32_t depth_base_tiles, VkBuffer buffer, VkDeviceSize buffer_size,
++                                  VkExtent2D& extent_out, uint32_t* bound_base_tiles_out = nullptr);
++
+   bool Resolve(const memory::Memory& memory, VulkanSharedMemory& shared_memory,
+                VulkanTextureCache& texture_cache, uint32_t& written_address_out,
+                uint32_t& written_length_out);
 diff --git a/src/graphics/CMakeLists.txt b/src/graphics/CMakeLists.txt
 index 2bf96ca..a2d471a 100644
 --- a/src/graphics/CMakeLists.txt
@@ -309,18 +413,21 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..8e8804f 100644
+index d71d508..a4688ce 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
-@@ -11,6 +11,7 @@
+@@ -11,6 +11,10 @@
  
  #include <algorithm>
  #include <array>
 +#include <unordered_set>
++#include <cmath>
++#include <cstdio>
++#include <filesystem>
  #include <cstdint>
  #include <cstring>
  #include <ctime>
-@@ -42,6 +43,7 @@
+@@ -42,6 +46,7 @@
  #include <rex/graphics/pipeline/shader/spirv_translator.h>
  #include <rex/graphics/registers.h>
  #include <rex/graphics/vulkan/command_processor.h>
@@ -328,7 +435,7 @@ index d71d508..8e8804f 100644
  #include <rex/graphics/vulkan/pipeline_cache.h>
  #include <rex/graphics/vulkan/render_target_cache.h>
  #include <rex/graphics/vulkan/shader.h>
-@@ -109,6 +111,16 @@ REXCVAR_DEFINE_BOOL(vulkan_skip_unchanged_constant_writes, true, "GPU/Vulkan",
+@@ -109,6 +114,21 @@ REXCVAR_DEFINE_BOOL(vulkan_skip_unchanged_constant_writes, true, "GPU/Vulkan",
                      "already have, keep the constant buffers and texture bindings derived from them")
      .lifecycle(rex::cvar::Lifecycle::kHotReload);
  
@@ -342,10 +449,15 @@ index d71d508..8e8804f 100644
 +                    "plugin's own, once a gpu_frame_stats window (the emulated frame is not changed)")
 +    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 +
++REXCVAR_DEFINE_INT32(gpu_hle_compare_dumps, 1, "GPU",
++                     "HLE renderer (patch 0129): how many emulated / native depth pairs of the native pass to write "
++                     "as 16-bit PNGs to logs\\ (hle_depth_<frame>_emulated.png, _native.png)")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++
  REXCVAR_DEFINE_BOOL(vulkan_occlusion_queries_in_render_pass, false, "GPU/Vulkan",
                      "Run occlusion queries inside the guest's render passes (a host query per pass a guest query "
                      "spans, summed) instead of ending the render pass around each query")
-@@ -2503,6 +2515,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -2503,6 +2523,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
    vertex_buffers_in_sync_[0] = 0;
    vertex_buffers_in_sync_[1] = 0;
  
@@ -357,7 +469,35 @@ index d71d508..8e8804f 100644
    if (!graphics_system_)
      return;
    ui::Presenter* presenter = graphics_system_->presenter();
-@@ -5786,6 +5803,394 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -4711,6 +4736,27 @@ bool VulkanCommandProcessor::IssueCopy() {
+   }
+   GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
+ 
++  if (hle_reference_armed_ && hle_atlas_known_) {
++    ++hle_armed_copies_;
++    if ((register_file_->values[XE_GPU_REG_RB_COPY_CONTROL] & 7) == 4) {
++      ++hle_armed_depth_copies_;
++      hle_last_depth_copy_info_ = register_file_->values[XE_GPU_REG_RB_DEPTH_INFO];
++      // The pass's depth base: its records' RB_DEPTH_INFO (the copy may come with other depth info set).
++      if (EnsureHleReadback(VkDeviceSize(64) << 20)) {
++        EndRenderPass();
++        const uint32_t refusal = render_target_cache_->HleCopyLastUpdateDepth(
++            hle_atlas_depth_info_ & 0xFFF, hle_readback_buffers_[0], hle_readback_size_, hle_reference_extent_,
++            &hle_last_bound_base_);
++        if (hle_last_depth_copy_info_ == hle_atlas_depth_info_) ++hle_armed_info_matches_;
++        ++hle_copy_refusals_[std::min(refusal, 5u)];
++        if (!refusal) {
++          hle_reference_armed_ = false;
++          hle_reference_captured_ = true;
++        }
++      }
++    }
++  }
++
+   ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
+   render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
+   if (readback_mode == ReadbackResolveMode::kDisabled) {
+@@ -5786,6 +5832,588 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -441,6 +581,173 @@ index d71d508..8e8804f 100644
 +  hle_native_depth_format_ = format;
 +  hle_native_framebuffer_ = VulkanRenderTargetCache::Framebuffer(hle_native_framebuffer_vk_, {width, height});
 +  return true;
++}
++
++bool VulkanCommandProcessor::EnsureHleReadback(VkDeviceSize size) {
++  if (hle_readback_size_ >= size) return true;
++  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
++  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
++  const VkDevice device = vulkan_device->device();
++  if (hle_readback_size_) return false;  // created once, at the largest size used
++  for (uint32_t i = 0; i < 2; ++i) {
++    if (!ui::vulkan::util::CreateDedicatedAllocationBuffer(vulkan_device, size, VK_BUFFER_USAGE_TRANSFER_DST_BIT,
++                                                           ui::vulkan::util::MemoryPurpose::kReadback,
++                                                           hle_readback_buffers_[i], hle_readback_memory_[i]) ||
++        dfn.vkMapMemory(device, hle_readback_memory_[i], 0, VK_WHOLE_SIZE, 0, &hle_readback_mapping_[i]) !=
++            VK_SUCCESS) {
++      REXGPU_ERROR("HLE depth compare: failed to create the readback buffers");
++      return false;
++    }
++  }
++  hle_readback_size_ = size;
++  return true;
++}
++
++namespace {
++
++// A 16-bit greyscale PNG with stored (uncompressed) deflate blocks: no compression library needed.
++bool WriteGrey16Png(const std::filesystem::path& path, uint32_t width, uint32_t height,
++                    const std::vector<uint16_t>& pixels) {
++  static const auto crc_table = [] {
++    std::array<uint32_t, 256> table;
++    for (uint32_t n = 0; n < 256; ++n) {
++      uint32_t c = n;
++      for (int k = 0; k < 8; ++k) c = (c & 1) ? 0xEDB88320u ^ (c >> 1) : c >> 1;
++      table[n] = c;
++    }
++    return table;
++  }();
++  std::string out = "\x89PNG\r\n\x1a\n";
++  auto be32 = [](std::string& s, uint32_t v) {
++    for (int i = 3; i >= 0; --i) s.push_back(char((v >> (i * 8)) & 0xFF));
++  };
++  auto chunk = [&](const char* type, const std::string& data) {
++    be32(out, uint32_t(data.size()));
++    std::string body = std::string(type, 4) + data;
++    uint32_t crc = 0xFFFFFFFFu;
++    for (unsigned char ch : body) crc = crc_table[(crc ^ ch) & 0xFF] ^ (crc >> 8);
++    out += body;
++    be32(out, crc ^ 0xFFFFFFFFu);
++  };
++  std::string header;
++  be32(header, width);
++  be32(header, height);
++  header += std::string("\x10\x00\x00\x00\x00", 5);  // 16-bit, greyscale, deflate, no filter, no interlace
++  chunk("IHDR", header);
++  std::string raw;
++  raw.reserve(size_t(height) * (1 + width * 2));
++  for (uint32_t y = 0; y < height; ++y) {
++    raw.push_back(0);
++    for (uint32_t x = 0; x < width; ++x) {
++      const uint16_t v = pixels[size_t(y) * width + x];
++      raw.push_back(char(v >> 8));
++      raw.push_back(char(v & 0xFF));
++    }
++  }
++  std::string zlib = "\x78\x01";
++  uint32_t a = 1, b = 0;
++  for (unsigned char ch : raw) {
++    a = (a + ch) % 65521;
++    b = (b + a) % 65521;
++  }
++  for (size_t pos = 0; pos < raw.size() || pos == 0;) {
++    const size_t n = std::min<size_t>(65535, raw.size() - pos);
++    const bool last = pos + n >= raw.size();
++    zlib.push_back(char(last ? 1 : 0));
++    zlib.push_back(char(n & 0xFF));
++    zlib.push_back(char(n >> 8));
++    zlib.push_back(char(~n & 0xFF));
++    zlib.push_back(char((~n >> 8) & 0xFF));
++    zlib.append(raw, pos, n);
++    pos += n;
++    if (last) break;
++  }
++  be32(zlib, (b << 16) | a);
++  chunk("IDAT", zlib);
++  chunk("IEND", std::string());
++  std::FILE* file = std::fopen(path.string().c_str(), "wb");
++  if (!file) return false;
++  const bool ok = std::fwrite(out.data(), 1, out.size(), file) == out.size();
++  std::fclose(file);
++  return ok;
++}
++
++}  // namespace
++
++void VulkanCommandProcessor::HleCompareDepths() {
++  if (!hle_compare_pending_ || submission_completed_ < hle_compare_submission_) return;
++  hle_compare_pending_ = false;
++  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
++  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
++  const VkDevice device = vulkan_device->device();
++  for (uint32_t i = 0; i < 2; ++i) {
++    VkMappedMemoryRange range = {};
++    range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
++    range.memory = hle_readback_memory_[i];
++    range.size = VK_WHOLE_SIZE;
++    dfn.vkInvalidateMappedMemoryRanges(device, 1, &range);
++  }
++  const uint32_t width = std::min(hle_reference_extent_.width, hle_native_extent_.width);
++  const uint32_t height = std::min(hle_reference_extent_.height, hle_native_extent_.height);
++  // Depth as 0..1: D24S8 keeps 24 bits in the low bits of each texel, the float formats a float.
++  const bool unorm24 = render_target_cache_->GetDepthVulkanFormat(xenos::DepthRenderTargetFormat::kD24S8) ==
++                           VK_FORMAT_D24_UNORM_S8_UINT &&
++                       (hle_atlas_depth_info_ >> 16 & 1) == 0;
++  auto depth = [&](uint32_t buffer, uint32_t row_width, uint32_t x, uint32_t y) -> double {
++    uint32_t texel;
++    std::memcpy(&texel, static_cast<const uint8_t*>(hle_readback_mapping_[buffer]) +
++                            (size_t(y) * row_width + x) * 4,
++                4);
++    if (unorm24) return double(texel & 0xFFFFFF) / 16777215.0;
++    float value;
++    std::memcpy(&value, &texel, 4);
++    return value;
++  };
++  const double epsilon = 4.0 / 16777215.0;
++  uint64_t native_written = 0, emulated_written = 0, equal = 0, native_farther = 0, native_nearer = 0;
++  double nearer_max = 0.0;
++  const bool dump = int32_t(hle_dumps_written_) < REXCVAR_GET(gpu_hle_compare_dumps);
++  std::vector<uint16_t> dump_pixels[2];
++  if (dump) {
++    dump_pixels[0].resize(size_t(width) * height);
++    dump_pixels[1].resize(size_t(width) * height);
++  }
++  for (uint32_t y = 0; y < height; ++y) {
++    for (uint32_t x = 0; x < width; ++x) {
++      const double emulated = depth(0, hle_reference_extent_.width, x, y);
++      const double native = depth(1, hle_native_extent_.width, x, y);
++      if (dump) {
++        dump_pixels[0][size_t(y) * width + x] = uint16_t(std::clamp(emulated, 0.0, 1.0) * 65535.0 + 0.5);
++        dump_pixels[1][size_t(y) * width + x] = uint16_t(std::clamp(native, 0.0, 1.0) * 65535.0 + 0.5);
++      }
++      emulated_written += emulated < 1.0;
++      if (native >= 1.0) continue;
++      ++native_written;
++      if (std::abs(native - emulated) <= epsilon) {
++        ++equal;
++      } else if (native > emulated) {
++        ++native_farther;
++      } else {
++        ++native_nearer;
++        nearer_max = std::max(nearer_max, emulated - native);
++      }
++    }
++  }
++  hle_compare_line_ = fmt::format(
++      "frame {}, {}x{} compared: native wrote {} pixels (emulated {}), equal {} ({:.2f}%), native farther {} "
++      "(draws the records miss), native nearer {} (errors; max {:.6f})",
++      hle_compare_frame_, width, height, native_written, emulated_written, equal,
++      native_written ? 100.0 * equal / native_written : 0.0, native_farther, native_nearer, nearer_max);
++  if (dump) {
++    ++hle_dumps_written_;
++    std::error_code error;
++    std::filesystem::create_directories("logs", error);
++    for (uint32_t i = 0; i < 2; ++i) {
++      const auto path = std::filesystem::path("logs") /
++                        fmt::format("hle_depth_{}_{}.png", hle_compare_frame_, i ? "native" : "emulated");
++      if (WriteGrey16Png(path, width, height, dump_pixels[i])) hle_compare_line_ += "; wrote " + path.string();
++    }
++  }
 +}
 +
 +void VulkanCommandProcessor::HleDryRun() {
@@ -571,6 +878,8 @@ index d71d508..8e8804f 100644
 +            ? xenos::DepthRenderTargetFormat::kD24FS8
 +            : depth_info.depth_format;
 +    stats.depth_format = uint32_t(render_pass_key.depth_format);
++    hle_atlas_depth_info_ = regs.values[XE_GPU_REG_RB_DEPTH_INFO];
++    hle_atlas_known_ = true;
 +    stats.msaa = uint32_t(surface_info.msaa_samples);
 +    const uint32_t normalized_color_mask =
 +        pixel_shader ? draw_util::GetNormalizedColorMask(regs, pixel_shader->writes_color_targets()) : 0;
@@ -725,6 +1034,31 @@ index d71d508..8e8804f 100644
 +  std::memcpy(regs.values + kFirst, saved.data(), saved.size() * sizeof(uint32_t));
 +  if (native_target_ready) {
 +    EndRenderPass();
++    if (hle_reference_captured_ && stats.native_draws && !hle_compare_pending_ &&
++        EnsureHleReadback(VkDeviceSize(64) << 20) &&
++        VkDeviceSize(stats.native_width) * stats.native_height * 4 <= hle_readback_size_) {
++      PushImageMemoryBarrier(hle_native_depth_image_,
++                             ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
++                                                                          VK_IMAGE_ASPECT_STENCIL_BIT),
++                             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
++                             VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
++                             VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
++                             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
++      SubmitBarriers(true);
++      VkBufferImageCopy region = {};
++      region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
++      region.imageSubresource.layerCount = 1;
++      region.imageExtent = {stats.native_width, stats.native_height, 1};
++      deferred_command_buffer_.CmdVkCopyImageToBuffer(hle_native_depth_image_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
++                                                      hle_readback_buffers_[1], 1, &region);
++      // The next run's barrier starts from UNDEFINED (the image is cleared again).
++      hle_native_depth_layout_ = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
++      hle_native_extent_ = {stats.native_width, stats.native_height};
++      hle_compare_pending_ = true;
++      hle_compare_submission_ = GetCurrentSubmission();
++      hle_compare_frame_ = stats.frame;
++    }
++    hle_reference_captured_ = false;
 +    // What the native draws bound reflects the records, not the registers now restored: the emulated draws that
 +    // follow bind everything again.
 +    current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
@@ -752,7 +1086,7 @@ index d71d508..8e8804f 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6270,152 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +6493,171 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -770,7 +1104,26 @@ index d71d508..8e8804f 100644
 +          dry.depth_format, dry.msaa, dry.native_draws, dry.native_failed, dry.native_width, dry.native_height);
 +      hle_dry_run_ = {};
 +    }
-+    if (hle.frames) hle_dry_run_pending_ = true;
++    if (hle.frames) {
++      hle_dry_run_pending_ = true;
++      HleCompareDepths();
++      if (!hle_compare_line_.empty()) {
++        REXGPU_INFO("HLE depth compare{}: {}", ab_tag, hle_compare_line_);
++        hle_compare_line_.clear();
++      }
++      if (hle_reference_armed_ || hle_armed_copies_) {
++        REXGPU_INFO(
++            "HLE depth reference{}: pass RB_DEPTH_INFO {:08X}; while armed {} copies, {} from depth (last "
++            "RB_DEPTH_INFO {:08X}, bound depth base {}), {} with the pass's depth info; copied {}, refused: not "
++            "host targets {}, no depth bound {}, other base {}, MSAA {}, too large {}",
++            ab_tag, hle_atlas_depth_info_, hle_armed_copies_, hle_armed_depth_copies_, hle_last_depth_copy_info_,
++            hle_last_bound_base_, hle_armed_info_matches_, hle_copy_refusals_[0], hle_copy_refusals_[1],
++            hle_copy_refusals_[2], hle_copy_refusals_[3], hle_copy_refusals_[4], hle_copy_refusals_[5]);
++        hle_armed_copies_ = hle_armed_depth_copies_ = hle_armed_info_matches_ = 0;
++        std::memset(hle_copy_refusals_, 0, sizeof(hle_copy_refusals_));
++      }
++      hle_reference_armed_ = REXCVAR_GET(gpu_hle_native_pass) && !hle_compare_pending_;
++    }
 +    // HLE renderer H1b step 3a: the latest frame's draws resolved against the shaders emulation loaded (same
 +    // microcode hash), the first thing a native pass needs from a record.
 +    HleFrameSink::Latest latest;
@@ -905,6 +1258,27 @@ index d71d508..8e8804f 100644
      REXGPU_INFO(
          "Vulkan render pass ends per frame{}: barriers {:.1f}, forced (copies, dispatches) {:.1f}, render target "
          "changes {:.1f}, occlusion queries {:.1f}, submissions {:.1f}, other {:.1f}",
+diff --git a/src/graphics/vulkan/deferred_command_buffer.cpp b/src/graphics/vulkan/deferred_command_buffer.cpp
+index 23920e7..29c95a8 100644
+--- a/src/graphics/vulkan/deferred_command_buffer.cpp
++++ b/src/graphics/vulkan/deferred_command_buffer.cpp
+@@ -156,6 +156,16 @@ void DeferredCommandBuffer::Execute(VkCommandBuffer command_buffer) {
+                 rex::align(sizeof(ArgsVkCopyBufferToImage), alignof(VkBufferImageCopy))));
+       } break;
+ 
++      case Command::kVkCopyImageToBuffer: {
++        auto& args = *reinterpret_cast<const ArgsVkCopyImageToBuffer*>(stream);
++        dfn.vkCmdCopyImageToBuffer(
++            command_buffer, args.src_image, args.src_image_layout, args.dst_buffer,
++            args.region_count,
++            reinterpret_cast<const VkBufferImageCopy*>(
++                reinterpret_cast<const uint8_t*>(stream) +
++                rex::align(sizeof(ArgsVkCopyImageToBuffer), alignof(VkBufferImageCopy))));
++      } break;
++
+       case Command::kVkCopyImage: {
+         auto& args = *reinterpret_cast<const ArgsVkCopyImage*>(stream);
+         dfn.vkCmdCopyImage(command_buffer, args.src_image, args.src_image_layout, args.dst_image,
 diff --git a/src/graphics/vulkan/pipeline_cache.cpp b/src/graphics/vulkan/pipeline_cache.cpp
 index 3e69d70..c83f24d 100644
 --- a/src/graphics/vulkan/pipeline_cache.cpp
@@ -922,3 +1296,45 @@ index 3e69d70..c83f24d 100644
  VulkanShader* VulkanPipelineCache::LoadShader(xenos::ShaderType shader_type,
                                                const uint32_t* host_address, uint32_t dword_count) {
    // Hash the input memory and lookup the shader.
+diff --git a/src/graphics/vulkan/render_target_cache.cpp b/src/graphics/vulkan/render_target_cache.cpp
+index ae8cc18..ece0464 100644
+--- a/src/graphics/vulkan/render_target_cache.cpp
++++ b/src/graphics/vulkan/render_target_cache.cpp
+@@ -1142,6 +1142,37 @@ void VulkanRenderTargetCache::EndSubmission() {
+   }
+ }
+ 
++uint32_t VulkanRenderTargetCache::HleCopyLastUpdateDepth(uint32_t depth_base_tiles, VkBuffer buffer,
++                                                         VkDeviceSize buffer_size, VkExtent2D& extent_out,
++                                                         uint32_t* bound_base_tiles_out) {
++  if (GetPath() != Path::kHostRenderTargets) return 1;
++  RenderTarget* depth = last_update_accumulated_render_targets()[0];
++  if (!depth || !depth->key().is_depth) return 2;
++  if (bound_base_tiles_out) *bound_base_tiles_out = depth->key().base_tiles;
++  if (depth->key().base_tiles != depth_base_tiles) return 3;
++  if (depth->key().msaa_samples != xenos::MsaaSamples::k1X) return 4;
++  auto& target = *static_cast<VulkanRenderTarget*>(depth);
++  extent_out.width = GuestToHostX(target.key().GetWidth());
++  extent_out.height =
++      GuestToHostY(GetRenderTargetHeight(target.key().pitch_tiles_at_32bpp, target.key().msaa_samples));
++  if (VkDeviceSize(extent_out.width) * extent_out.height * 4 > buffer_size) return 5;
++  command_processor_.PushImageMemoryBarrier(
++      target.image(),
++      ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT),
++      target.current_stage_mask(), VK_PIPELINE_STAGE_TRANSFER_BIT, target.current_access_mask(),
++      VK_ACCESS_TRANSFER_READ_BIT, target.current_layout(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
++  target.SetUsage(VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_TRANSFER_READ_BIT,
++                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
++  command_processor_.SubmitBarriers(true);
++  VkBufferImageCopy region = {};
++  region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
++  region.imageSubresource.layerCount = 1;
++  region.imageExtent = {extent_out.width, extent_out.height, 1};
++  command_processor_.deferred_command_buffer().CmdVkCopyImageToBuffer(
++      target.image(), VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, buffer, 1, &region);
++  return 0;
++}
++
+ bool VulkanRenderTargetCache::Resolve(const memory::Memory& memory,
+                                       VulkanSharedMemory& shared_memory,
+                                       VulkanTextureCache& texture_cache,
