@@ -149,6 +149,8 @@ function Read-Windows([string]$LogPath) {
                 'resolves' = [double]::Parse($Matches[7], $culture); 'record KB' = [double]::Parse($Matches[8], $culture)
                 'state block KB' = [double]::Parse($Matches[9], $culture)
             }
+        } elseif ($null -ne $current -and $line -match 'HLE dry run.*\(frame \d+, pass (.*)\): (.*)$') {
+            $current.DryRun = "$($Matches[1]): $($Matches[2])"
         } elseif ($null -ne $current -and $line -match 'HLE pass inventory.*\(frame \d+\): (.*)$') {
             if (-not $current.Contains('Passes')) { $current.Passes = New-Object System.Collections.Generic.List[string] }
             $current.Passes.Add($Matches[1])
@@ -229,6 +231,14 @@ function Write-Report($Runs, [string]$Path) {
             $out.Add('HLE draws resolved to emulation''s shaders (latest frame of each window, busy median): ' + (($shaderWindows[0].Shaders.Keys | ForEach-Object {
                 $key = $_; "$key $(Format-Number (Get-Median ([double[]]@($shaderWindows | ForEach-Object { $_.Shaders[$key] }))) 1)"
             }) -join ', '))
+        }
+        $dryWindows = @($busy | Where-Object { $_.DryRun })
+        if ($dryWindows.Count) {
+            $out.Add('')
+            $out.Add("HLE dry run (pipelines for one pass's records, $($dryWindows.Count) busy windows; last and first):")
+            $out.Add('')
+            $out.Add("- $($dryWindows[-1].DryRun)")
+            if ($dryWindows.Count -gt 1) { $out.Add("- $($dryWindows[0].DryRun)") }
         }
         # The pass inventory of the busy window with the most draws (one frame: no median across windows).
         $passWindow = @($busy | Where-Object { $_.Passes } | Sort-Object { $_.Draws } -Descending | Select-Object -First 1)
