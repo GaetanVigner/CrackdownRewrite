@@ -105,12 +105,14 @@ struct Case {
   uint32_t address;
   Native native;
   bool compare_r3;  // the function returns a value in r3
+  bool compare_f1;  // the function returns a value in f1
   // Writes the inputs the function dereferences so its loops are bounded and its pointers land in the blocks.
   std::function<void(Scene&, PPCContext&, std::mt19937&)> prepare;
 };
 
 struct Outcome {
   uint64_t r3 = 0;
+  uint64_t f1 = 0;  // bits
   std::vector<std::pair<uint32_t, uint32_t>> changes;  // (address, new value), sorted
 };
 
@@ -129,6 +131,14 @@ Outcome Run(const Case& c, guest_sandbox::GuestFunction function, uint32_t seed)
   scene.Float(0x8207047C, scene.RandomFloat(rng));
   scene.Float(0x82071FE0, scene.RandomFloat(rng));
   scene.Float(0x820ED468, scene.RandomFloat(rng));
+  // Batch 2 constants and globals: the pick's thresholds, the two constructor constants, the render state masks.
+  for (uint32_t address : {0x82000BACu, 0x8205B11Cu, 0x82001C8Cu, 0x82000B80u, 0x82C626C4u}) {
+    scene.Float(address, scene.RandomFloat(rng));
+  }
+  scene.Word(0x820722CC, uint32_t(rng()));
+  scene.Word(0x820722DC, uint32_t(rng()));
+  for (uint32_t i = 0; i < 40; ++i) scene.Word(0x82D08730 + 4 * i, uint32_t(rng()));
+  for (uint32_t address : {0x82D089E0u, 0x82D08910u, 0x82D08914u, 0x82D08918u, 0x82D0893Cu}) scene.Word(address, uint32_t(rng()));
 
   rex::ppc::FPSCRRegister::Platform::setcsr(g_default_csr);
   PPCContext ctx{};
@@ -150,6 +160,7 @@ Outcome Run(const Case& c, guest_sandbox::GuestFunction function, uint32_t seed)
 
   Outcome outcome;
   outcome.r3 = ctx.r3.u64;
+  outcome.f1 = ctx.f1.u64;
   for (uint32_t page : scene.memory.touched()) {
     if (page >= kStack && page < kStack + kStackSize) continue;  // red zone scratch is not an output
     for (uint32_t offset = 0; offset < guest_sandbox::kPageSize; offset += 4) {
@@ -278,20 +289,145 @@ void FloatArray(Scene& s, PPCContext& ctx, std::mt19937& rng) {
   ctx.r4.u64 = rng() % 8 ? count : (rng() % 2 ? 0xFFFFFFFFu : count + rng() % 300);
 }
 
+// --- batch 2 ---------------------------------------------------------------------------------------------------------
+
+uint32_t Fnv1(const char* text) {
+  uint32_t hash = 0x811C9DC5u;
+  for (; *text; ++text) hash = (hash * 0x01000193u) ^ uint8_t(*text);
+  return hash;
+}
+
+void Curves(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  const uint32_t obj = kBlockA + 0x100, a = kBlockA + 0x1000, b = kBlockA + 0x1800;
+  s.Word(obj + 528, rng() % 5 ? (rng() % 5) << 24 : 0xFF000000u);  // signed byte count in the top byte
+  s.Word(obj + 632, kBlockB + 0x1000);
+  s.Word(a + 136, kBlockB + 0x2000);
+  s.Word(b + 136, kBlockB + 0x2800);
+  for (uint32_t i = 0; i < 5 * 36; i += 4) {
+    s.Float(kBlockB + 0x2000 + i, s.RandomFloat(rng));
+    s.Float(kBlockB + 0x2800 + i, s.RandomFloat(rng));
+  }
+  ctx.r3.u64 = obj;
+  ctx.r4.u64 = a;
+  ctx.r5.u64 = b;
+}
+
+void Weighted(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  for (PPCRegister* reg : {&ctx.f1, &ctx.f2, &ctx.f3, &ctx.f4}) {
+    reg->f64 = rng() % 4 ? double(s.RandomFloat(rng)) : double(rng() % 7) / 3.0;
+  }
+}
+
+void Elements(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  const uint32_t count = rng() % 5, src = kBlockA + 0x100;
+  for (uint32_t i = 0; i < count * 80; i += 4) s.Word(src + i, uint32_t(rng() % 100000));
+  ctx.r4.u64 = src;
+  ctx.r5.u64 = src + 80 * count;
+  ctx.r6.u64 = rng() % 4 ? kBlockB + 0x100 : 0;
+}
+
+void HashTable(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  static const char* const kNames[] = {"", "alpha", "beta", "gamma", "delta", "alphx"};
+  const uint32_t table = 0x40020000, entries = kBlockA + 0x1000, strings = kBlockA + 0x3000;
+  s.Word(0x82DE267C, table);
+  s.Word(table + 0x2C064, 3);
+  for (uint32_t i = 0; i < 6; ++i) s.Bytes(strings + 0x40 * i, kNames[i]);
+  const uint32_t count = rng() % 4;
+  for (uint32_t i = 0; i < count; ++i) {
+    const uint32_t entry = entries + 0x40 * i, name = rng() % 6;
+    const uint32_t hash = rng() % 4 ? Fnv1(kNames[name]) : uint32_t(rng());
+    s.Word(entry + 8, hash);
+    s.Word(entry + 16, strings + 0x40 * name);
+    s.Word(entry + 20, kBlockB + 0x100 + 0x80 * i);
+    s.Word(kBlockB + 0x100 + 0x80 * i + 56, kBlockB + 0x140 + 0x80 * i);
+    s.Word(kBlockB + 0x140 + 0x80 * i, rng() % 2 ? 7 : uint32_t(rng()));
+    const uint32_t bucket = table + 0x27068 + 20 * (hash & 3);
+    s.Word(entry + 4, s.PreImage(bucket));  // chain in front of the bucket's current head
+    s.Word(bucket, entry);
+  }
+  ctx.r4.u64 = strings + 0x40 * (rng() % 6);
+  ctx.r5.u64 = kBlockA + 0x200;
+  s.Word(kBlockA + 0x200, rng() % 2 ? 7 : uint32_t(rng()));
+  s.Word(0x82C3E470, rng() % 2 ? 7 : uint32_t(rng()));
+}
+
+void RingBuffer(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  const uint32_t q = kBlockA + 0x100, storage = rng() % 5 ? kBlockB + 0x100 : 0;
+  s.Word(q + 4, storage);
+  s.Word(q + 8, storage + 4 * (rng() % 9));
+  s.Word(q + 16, rng() % 4 ? rng() % 10 : 0xFFFFFFFFu);
+  s.Word(q + 20, rng() % 4 ? rng() % 10 : 0xFFFFFFFEu);
+  s.Word(q + 24, rng() % 12);
+  ctx.r3.u64 = q;
+  ctx.r4.u64 = kBlockA + 0x200;
+}
+
+void PageSlot(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  const uint32_t list = kBlockA + 0x100, manager = kBlockA + 0x1000, owner = rng() % 4 ? kBlockB + 0x100 : 0;
+  const uint32_t page_index = rng() % 3;
+  s.Word(0x82DE2708, page_index);
+  s.Word(list, owner);
+  s.Word(list + 4, (rng() % 10) << 24);
+  const uint32_t page = owner + 832 * page_index;
+  s.Word(page + 816, ((rng() % 5) << 24) | ((rng() % 7) << 16));  // first slot, slot count
+  for (uint32_t slot = 0; slot < 10; ++slot) s.Word(page + 16 + 4 * (slot + 56), kBlockA + 0x2000 + 96 * slot);
+  s.Word(manager + 3120, manager + 3120 + 16 + 4 * (rng() % 6));
+  for (uint32_t index = 0; index < 4; ++index) {
+    s.Word(manager + 4 * (index + 784), rng() % 3 ? kBlockB + 0x2000 + 0x200 * index : 0);
+  }
+  ctx.r3.u64 = manager;
+  ctx.r7.u64 = list;
+  for (PPCRegister* reg : {&ctx.r4, &ctx.r5, &ctx.r6}) reg->u64 = rng() % 5 ? rng() % 4 : 0xFFFFu;
+}
+
+void LoadedTable(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  const uint32_t header = kBlockA + 0x100;
+  s.Word(header, rng() % 4);
+  s.Word(header + 4, rng() % 4);
+  s.Word(header + 8, 0x100);
+  s.Word(header + 12, 0x200);
+  for (uint32_t i = 0; i < 8; ++i) {
+    s.Word(header + 0x100 + 8 * i, rng() % 0x1000);
+    s.Word(header + 0x100 + 8 * i + 4, rng() % 4);
+    s.Word(header + 0x200 + 8 * i, rng() % 0x1000);
+  }
+  ctx.r3.u64 = header;
+}
+
+void Glyphs(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  s.Word(0x82D08D14, rng() % 4 ? kBlockA + 0x300 : 0);
+  s.Word(kBlockA + 0x300, rng() % 4);
+  s.Word(0x82D08B98, rng() % 2);
+  s.Word(0x82D100C0, rng() % 64);
+  ctx.r3.u64 = kBlockB + 0x100;
+}
+
 const Case kCases[] = {
-    {0x8213BC38, &crackdown::hooks::decomp::Sub_8213BC38, false, ChunkList},
-    {0x82144D80, &crackdown::hooks::decomp::Sub_82144D80, true, PlayerEntity},
-    {0x8216F470, &crackdown::hooks::decomp::Sub_8216F470, false, PointerArray},
-    {0x821CAA40, &crackdown::hooks::decomp::Sub_821CAA40, true, IndexedTable},
-    {0x821E72D0, &crackdown::hooks::decomp::Sub_821E72D0, true, TwoCached},
-    {0x821E8E90, &crackdown::hooks::decomp::Sub_821E8E90, true, NameString},
-    {0x822B7408, &crackdown::hooks::decomp::Sub_822B7408, true, CharacterState},
-    {0x823E9BD0, &crackdown::hooks::decomp::Sub_823E9BD0, false, OrbMapView},
-    {0x82794868, &crackdown::hooks::decomp::Sub_82794868, false, nullptr},
-    {0x8294AA18, &crackdown::hooks::decomp::Sub_8294AA18, false, ProfilerSlot},
-    {0x82981388, &crackdown::hooks::decomp::Sub_82981388, true, EntryArray},
-    {0x82A94078, &crackdown::hooks::decomp::Sub_82A94078, true, FloatArray},
-    {0x82B47D50, &crackdown::hooks::decomp::Sub_82B47D50, false, nullptr},
+    {0x8213BC38, &crackdown::hooks::decomp::Sub_8213BC38, false, false, ChunkList},
+    {0x82144D80, &crackdown::hooks::decomp::Sub_82144D80, true, false, PlayerEntity},
+    {0x8216F470, &crackdown::hooks::decomp::Sub_8216F470, false, false, PointerArray},
+    {0x821CAA40, &crackdown::hooks::decomp::Sub_821CAA40, true, false, IndexedTable},
+    {0x821E72D0, &crackdown::hooks::decomp::Sub_821E72D0, true, false, TwoCached},
+    {0x821E8E90, &crackdown::hooks::decomp::Sub_821E8E90, true, false, NameString},
+    {0x822B7408, &crackdown::hooks::decomp::Sub_822B7408, true, false, CharacterState},
+    {0x823E9BD0, &crackdown::hooks::decomp::Sub_823E9BD0, false, false, OrbMapView},
+    {0x82794868, &crackdown::hooks::decomp::Sub_82794868, false, false, nullptr},
+    {0x8294AA18, &crackdown::hooks::decomp::Sub_8294AA18, false, false, ProfilerSlot},
+    {0x82981388, &crackdown::hooks::decomp::Sub_82981388, true, false, EntryArray},
+    {0x82A94078, &crackdown::hooks::decomp::Sub_82A94078, true, false, FloatArray},
+    {0x82B47D50, &crackdown::hooks::decomp::Sub_82B47D50, false, false, nullptr},
+    // batch 2
+    {0x82340008, &crackdown::hooks::decomp::Sub_82340008, false, false, LoadedTable},
+    {0x823925C0, &crackdown::hooks::decomp::Sub_823925C0, true, false, HashTable},
+    {0x823B7838, &crackdown::hooks::decomp::Sub_823B7838, false, false, nullptr},
+    {0x82463160, &crackdown::hooks::decomp::Sub_82463160, false, false, nullptr},
+    {0x8246DAE0, &crackdown::hooks::decomp::Sub_8246DAE0, true, false, RingBuffer},
+    {0x824ABED0, &crackdown::hooks::decomp::Sub_824ABED0, false, false, Curves},
+    {0x824DA608, &crackdown::hooks::decomp::Sub_824DA608, false, false, PageSlot},
+    {0x825FF080, &crackdown::hooks::decomp::Sub_825FF080, false, false, Elements},
+    {0x8272F260, &crackdown::hooks::decomp::Sub_8272F260, false, false, nullptr},
+    {0x82944E58, &crackdown::hooks::decomp::Sub_82944E58, false, false, Glyphs},
+    {0x82A95780, &crackdown::hooks::decomp::Sub_82A95780, false, true, Weighted},
 };
 
 }  // namespace
@@ -322,6 +458,11 @@ int main(int argc, char** argv) {
       std::string problem;
       if (c.compare_r3 && expected.r3 != actual.r3) {
         problem = "r3 " + std::to_string(expected.r3) + " vs " + std::to_string(actual.r3);
+      } else if (c.compare_f1 && expected.f1 != actual.f1) {
+        double e, a;
+        std::memcpy(&e, &expected.f1, 8);
+        std::memcpy(&a, &actual.f1, 8);
+        problem = "f1 " + std::to_string(e) + " vs " + std::to_string(a);
       } else if (expected.changes != actual.changes) {
         size_t i = 0;
         while (i < expected.changes.size() && i < actual.changes.size() && expected.changes[i] == actual.changes[i]) ++i;

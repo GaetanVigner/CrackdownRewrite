@@ -49,6 +49,7 @@ if(EXISTS "${_crackdown_generated}/codegen.partition.json" AND EXISTS "${_decomp
     message(STATUS "decomp originals: ${_count} recompiled functions extracted for decomp_io_tests")
 
     crackdown_add_test(decomp_io_tests SOURCES decomp_io_tests.cpp "${_out}" "${CRACKDOWN_SRC_DIR}/decomp/leaf_batch1.cpp"
+                       "${CRACKDOWN_SRC_DIR}/decomp/leaf_batch2.cpp"
                        SDK_HEADERS)
     target_include_directories(decomp_io_tests PRIVATE "${_crackdown_generated}")
     target_compile_definitions(decomp_io_tests PRIVATE SPDLOG_COMPILED_LIB SPDLOG_FMT_EXTERNAL)

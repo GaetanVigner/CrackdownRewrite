@@ -26,4 +26,17 @@ void Sub_82981388(PPCContext&, uint8_t*);  // largest packed size over an array 
 void Sub_82A94078(PPCContext&, uint8_t*);  // index where the running sum of an array reaches a fraction of its total (min 76)
 void Sub_82B47D50(PPCContext&, uint8_t*);  // three float pairs of a global from the image's 0.0 / 1.0 constants
 
+// Batch 2 (2026-10-30): 11 larger leaf functions (40-130 instructions).
+void Sub_82340008(PPCContext&, uint8_t*);  // relocates a loaded table's two entry tables
+void Sub_823925C0(PPCContext&, uint8_t*);  // name lookup in the global hash table, checked against the caller's key
+void Sub_823B7838(PPCContext&, uint8_t*);  // ORs an object's masks into the global render state masks
+void Sub_82463160(PPCContext&, uint8_t*);  // constructor of a 264-byte state object
+void Sub_8246DAE0(PPCContext&, uint8_t*);  // ring buffer push, returns the write index
+void Sub_824ABED0(PPCContext&, uint8_t*);  // blend of two curves into the object's curve with weight f1
+void Sub_824DA608(PPCContext&, uint8_t*);  // clears a page slot and records the item in the manager's list
+void Sub_825FF080(PPCContext&, uint8_t*);  // copies 80-byte elements with two words replaced by a constant
+void Sub_8272F260(PPCContext&, uint8_t*);  // constructor of a 192-byte object
+void Sub_82944E58(PPCContext&, uint8_t*);  // appends glyph codes for the current symbol to a string
+void Sub_82A95780(PPCContext&, uint8_t*);  // weighted pick between two values (f1..f4 -> f1)
+
 }  // namespace crackdown::hooks::decomp
