@@ -66,4 +66,31 @@ void Sub_82A89BE0(PPCContext&, uint8_t*);  // clears a count and an array slot; 
 void Sub_82B1F4A8(PPCContext&, uint8_t*);  // default colour triple from two constants
 void Sub_82B1F4D0(PPCContext&, uint8_t*);  // default colour triple from two constants (second)
 
+// Batch 4 (2026-10-30): 25 loop-free leaf functions of 13-39 instructions.
+void Sub_821681D0(PPCContext&, uint8_t*);  // triple i of a 16-byte array as a quad
+void Sub_821C5D38(PPCContext&, uint8_t*);  // triple at +12 of a nested table element
+void Sub_821C5D70(PPCContext&, uint8_t*);  // triple at +64 of a nested table element
+void Sub_82202068(PPCContext&, uint8_t*);  // masked flags of a table entry differ from a global
+void Sub_822ECBC0(PPCContext&, uint8_t*);  // flag bytes: set 0x30 / clear 0x20; 0x28; 0x30
+void Sub_822FE9F0(PPCContext&, uint8_t*);  // resets an object from a global; mode 3
+void Sub_82305158(PPCContext&, uint8_t*);  // state 4 when the owner has bit 2 and its target lacks bit 7
+void Sub_8230EE50(PPCContext&, uint8_t*);  // flag bytes: set 0x20 twice; keep 0x3E; clear 0x24
+void Sub_82315E00(PPCContext&, uint8_t*);  // resets an object from a constant
+void Sub_824748B0(PPCContext&, uint8_t*);  // starts mode 2 on r4; *r3 = a global
+void Sub_82474CA8(PPCContext&, uint8_t*);  // starts mode 1 on r4 with 1000; *r3 = a global
+void Sub_8258AEA8(PPCContext&, uint8_t*);  // resets a timer from its definition
+void Sub_825BFA18(PPCContext&, uint8_t*);  // caches two words indexed by a global counter
+void Sub_8261BCF8(PPCContext&, uint8_t*);  // viewport from the device: four truncated floats and two words; returns 0
+void Sub_8264FAA0(PPCContext&, uint8_t*);  // accumulates four fields into a double; counter + 4
+void Sub_82793ED8(PPCContext&, uint8_t*);  // constructor: vtable; kind 4; four arguments
+void Sub_827F4660(PPCContext&, uint8_t*);  // stamps the remaining count into the current slot; returns 0
+void Sub_82832F88(PPCContext&, uint8_t*);  // stores eight arguments into a global block
+void Sub_8287A968(PPCContext&, uint8_t*);  // sort key difference of two entries (64-bit)
+void Sub_8293D600(PPCContext&, uint8_t*);  // clears the text builder
+void Sub_829518F0(PPCContext&, uint8_t*);  // constructor: "Unknown Heading"
+void Sub_82AC4470(PPCContext&, uint8_t*);  // adds r4 to the exponent of f1
+void Sub_82AEDC80(PPCContext&, uint8_t*);  // range of the current entry of a global block
+void Sub_82B0FDA8(PPCContext&, uint8_t*);  // default colour set from two constants
+void Sub_82B0FE18(PPCContext&, uint8_t*);  // default colour set from two constants (second)
+
 }  // namespace crackdown::hooks::decomp
