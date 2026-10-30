@@ -261,6 +261,11 @@ void TestSharedSourcesNameNoGuestAddress() {
     if ((ext != ".cpp" && ext != ".h") || allowed.count(entry.path().filename().string())) {
       continue;
     }
+    // src/decomp: native translations of base-build functions (fn-base bindings only), written against that build's
+    // image: they spell its addresses and constants as the functions they replace do, and are never bound in TU6.
+    if (entry.path().parent_path().filename() == "decomp") {
+      continue;
+    }
     const std::string text = Upper(check::ReadText(entry.path()));
     ++scanned;
     for (const std::string& address : base) {
