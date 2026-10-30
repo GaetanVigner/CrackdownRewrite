@@ -174,4 +174,31 @@ void Sub_82AB52B0(PPCContext&, uint8_t*);  // upper-cases an ASCII letter code
 void Sub_82B4A610(PPCContext&, uint8_t*);  // installs a vtable pointer into a global object (third)
 void Sub_82B4A7A0(PPCContext&, uint8_t*);  // installs a vtable pointer into a global object (fourth)
 
+// Batch 8 (2026-10-30): 25 loop-free leaf functions of 17-61 instructions.
+void Sub_82157A18(PPCContext&, uint8_t*);  // camera target block (second): flag and a 96-bit value
+void Sub_821584B0(PPCContext&, uint8_t*);  // camera pair setter (third)
+void Sub_82158540(PPCContext&, uint8_t*);  // camera pair setter (fourth)
+void Sub_82213708(PPCContext&, uint8_t*);  // constructor of a 52-byte listener with an embedded node
+void Sub_822137E0(PPCContext&, uint8_t*);  // f1 = sum of the listener's fields as floats
+void Sub_822FC1A8(PPCContext&, uint8_t*);  // flag bytes; more cleared when the object's +37 is clear
+void Sub_82314E50(PPCContext&, uint8_t*);  // flag bytes: clears five; sets 0x30
+void Sub_82316328(PPCContext&, uint8_t*);  // accumulates a signed byte and a byte into a double; counter + 2
+void Sub_823D19A8(PPCContext&, uint8_t*);  // profiler block: a quad copied; mask bit 63 set
+void Sub_8240B8D0(PPCContext&, uint8_t*);  // accumulates three bytes and two floats into a double; counter + 5
+void Sub_82474118(PPCContext&, uint8_t*);  // starts three modes on r4; *r3 = the mode global
+void Sub_824C55E8(PPCContext&, uint8_t*);  // f1 = sum of nine floats and a constant
+void Sub_82581CF8(PPCContext&, uint8_t*);  // constructor of a 72-byte settings block
+void Sub_8259FD50(PPCContext&, uint8_t*);  // stores four 64-bit arguments
+void Sub_825FBDB8(PPCContext&, uint8_t*);  // copies 18 words with two replaced by the pad constant
+void Sub_82740710(PPCContext&, uint8_t*);  // default stream parameters
+void Sub_82794E68(PPCContext&, uint8_t*);  // constructor: vtable; kind 14; 3 at +16
+void Sub_82832BF8(PPCContext&, uint8_t*);  // reads an n-bit field of a little-endian bit stream
+void Sub_8285E988(PPCContext&, uint8_t*);  // permutes four 2-bit fields by a selector
+void Sub_8294DDD0(PPCContext&, uint8_t*);  // constructor: vtable; 1; 0x7FFFFFFF
+void Sub_829DC450(PPCContext&, uint8_t*);  // constructor (null-tolerant): eight words from a constant
+void Sub_82A4BF98(PPCContext&, uint8_t*);  // constructor of a 24-byte proxy
+void Sub_82A97790(PPCContext&, uint8_t*);  // min(r4; (k1 / f1) * k2 + half) truncated
+void Sub_82B0FEC0(PPCContext&, uint8_t*);  // default colour set from two constants (third)
+void Sub_82B52010(PPCContext&, uint8_t*);  // registers a global object through its RTTI offset
+
 }  // namespace crackdown::hooks::decomp
