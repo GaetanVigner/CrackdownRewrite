@@ -657,7 +657,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..9831501 100644
+index d71d508..78c39b1 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,12 @@
@@ -998,7 +998,7 @@ index d71d508..9831501 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +6026,1004 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +6026,1006 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1895,7 +1895,9 @@ index d71d508..9831501 100644
 +    }
 +    bool vertices_ready = true;
 +    const Shader::ConstantRegisterMap& constant_map = vertex_shader->constant_register_map();
-+    for (uint32_t i = 0; i < rex::countof(constant_map.vertex_fetch_bitmap) && vertices_ready; ++i) {
++    // Per draw, the emulated draw just made its vertex data resident: requesting it again would upload what the game
++    // writes meanwhile (its next skinned vertices: torn data). Native draws must use the draw's own snapshot.
++    for (uint32_t i = 0; i < rex::countof(constant_map.vertex_fetch_bitmap) && vertices_ready && !per_draw; ++i) {
 +      uint32_t bits = constant_map.vertex_fetch_bitmap[i];
 +      uint32_t j;
 +      while (rex::bit_scan_forward(bits, &j)) {
@@ -2003,7 +2005,7 @@ index d71d508..9831501 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +7103,268 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +7105,268 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
