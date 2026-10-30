@@ -250,6 +250,10 @@ Outcome Run(const Case& c, guest_sandbox::GuestFunction function, uint32_t seed)
   for (uint32_t address : {0x82E508A4u, 0x8307107Cu, 0x82000B88u}) scene.Word(address, uint32_t(rng()));
   for (uint32_t address : {0x820EDE04u, 0x8206F3D4u}) scene.Float(address, scene.RandomFloat(rng));
 
+  // Batch 13 globals.
+  for (uint32_t address : {0x8309153Cu, 0x82D9912Cu, 0x820722DCu}) scene.Word(address, uint32_t(rng()));
+  for (uint32_t address : {0x82071980u, 0x8206F394u}) scene.Float(address, scene.RandomFloat(rng));
+
   rex::ppc::FPSCRRegister::Platform::setcsr(g_default_csr);
   PPCContext ctx{};
   ctx.fpscr.InitHost();
@@ -521,6 +525,63 @@ void Globals4(Scene& s, PPCContext& ctx, std::mt19937& rng) {
   s.Word(0x82DE4F40, kBlockA + 0x400);
   s.Word(kBlockA + 0x400, rng() % 6);
   (void)ctx;
+}
+
+// Batch 13 preparations.
+void Spilled13(Scene& s, PPCContext&, std::mt19937&) {
+  s.Word(kBlockA + 2520, kBlockB);
+  s.Word(kBlockB + 284, kBlockA + 0x400);
+  s.Word(kBlockB + 384, kBlockA + 0x800);
+}
+
+void Ring13(Scene& s, PPCContext&, std::mt19937& rng) {
+  // The ring head at r4+32: absent, or a node in block A whose successor is another node.
+  s.Word(kBlockB + 32, rng() % 3 ? kBlockA + 0x1000 : 0);
+  s.Word(kBlockA + 0x1008, kBlockA + 0x1100);
+}
+
+void State13(Scene& s, PPCContext&, std::mt19937& rng) { s.Word(kBlockA + 264, rng() % 2 ? 1 : uint32_t(rng())); }
+
+void Pointer13(Scene&, PPCContext& ctx, std::mt19937&) { ctx.r5.u64 = kBlockB + 0x100; }
+
+void SlotTable13(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  ctx.r4.u64 = rng() % 100;
+  ctx.r5.u64 = rng() % 50;
+  s.Word(0x82DE2678, kBlockA);
+  s.Word(0x82DE2674, kBlockB);
+  s.Word(kBlockB + 628, kBlockB + 0x1000);
+}
+
+void Camera13(Scene& s, PPCContext& ctx, std::mt19937&) {
+  ctx.r3.u64 = kBlockA + 0x100;
+  s.Word(kBlockA + 0x104, kBlockB);
+}
+
+void Settings13(Scene& s, PPCContext&, std::mt19937& rng) {
+  s.Word(kBlockA + 12, kBlockB);
+  for (uint32_t i = 0; i < 4; ++i) {
+    s.Float(kBlockB + 12368 + 4 * i, rng() % 4 ? s.RandomFloat(rng) : (rng() % 2 ? 3.0e12f : -3.0e12f));
+  }
+}
+
+void Copy13(Scene&, PPCContext& ctx, std::mt19937&) { ctx.r7.u64 = kBlockB + 0x200; }
+
+void Mesh13(Scene& s, PPCContext&, std::mt19937& rng) {
+  s.Word(kBlockA, rng() % 64);
+  s.Word(kBlockA + 4, kBlockB);
+  s.Word(kBlockB + 60, kBlockA + 0x400);
+  s.Word(kBlockB + 56, kBlockA + 0x800);
+  s.Word(kBlockB + 24, kBlockA + 0x1000);
+  for (uint32_t i = 0; i < 64; ++i) {
+    s.Word(kBlockA + 0x400 + 4 * i, rng() % 150);
+    s.Word(kBlockA + 0x800 + 4 * i, rng() % 150);
+  }
+}
+
+void TableSlot13(Scene& s, PPCContext& ctx, std::mt19937& rng) {
+  s.Word(kBlockA + 8, kBlockB);
+  ctx.r4.u64 = rng() % 100;
+  ctx.r5.u64 = kBlockA + 0x100;
 }
 
 const Case kCases[] = {
@@ -809,6 +870,32 @@ const Case kCases[] = {
     {0x82B11740, &crackdown::hooks::decomp::Sub_82B11740, false, false, nullptr},
     {0x82B47DA0, &crackdown::hooks::decomp::Sub_82B47DA0, false, false, nullptr},
     {0x82B47E60, &crackdown::hooks::decomp::Sub_82B47E60, false, false, nullptr},
+    // batch 13
+    {0x82157808, &crackdown::hooks::decomp::Sub_82157808, false, false, Spilled13},
+    {0x82157A60, &crackdown::hooks::decomp::Sub_82157A60, false, false, Spilled13},
+    {0x82172648, &crackdown::hooks::decomp::Sub_82172648, false, false, Ring13},
+    {0x8219D658, &crackdown::hooks::decomp::Sub_8219D658, false, false, State13},
+    {0x82302828, &crackdown::hooks::decomp::Sub_82302828, false, false, nullptr},
+    {0x82315B78, &crackdown::hooks::decomp::Sub_82315B78, false, false, nullptr},
+    {0x82326348, &crackdown::hooks::decomp::Sub_82326348, false, false, Pointer13},
+    {0x82391118, &crackdown::hooks::decomp::Sub_82391118, false, false, SlotTable13},
+    {0x82462D98, &crackdown::hooks::decomp::Sub_82462D98, false, false, nullptr},
+    {0x82462E60, &crackdown::hooks::decomp::Sub_82462E60, false, false, nullptr},
+    {0x82471460, &crackdown::hooks::decomp::Sub_82471460, false, false, nullptr},
+    {0x8249E760, &crackdown::hooks::decomp::Sub_8249E760, false, false, Camera13},
+    {0x8270D108, &crackdown::hooks::decomp::Sub_8270D108, true, false, Settings13},
+    {0x8278EA38, &crackdown::hooks::decomp::Sub_8278EA38, false, false, nullptr},
+    {0x827945C0, &crackdown::hooks::decomp::Sub_827945C0, false, false, nullptr},
+    {0x82795010, &crackdown::hooks::decomp::Sub_82795010, false, false, Copy13},
+    {0x82988798, &crackdown::hooks::decomp::Sub_82988798, false, false, nullptr},
+    {0x8298F838, &crackdown::hooks::decomp::Sub_8298F838, false, false, nullptr},
+    {0x829A3680, &crackdown::hooks::decomp::Sub_829A3680, false, false, nullptr},
+    {0x82A27D10, &crackdown::hooks::decomp::Sub_82A27D10, true, false, Mesh13},
+    {0x82A52168, &crackdown::hooks::decomp::Sub_82A52168, true, false, TableSlot13},
+    {0x82AB2FF0, &crackdown::hooks::decomp::Sub_82AB2FF0, false, false, Pointer13},
+    {0x82B12560, &crackdown::hooks::decomp::Sub_82B12560, false, false, nullptr},
+    {0x82B12638, &crackdown::hooks::decomp::Sub_82B12638, false, false, nullptr},
+    {0x82B12710, &crackdown::hooks::decomp::Sub_82B12710, false, false, nullptr},
 };
 
 }  // namespace

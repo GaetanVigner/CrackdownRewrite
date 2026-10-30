@@ -309,4 +309,31 @@ void Sub_82B11740(PPCContext&, uint8_t*);  // ten global triples set to (-7; -6;
 void Sub_82B47DA0(PPCContext&, uint8_t*);  // three global rows from the 0.0f / 1.0f constants
 void Sub_82B47E60(PPCContext&, uint8_t*);  // global 4x4 from the 0.0f / 1.0f constants
 
+// Batch 13 (2026-10-31): 25 loop-free leaf functions of 22-53 instructions.
+void Sub_82157808(PPCContext&, uint8_t*);  // stores the spilled arguments into a sub-object (first)
+void Sub_82157A60(PPCContext&, uint8_t*);  // stores the spilled arguments into a sub-object (second)
+void Sub_82172648(PPCContext&, uint8_t*);  // copies a descriptor and links its node into a ring
+void Sub_8219D658(PPCContext&, uint8_t*);  // state 1: moves to state 4 and draws a random value
+void Sub_82302828(PPCContext&, uint8_t*);  // constructor of a message handler
+void Sub_82315B78(PPCContext&, uint8_t*);  // reports a float and three bytes into a statistics block
+void Sub_82326348(PPCContext&, uint8_t*);  // records a frame step: globals; scaled step; accumulators
+void Sub_82391118(PPCContext&, uint8_t*);  // registers an entry in the global slot table
+void Sub_82462D98(PPCContext&, uint8_t*);  // gathers padded rows into a packed 3x3 + 3
+void Sub_82462E60(PPCContext&, uint8_t*);  // scatters a packed 3x3 + 3 into padded rows
+void Sub_82471460(PPCContext&, uint8_t*);  // resets the nine counters of a profile block; returns a global
+void Sub_8249E760(PPCContext&, uint8_t*);  // copies a camera block around r3
+void Sub_8270D108(PPCContext&, uint8_t*);  // six settings; four truncated to integers; returns 0
+void Sub_8278EA38(PPCContext&, uint8_t*);  // constructor of a message dispatcher
+void Sub_827945C0(PPCContext&, uint8_t*);  // constructor: vtable; kind 10; fifteen zero words
+void Sub_82795010(PPCContext&, uint8_t*);  // constructor: vtable; kind 14; three words; 32 bytes copied
+void Sub_82988798(PPCContext&, uint8_t*);  // constructor (null-tolerant): four sentinel triples (second)
+void Sub_8298F838(PPCContext&, uint8_t*);  // constructor (null-tolerant): four sentinel triples (third)
+void Sub_829A3680(PPCContext&, uint8_t*);  // transposes a 3x4 with 1.0f in the fourth column
+void Sub_82A27D10(PPCContext&, uint8_t*);  // distance between two mesh vertices; returns 1
+void Sub_82A52168(PPCContext&, uint8_t*);  // writes the fields of a table slot from a descriptor; returns 0
+void Sub_82AB2FF0(PPCContext&, uint8_t*);  // constructor of a colour pair
+void Sub_82B12560(PPCContext&, uint8_t*);  // ten global triples set to (-7; -6; -6) (second)
+void Sub_82B12638(PPCContext&, uint8_t*);  // ten global triples set to (-7; -6; -6) (third)
+void Sub_82B12710(PPCContext&, uint8_t*);  // ten global triples set to (-7; -6; -6) (fourth)
+
 }  // namespace crackdown::hooks::decomp
