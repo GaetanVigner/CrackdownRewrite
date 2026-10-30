@@ -93,4 +93,31 @@ void Sub_82AEDC80(PPCContext&, uint8_t*);  // range of the current entry of a gl
 void Sub_82B0FDA8(PPCContext&, uint8_t*);  // default colour set from two constants
 void Sub_82B0FE18(PPCContext&, uint8_t*);  // default colour set from two constants (second)
 
+// Batch 5 (2026-10-30): 25 loop-free leaf functions of 14-40 instructions.
+void Sub_8216F4E8(PPCContext&, uint8_t*);  // sets a flag byte; also +188 when the list is empty
+void Sub_821F3320(PPCContext&, uint8_t*);  // self-link and a constant triple
+void Sub_821F39B0(PPCContext&, uint8_t*);  // stores f1..f4 into an array element
+void Sub_82284F58(PPCContext&, uint8_t*);  // 4x4 matrix from two image constants
+void Sub_822EB240(PPCContext&, uint8_t*);  // resets an object from two globals (three words)
+void Sub_822FB238(PPCContext&, uint8_t*);  // flag bytes: set 0x21; clear four bits
+void Sub_8230A578(PPCContext&, uint8_t*);  // resets an object from two globals
+void Sub_82315CE0(PPCContext&, uint8_t*);  // resets an object from a constant at +20
+void Sub_823FA9A8(PPCContext&, uint8_t*);  // +588 = global count times a constant
+void Sub_82473790(PPCContext&, uint8_t*);  // marks *r3; advances the object; stores a word in its target
+void Sub_82479668(PPCContext&, uint8_t*);  // starts a mode on r4 with 100; *r3 = a global
+void Sub_825D3808(PPCContext&, uint8_t*);  // profiler block: clears a word and bits; sets mask bits 7 and 44
+void Sub_825F6CC8(PPCContext&, uint8_t*);  // advances a parse cursor over an aligned header
+void Sub_82626BE8(PPCContext&, uint8_t*);  // listener constructor (secondary vtable A)
+void Sub_82694200(PPCContext&, uint8_t*);  // listener constructor (secondary vtable B)
+void Sub_827944D8(PPCContext&, uint8_t*);  // constructor: vtable; kind 9
+void Sub_82794510(PPCContext&, uint8_t*);  // constructor: vtable; kind 9; five arguments
+void Sub_8281B120(PPCContext&, uint8_t*);  // writes one byte of a scaled lookup table
+void Sub_828FEE28(PPCContext&, uint8_t*);  // latches pending values
+void Sub_82953330(PPCContext&, uint8_t*);  // handle constructor; bumps the target's reference count
+void Sub_829EBFF8(PPCContext&, uint8_t*);  // constructor with two vtables (null-tolerant)
+void Sub_82A3F0A0(PPCContext&, uint8_t*);  // sets a bounded rate and its inverse
+void Sub_82A792E0(PPCContext&, uint8_t*);  // constructor: vtable; 1.0f; cleared fields
+void Sub_82B37038(PPCContext&, uint8_t*);  // clears ten global words
+void Sub_82B37118(PPCContext&, uint8_t*);  // clears ten global words (second)
+
 }  // namespace crackdown::hooks::decomp
