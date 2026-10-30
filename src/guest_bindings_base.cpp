@@ -1,5 +1,6 @@
 // Which guest function of the base guest (title update 0) each host replacement takes over.
 #include "guest_binding.h"
+#include "decomp/decomp_hooks.h"
 
 CRACKDOWN_BIND(82743798, FilterPadState)
 CRACKDOWN_BIND(822846A0, CameraConstructed)
@@ -127,3 +128,19 @@ const crackdown::GuestImage crackdown::guests::kBase = {
     &PPCImageConfig,
     &kCalls,
 };
+
+// Native translations (src/decomp, Any360 stage 2): each replaces the recompiled function outright; decomp_io_tests
+// proves it equal to the original on random inputs.
+CRACKDOWN_BIND_REPLACEMENT(8213BC38, decomp::Sub_8213BC38)
+CRACKDOWN_BIND_REPLACEMENT(82144D80, decomp::Sub_82144D80)
+CRACKDOWN_BIND_REPLACEMENT(8216F470, decomp::Sub_8216F470)
+CRACKDOWN_BIND_REPLACEMENT(821CAA40, decomp::Sub_821CAA40)
+CRACKDOWN_BIND_REPLACEMENT(821E72D0, decomp::Sub_821E72D0)
+CRACKDOWN_BIND_REPLACEMENT(821E8E90, decomp::Sub_821E8E90)
+CRACKDOWN_BIND_REPLACEMENT(822B7408, decomp::Sub_822B7408)
+CRACKDOWN_BIND_REPLACEMENT(823E9BD0, decomp::Sub_823E9BD0)
+CRACKDOWN_BIND_REPLACEMENT(82794868, decomp::Sub_82794868)
+CRACKDOWN_BIND_REPLACEMENT(8294AA18, decomp::Sub_8294AA18)
+CRACKDOWN_BIND_REPLACEMENT(82981388, decomp::Sub_82981388)
+CRACKDOWN_BIND_REPLACEMENT(82A94078, decomp::Sub_82A94078)
+CRACKDOWN_BIND_REPLACEMENT(82B47D50, decomp::Sub_82B47D50)

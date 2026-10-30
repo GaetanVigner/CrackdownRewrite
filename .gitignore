@@ -49,3 +49,6 @@ __pycache__/
 # Local AI agent instructions
 CLAUDE.md
 .claude/
+
+# Raw Ghidra output of the Any360 pipeline (decompiled game code, never committed)
+/decomp/raw/

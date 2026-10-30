@@ -203,6 +203,7 @@ set(CRACKDOWN_SOURCES
     src/content_install.cpp
     src/content_state.cpp
     src/crash_report.cpp
+    src/decomp/leaf_batch1.cpp
     src/crt_native.cpp
     src/dlc.cpp
     src/entity_registry.cpp

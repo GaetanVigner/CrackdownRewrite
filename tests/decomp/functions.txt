@@ -1,0 +1,15 @@
+# Recompiled functions the native translations of src/decomp replace: extracted from generated/default at configure
+# time (tests/cmake/decomp_originals.cmake) and run against the translations by decomp_io_tests. One address per line.
+8213BC38
+82144D80
+8216F470
+821CAA40
+821E72D0
+821E8E90
+822B7408
+823E9BD0
+82794868
+8294AA18
+82981388
+82A94078
+82B47D50
