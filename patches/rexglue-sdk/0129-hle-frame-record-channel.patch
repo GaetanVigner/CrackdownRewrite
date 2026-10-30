@@ -257,7 +257,7 @@ index 0000000..b9f609b
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..42c0151 100644
+index 4f8a0cb..c66b905 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
 @@ -11,6 +11,9 @@
@@ -270,7 +270,7 @@ index 4f8a0cb..42c0151 100644
  #include <atomic>
  #include <chrono>
  #include <climits>
-@@ -470,6 +473,139 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -470,6 +473,149 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -307,6 +307,16 @@ index 4f8a0cb..42c0151 100644
 +  uint32_t hle_per_draw_differing_ = 0;
 +  std::unordered_map<uint32_t, uint32_t> hle_per_draw_registers_;
 +  void HleLoadPerDrawRecords(uint64_t frame);
++  // Per draw, the same draws also issued the emulated way into a second image (same size and format), so the native
++  // image can be compared with them directly, without the EDRAM reference.
++  bool HleEnterSecondTarget();
++  VkImage hle_second_image_ = VK_NULL_HANDLE;
++  VkDeviceMemory hle_second_memory_ = VK_NULL_HANDLE;
++  VkImageView hle_second_view_ = VK_NULL_HANDLE;
++  VulkanRenderTargetCache::Framebuffer hle_second_framebuffer_;
++  VkFormat hle_second_format_ = VK_FORMAT_UNDEFINED;
++  bool hle_second_ready_ = false;
++  uint32_t hle_second_draws_ = 0;
 +  bool hle_dry_run_pending_ = false;
 +  struct HleDryRunStats {
 +    uint64_t frame = 0;
@@ -657,7 +667,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..78c39b1 100644
+index d71d508..5ffcb1b 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,12 @@
@@ -704,7 +714,7 @@ index d71d508..78c39b1 100644
  REXCVAR_DEFINE_BOOL(vulkan_occlusion_queries_in_render_pass, false, "GPU/Vulkan",
                      "Run occlusion queries inside the guest's render passes (a host query per pass a guest query "
                      "spans, summed) instead of ending the render pass around each query")
-@@ -2077,6 +2100,26 @@ bool VulkanCommandProcessor::SetupContext() {
+@@ -2077,6 +2100,29 @@ bool VulkanCommandProcessor::SetupContext() {
  void VulkanCommandProcessor::ShutdownContext() {
    AwaitAllQueueOperationsCompletion();
    StopAsyncSubmission();
@@ -717,6 +727,9 @@ index d71d508..78c39b1 100644
 +    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImageView, device, hle_native_depth_view_);
 +    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImage, device, hle_native_depth_image_);
 +    ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, hle_native_depth_memory_);
++    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImageView, device, hle_second_view_);
++    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImage, device, hle_second_image_);
++    ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, hle_second_memory_);
 +    for (uint32_t i = 0; i < 2; ++i) {
 +      if (hle_readback_mapping_[i]) dfn.vkUnmapMemory(device, hle_readback_memory_[i]);
 +      hle_readback_mapping_[i] = nullptr;
@@ -731,7 +744,7 @@ index d71d508..78c39b1 100644
    DestroyConstantsDescriptorSets();
    if (gpu_time_query_pool_ != VK_NULL_HANDLE) {
      GetVulkanDevice()->functions().vkDestroyQueryPool(GetVulkanDevice()->device(),
-@@ -2503,6 +2546,122 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -2503,6 +2549,144 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
    vertex_buffers_in_sync_[0] = 0;
    vertex_buffers_in_sync_[1] = 0;
  
@@ -769,6 +782,27 @@ index d71d508..78c39b1 100644
 +        hle_compare_submission_ = GetCurrentSubmission();
 +        hle_compare_frame_ = 0;
 +        hle_compare_pass_ = hle_current_pass_ + (hle_shadow_mode_ ? " (shadow draws)" : " (native per draw)");
++        if (!hle_shadow_mode_ && hle_second_ready_) {
++          // Native against the same draws issued the emulated way, in the same frame (not the EDRAM reference).
++          PushImageMemoryBarrier(hle_second_image_,
++                                 ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
++                                                                              VK_IMAGE_ASPECT_STENCIL_BIT),
++                                 VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT |
++                                     VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
++                                 VK_PIPELINE_STAGE_TRANSFER_BIT, VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
++                                 VK_ACCESS_TRANSFER_READ_BIT, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
++                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
++          SubmitBarriers(true);
++          deferred_command_buffer_.CmdVkCopyImageToBuffer(hle_second_image_, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
++                                                          hle_readback_buffers_[0], 1, &region);
++          hle_reference_extent_ = extent;
++          hle_reference_done_ = true;
++          hle_compare_pass_ = hle_current_pass_ + " (native vs emulated draws, same frame)";
++          REXGPU_INFO("HLE native per draw: {} draws also issued the emulated way into the second image",
++                      hle_second_draws_);
++        }
++        hle_second_ready_ = false;
++        hle_second_draws_ = 0;
 +      }
 +    }
 +    hle_reference_captured_ = false;
@@ -836,6 +870,7 @@ index d71d508..78c39b1 100644
 +    hle_per_draw_armed_ = false;
 +    hle_per_draw_active_ = false;
 +    hle_per_draw_target_ready_ = false;
++    hle_second_ready_ = false;
 +    if (hle_dry_run_pending_) {
 +      hle_dry_run_pending_ = false;
 +      HleDryRun();
@@ -854,7 +889,7 @@ index d71d508..78c39b1 100644
    if (!graphics_system_)
      return;
    ui::Presenter* presenter = graphics_system_->presenter();
-@@ -3886,6 +4045,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3886,6 +4070,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
  
    const RegisterFile& regs = *register_file_;
    (void)index_buffer_info;
@@ -871,7 +906,7 @@ index d71d508..78c39b1 100644
    draw_timing_ = REXCVAR_GET(gpu_frame_stats);
    if (draw_timing_) {
      draw_mark_ = DrawTicks();
-@@ -3906,6 +4075,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3906,6 +4100,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    };
  
    xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
@@ -881,7 +916,7 @@ index d71d508..78c39b1 100644
    if (edram_mode == xenos::EdramMode::kCopy) {
      // Special copy handling.
      return IssueCopy();
-@@ -3924,6 +4096,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3924,6 +4121,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      return draw_fail("missing_vertex_shader");
    }
    pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
@@ -889,7 +924,7 @@ index d71d508..78c39b1 100644
    bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
    if (memexport_used_vertex) {
      if (!device_properties.vertexPipelineStoresAndAtomics) {
-@@ -3964,6 +4137,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3964,6 +4162,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
        return true;
      }
    }
@@ -897,7 +932,7 @@ index d71d508..78c39b1 100644
    bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
    if (memexport_used_pixel) {
      if (!device_properties.fragmentStoresAndAtomics) {
-@@ -4023,6 +4197,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4023,6 +4222,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      // produced by the primitive processor and are handled by the Vulkan
      // pipeline cache.
      DRAW_SECTION(1);
@@ -905,7 +940,7 @@ index d71d508..78c39b1 100644
      Shader::HostVertexShaderType host_vertex_shader_type =
          primitive_processing_result.host_vertex_shader_type;
      if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex &&
-@@ -4149,6 +4324,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4149,6 +4349,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    if (!render_target_updated) {
      return draw_fail("render_target_update");
    }
@@ -913,7 +948,7 @@ index d71d508..78c39b1 100644
  
    // Create the pipeline (for this, need the render pass from the render target
    // cache), translating the shaders - doing this now to obtain the used
-@@ -4280,6 +4456,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4280,6 +4481,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
                               shader_32bit_index_dma, 0, viewport_info, used_texture_mask,
                               normalized_depth_control, normalized_color_mask);
@@ -933,7 +968,7 @@ index d71d508..78c39b1 100644
  
    // Update uniform buffers and descriptor sets after binding the pipeline with
    // the new layout.
-@@ -4468,6 +4657,33 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4468,6 +4682,44 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1,
                                                0, 0, 0);
    }
@@ -943,6 +978,17 @@ index d71d508..78c39b1 100644
 +        {regs.values[XE_GPU_REG_VGT_DMA_BASE], regs.values[XE_GPU_REG_VGT_DRAW_INITIATOR],
 +         hle::HashDwords(&regs.values[XE_GPU_REG_SHADER_CONSTANT_000_X], 1024)});
 +    if (record != hle::DrawMatcher::kNoRecord) {
++      // The same draw the emulated way into the second image (its pipeline and bindings are still bound).
++      if (render_target_cache_->last_update_render_pass_key().depth_and_color_used == 1 && HleEnterSecondTarget()) {
++        if (primitive_processing_result.index_buffer_type == PrimitiveProcessor::ProcessedIndexBufferType::kNone ||
++            shader_32bit_index_dma) {
++          deferred_command_buffer_.CmdVkDraw(primitive_processing_result.host_draw_vertex_count, 1, 0, 0);
++        } else {
++          deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1, 0, 0,
++                                                    0);
++        }
++        ++hle_second_draws_;
++      }
 +      hle_per_draw_record_ = uint32_t(record);
 +      HleDryRun();
 +      hle_per_draw_record_ = UINT32_MAX;
@@ -967,7 +1013,7 @@ index d71d508..78c39b1 100644
  
    // Invalidate textures in memexported memory and watch for changes.
    if (!memexport_ranges_.empty()) {
-@@ -4711,6 +4927,30 @@ bool VulkanCommandProcessor::IssueCopy() {
+@@ -4711,6 +4963,30 @@ bool VulkanCommandProcessor::IssueCopy() {
    }
    GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
  
@@ -998,7 +1044,7 @@ index d71d508..78c39b1 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +6026,1006 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +6062,1086 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1293,6 +1339,86 @@ index d71d508..78c39b1 100644
 +              regs.values + kHleStateFirst, (kHleStateEnd - kHleStateFirst) * sizeof(uint32_t));
 +  hle_capture_last_index_ = int32_t(hle_state_captured_draws_);
 +  ++hle_state_captured_draws_;
++}
++
++bool VulkanCommandProcessor::HleEnterSecondTarget() {
++  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
++  const ui::vulkan::VulkanDevice::Properties& device_properties = vulkan_device->properties();
++  if (!(REXCVAR_GET(vulkan_dynamic_rendering) && device_properties.dynamicRendering)) return false;
++  const VulkanRenderTargetCache::RenderPassKey key = render_target_cache_->last_update_render_pass_key();
++  const RegisterFile& regs = *register_file_;
++  const uint32_t pitch = std::max(uint32_t(regs.Get<reg::RB_SURFACE_INFO>().surface_pitch), 1u);
++  const uint32_t width =
++      std::min(pitch * render_target_cache_->draw_resolution_scale_x(), device_properties.maxImageDimension2D);
++  const uint32_t height = std::min(std::min(2048u * 80u * 16u / pitch, 8192u) *
++                                       render_target_cache_->draw_resolution_scale_y(),
++                                   device_properties.maxImageDimension2D);
++  const VkFormat format = render_target_cache_->GetDepthVulkanFormat(key.depth_format);
++  if (hle_second_image_ == VK_NULL_HANDLE || hle_second_format_ != format ||
++      hle_second_framebuffer_.host_extent.width != width || hle_second_framebuffer_.host_extent.height != height) {
++    const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
++    const VkDevice device = vulkan_device->device();
++    const uint64_t submission = GetCurrentSubmission();
++    if (hle_second_view_ != VK_NULL_HANDLE) destroy_image_views_.emplace_back(submission, hle_second_view_);
++    if (hle_second_image_ != VK_NULL_HANDLE) destroy_images_.emplace_back(submission, hle_second_image_);
++    if (hle_second_memory_ != VK_NULL_HANDLE) destroy_memory_.emplace_back(submission, hle_second_memory_);
++    hle_second_view_ = VK_NULL_HANDLE;
++    hle_second_image_ = VK_NULL_HANDLE;
++    hle_second_memory_ = VK_NULL_HANDLE;
++    VkImageCreateInfo image_create_info = {};
++    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
++    image_create_info.imageType = VK_IMAGE_TYPE_2D;
++    image_create_info.format = format;
++    image_create_info.extent = {width, height, 1};
++    image_create_info.mipLevels = 1;
++    image_create_info.arrayLayers = 1;
++    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
++    image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
++    image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
++    image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++    if (!ui::vulkan::util::CreateDedicatedAllocationImage(vulkan_device, image_create_info,
++                                                          ui::vulkan::util::MemoryPurpose::kDeviceLocal,
++                                                          hle_second_image_, hle_second_memory_)) {
++      return false;
++    }
++    VkImageViewCreateInfo view_create_info = {};
++    view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
++    view_create_info.image = hle_second_image_;
++    view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
++    view_create_info.format = format;
++    view_create_info.subresourceRange = ui::vulkan::util::InitializeSubresourceRange(
++        VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
++    if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &hle_second_view_) != VK_SUCCESS) return false;
++    hle_second_format_ = format;
++    hle_second_framebuffer_ = VulkanRenderTargetCache::Framebuffer(VK_NULL_HANDLE, {width, height});
++    hle_second_ready_ = false;
++  }
++  if (!hle_second_ready_) {
++    EndRenderPass();
++    PushImageMemoryBarrier(hle_second_image_,
++                           ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
++                                                                        VK_IMAGE_ASPECT_STENCIL_BIT),
++                           VK_PIPELINE_STAGE_TRANSFER_BIT,
++                           VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
++                           VK_ACCESS_TRANSFER_READ_BIT,
++                           VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
++                           VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
++                           VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, false);
++    SubmitBarriersAndEnterRenderTargetCacheRenderPass(VK_NULL_HANDLE, &hle_second_framebuffer_, hle_second_view_,
++                                                      true);
++    VkClearAttachment clear = {};
++    clear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
++    clear.clearValue.depthStencil = {1.0f, 0};
++    VkClearRect clear_rect = {};
++    clear_rect.rect.extent = hle_second_framebuffer_.host_extent;
++    clear_rect.layerCount = 1;
++    deferred_command_buffer_.CmdVkClearAttachments(1, &clear, 1, &clear_rect);
++    hle_second_ready_ = true;
++    return true;
++  }
++  SubmitBarriersAndEnterRenderTargetCacheRenderPass(VK_NULL_HANDLE, &hle_second_framebuffer_, hle_second_view_, true);
++  return true;
 +}
 +
 +bool VulkanCommandProcessor::HleEnterShadowTarget() {
@@ -2005,7 +2131,7 @@ index d71d508..78c39b1 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +7105,268 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +7221,268 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
