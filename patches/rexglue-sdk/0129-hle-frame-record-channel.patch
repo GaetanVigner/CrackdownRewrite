@@ -417,7 +417,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..9311107 100644
+index d71d508..ed3365f 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,10 @@
@@ -501,7 +501,7 @@ index d71d508..9311107 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +5832,617 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +5832,613 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -782,7 +782,6 @@ index d71d508..9311107 100644
 +  };
 +  const ui::vulkan::VulkanDevice::Properties& device_properties = GetVulkanDevice()->properties();
 +  bool draw_native = REXCVAR_GET(gpu_hle_native_pass);
-+  bool native_clear_known = false;
 +  bool native_target_ready = false;
 +  VkRenderPass native_render_pass = VK_NULL_HANDLE;
 +  const uint32_t count = uint32_t(latest.records.size() / latest.record_size);
@@ -800,7 +799,6 @@ index d71d508..9311107 100644
 +        const uint32_t first = latest.groups[g], dwords = latest.groups[g + 1];
 +        if (XE_GPU_REG_RB_DEPTH_CLEAR >= first && XE_GPU_REG_RB_DEPTH_CLEAR < first + dwords) {
 +          stats.depth_clear = arena(render_state + uint32_t(position) + (XE_GPU_REG_RB_DEPTH_CLEAR - first));
-+          native_clear_known = true;
 +        }
 +        position += dwords;
 +      }
@@ -975,11 +973,9 @@ index d71d508..9311107 100644
 +                                                        hle_native_depth_view_, true);
 +      VkClearAttachment clear = {};
 +      clear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
-+      // The pass's own depth clear (RB_DEPTH_CLEAR: 24-bit depth in the high bits, stencil in the low 8), else the
-+      // far plane.
-+      clear.clearValue.depthStencil = {
-+          native_clear_known ? float(double(stats.depth_clear >> 8) / 16777215.0) : 1.0f,
-+          native_clear_known ? (stats.depth_clear & 0xFF) : 0u};
++      // The far plane: the atlas's Clear records carry an RB_DEPTH_CLEAR (0.9375) its background does not have
++      // (1.0), so they are not its depth clear; which Clear flags clear depth is still to be read.
++      clear.clearValue.depthStencil = {1.0f, 0};
 +      VkClearRect clear_rect = {};
 +      clear_rect.rect.extent = hle_native_framebuffer_.host_extent;
 +      clear_rect.layerCount = 1;
@@ -1086,7 +1082,7 @@ index d71d508..9311107 100644
 +      // The next run's barrier starts from UNDEFINED (the image is cleared again).
 +      hle_native_depth_layout_ = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
 +      hle_native_extent_ = {stats.native_width, stats.native_height};
-+      hle_native_clear_depth_ = native_clear_known ? float(double(stats.depth_clear >> 8) / 16777215.0) : 1.0f;
++      hle_native_clear_depth_ = 1.0f;
 +      hle_compare_pending_ = true;
 +      hle_compare_submission_ = GetCurrentSubmission();
 +      hle_compare_frame_ = stats.frame;
@@ -1119,7 +1115,7 @@ index d71d508..9311107 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6522,173 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +6518,173 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
