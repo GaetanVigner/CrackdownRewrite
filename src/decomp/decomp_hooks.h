@@ -282,4 +282,31 @@ void Sub_82A85E18(PPCContext&, uint8_t*);  // positions a glyph; returns 0
 void Sub_82B47F28(PPCContext&, uint8_t*);  // six global doubles from two constants
 void Sub_82B6F290(PPCContext&, uint8_t*);  // nine aligned buffer sizes derived from r4
 
+// Batch 12 (2026-10-31): 25 loop-free leaf functions of 21-94 instructions.
+void Sub_82150C98(PPCContext&, uint8_t*);  // f1 = random value in [f1; f2] from the global object's LCG
+void Sub_8218DF60(PPCContext&, uint8_t*);  // accumulates a byte; a word and four floats into a double; counter + 6
+void Sub_8219A2C0(PPCContext&, uint8_t*);  // accumulates two bytes and three floats into a double; counter + 5
+void Sub_8219A318(PPCContext&, uint8_t*);  // clears a flag; draws a random delay into +124
+void Sub_82308DE8(PPCContext&, uint8_t*);  // sets a flag and a random timer unless the target has bit 7
+void Sub_82315780(PPCContext&, uint8_t*);  // reports three bytes into a statistics block
+void Sub_823A41D8(PPCContext&, uint8_t*);  // unpacks a colour into three floats; returns 1
+void Sub_823A4248(PPCContext&, uint8_t*);  // unpacks a colour into three floats with the pad; returns 1
+void Sub_8241BDB8(PPCContext&, uint8_t*);  // installs the vtables of a derived listener
+void Sub_8241F868(PPCContext&, uint8_t*);  // installs the vtables of a derived class; three count pairs
+void Sub_824A05D0(PPCContext&, uint8_t*);  // 36 words set to a constant
+void Sub_8250F0F0(PPCContext&, uint8_t*);  // f1 = sum of three floats and fourteen bytes
+void Sub_8273C678(PPCContext&, uint8_t*);  // 4x4 matrix from the 0.0f / 1.0f constants
+void Sub_82794C58(PPCContext&, uint8_t*);  // constructor: vtable; kind 13; 1 at +40
+void Sub_82794FB8(PPCContext&, uint8_t*);  // constructor: vtable; kind 14; two words; 32 bytes copied
+void Sub_828C6468(PPCContext&, uint8_t*);  // encodes a texture fetch constant header; returns the end
+void Sub_82987A58(PPCContext&, uint8_t*);  // constructor (null-tolerant): four sentinel triples
+void Sub_8298A330(PPCContext&, uint8_t*);  // constructor: four sentinel triples
+void Sub_8298C970(PPCContext&, uint8_t*);  // handle constructor with a constant; bumps the target's reference count
+void Sub_82A151E8(PPCContext&, uint8_t*);  // constructor of an 80-byte emitter
+void Sub_82A95278(PPCContext&, uint8_t*);  // f1 = approximate log2 of f1
+void Sub_82AD8038(PPCContext&, uint8_t*);  // request in state 12: sets a slot field; moves to state 11
+void Sub_82B11740(PPCContext&, uint8_t*);  // ten global triples set to (-7; -6; -6)
+void Sub_82B47DA0(PPCContext&, uint8_t*);  // three global rows from the 0.0f / 1.0f constants
+void Sub_82B47E60(PPCContext&, uint8_t*);  // global 4x4 from the 0.0f / 1.0f constants
+
 }  // namespace crackdown::hooks::decomp

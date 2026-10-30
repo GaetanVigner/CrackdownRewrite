@@ -214,6 +214,7 @@ set(CRACKDOWN_SOURCES
     src/decomp/leaf_batch9.cpp
     src/decomp/leaf_batch10.cpp
     src/decomp/leaf_batch11.cpp
+    src/decomp/leaf_batch12.cpp
     src/crt_native.cpp
     src/dlc.cpp
     src/entity_registry.cpp
