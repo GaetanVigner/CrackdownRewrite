@@ -42,6 +42,12 @@ CommandProcessor::OnHleMarker gets it (the NOP handler reads the first five dwor
 keeps the open passes and counts the emulated draws (not resolves) each pass's markers enclose, and compares them
 with the latest frame's records per pass ("HLE pass markers").
 
+Native per draw (H2): rex/graphics/hle_draw_match.h (the same matcher as the game's src/hle_draw_match.h) matches the
+current pass's emulated draws, in stream order, to its records by index buffer and draw initiator; in native
+windows each matched emulated draw of the captured frame is followed by its record's native draw (the dry run
+filtered to that record), while the draw's data is still the frame's. The pass's records are loaded at its begin
+marker (the fullest kept submission of that frame).
+
 diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
 index 7a5bdd2..4a849fc 100644
 --- a/include/rex/graphics/command_processor.h
@@ -60,6 +66,76 @@ index 7a5bdd2..4a849fc 100644
    bool ExecutePacketType3_INTERRUPT(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
    bool ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, uint32_t packet, uint32_t count);
    bool ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* reader, uint32_t packet,
+diff --git a/include/rex/graphics/hle_draw_match.h b/include/rex/graphics/hle_draw_match.h
+new file mode 100644
+index 0000000..98f4231
+--- /dev/null
++++ b/include/rex/graphics/hle_draw_match.h
+@@ -0,0 +1,64 @@
++#pragma once
++
++#include <cstddef>
++#include <cstdint>
++#include <utility>
++#include <utility>
++#include <vector>
++
++// HLE renderer H2: the emulated draws of a render pass, in command stream order, matched one for one to the pass's
++// draw records. Each emulated draw takes the next record from the cursor with the same index buffer (VGT_DMA_BASE)
++// and draw initiator (primitive type, index source and count); records passed over on the way (draws the emulation
++// did not issue, such as resolves in copy mode) are counted. Shared by the GPU plugin (patch 0129 holds the same
++// code) and its tests (crackdown's src/hle_draw_match.h is the same).
++namespace rex::graphics::hle {
++
++struct DrawKey {
++  uint32_t dma_base = 0;
++  uint32_t initiator = 0;
++};
++
++class DrawMatcher {
++ public:
++  static constexpr size_t kNoRecord = SIZE_MAX;
++  // How far ahead of the cursor a draw is looked for before it counts as unmatched.
++  static constexpr size_t kLookahead = 64;
++
++  void Reset(std::vector<DrawKey> records, std::vector<size_t> indices) {
++    keys_ = std::move(records);
++    indices_ = std::move(indices);
++    cursor_ = 0;
++    matched_ = skipped_ = unmatched_ = 0;
++  }
++  // New records for the same pass (a later partial frame): the cursor stays where it is.
++  void Extend(std::vector<DrawKey> records, std::vector<size_t> indices) {
++    keys_ = std::move(records);
++    indices_ = std::move(indices);
++  }
++  // The record (its index in the frame) an emulated draw corresponds to, or kNoRecord.
++  size_t Match(const DrawKey& draw) {
++    const size_t end = keys_.size() < cursor_ + kLookahead ? keys_.size() : cursor_ + kLookahead;
++    for (size_t i = cursor_; i < end; ++i) {
++      if (keys_[i].dma_base == draw.dma_base && keys_[i].initiator == draw.initiator) {
++        skipped_ += uint32_t(i - cursor_);
++        cursor_ = i + 1;
++        ++matched_;
++        return indices_[i];
++      }
++    }
++    ++unmatched_;
++    return kNoRecord;
++  }
++  uint32_t matched() const { return matched_; }
++  uint32_t skipped() const { return skipped_; }
++  uint32_t unmatched() const { return unmatched_; }
++  size_t cursor() const { return cursor_; }
++
++ private:
++  std::vector<DrawKey> keys_;
++  std::vector<size_t> indices_;
++  size_t cursor_ = 0;
++  uint32_t matched_ = 0, skipped_ = 0, unmatched_ = 0;
++};
++
++}  // namespace rex::graphics::hle
 diff --git a/include/rex/graphics/hle_frame.h b/include/rex/graphics/hle_frame.h
 new file mode 100644
 index 0000000..b9f609b
@@ -166,10 +242,20 @@ index 0000000..b9f609b
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..12fe044 100644
+index 4f8a0cb..9b1e818 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
-@@ -470,6 +470,125 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -11,6 +11,9 @@
+  */
+ 
+ #include <array>
++
++#include <rex/graphics/hle_draw_match.h>
++#include <rex/graphics/hle_frame.h>
+ #include <atomic>
+ #include <chrono>
+ #include <climits>
+@@ -470,6 +473,136 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -192,6 +278,17 @@ index 4f8a0cb..12fe044 100644
 +  bool hle_inplace_done_ = false;
 +  uint32_t hle_current_pass_index_ = UINT32_MAX;
 +  bool hle_reference_done_ = false;  // a reference copy is waiting for the comparison
++  // H2 per draw: in native windows, each emulated draw of the current pass in the captured frame is followed by its
++  // own record's native draw (matched one for one), while the draw's data is still current.
++  bool hle_per_draw_armed_ = false;
++  bool hle_per_draw_active_ = false;
++  HleFrameSink::Latest hle_per_draw_frame_;
++  hle::DrawMatcher hle_per_draw_matcher_;
++  uint32_t hle_per_draw_record_ = UINT32_MAX;
++  bool hle_per_draw_target_ready_ = false;
++  VkRenderPass hle_per_draw_render_pass_ = VK_NULL_HANDLE;
++  uint32_t hle_per_draw_native_ = 0, hle_per_draw_loads_ = 0, hle_per_draw_no_frame_ = 0;
++  void HleLoadPerDrawRecords(uint64_t frame);
 +  bool hle_dry_run_pending_ = false;
 +  struct HleDryRunStats {
 +    uint64_t frame = 0;
@@ -541,7 +638,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..ec78b9f 100644
+index d71d508..3a15d24 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,11 @@
@@ -587,7 +684,7 @@ index d71d508..ec78b9f 100644
  REXCVAR_DEFINE_BOOL(vulkan_occlusion_queries_in_render_pass, false, "GPU/Vulkan",
                      "Run occlusion queries inside the guest's render passes (a host query per pass a guest query "
                      "spans, summed) instead of ending the render pass around each query")
-@@ -2503,6 +2525,93 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -2503,6 +2525,109 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
    vertex_buffers_in_sync_[0] = 0;
    vertex_buffers_in_sync_[1] = 0;
  
@@ -595,8 +692,9 @@ index d71d508..ec78b9f 100644
 +  // state and the records are the same frame's; a pass whose target is not known yet runs it at once to learn it.
 +  std::memcpy(hle_pass_draws_last_, hle_pass_draws_, sizeof(hle_pass_draws_));
 +  std::memset(hle_pass_draws_, 0, sizeof(hle_pass_draws_));
-+  if (hle_state_capture_active_ && hle_shadow_mode_) {
-+    if (hle_shadow_target_ready_ && hle_reference_captured_ && !hle_compare_pending_ &&
++  if (hle_state_capture_active_ && (hle_shadow_mode_ || hle_per_draw_native_)) {
++    if ((hle_shadow_target_ready_ || hle_per_draw_target_ready_) && hle_reference_captured_ &&
++        !hle_compare_pending_ &&
 +        EnsureHleReadback(VkDeviceSize(64) << 20)) {
 +      EndRenderPass();
 +      const VkExtent2D extent = hle_native_framebuffer_.host_extent;
@@ -623,12 +721,24 @@ index d71d508..ec78b9f 100644
 +        hle_compare_pending_ = true;
 +        hle_compare_submission_ = GetCurrentSubmission();
 +        hle_compare_frame_ = 0;
-+        hle_compare_pass_ = hle_current_pass_ + " (shadow draws)";
++        hle_compare_pass_ = hle_current_pass_ + (hle_shadow_mode_ ? " (shadow draws)" : " (native per draw)");
 +      }
 +    }
 +    hle_reference_captured_ = false;
 +    hle_shadow_target_ready_ = false;
-+    hle_dry_run_pending_ = false;  // this window's comparison is the shadow draws'
++    hle_dry_run_pending_ = false;  // this window's comparison is the shadow draws' or the per-draw native pass's
++    if (hle_per_draw_native_) {
++      REXGPU_INFO("HLE native per draw: pass {}, {} native draws ({} records loaded {} times, {} frames without "
++                  "records); matched {}, records passed over {}, emulated draws without a record {}",
++                  hle_current_pass_, hle_per_draw_native_, hle_per_draw_frame_.records.size() /
++                      std::max<size_t>(hle_per_draw_frame_.record_size, 1),
++                  hle_per_draw_loads_, hle_per_draw_no_frame_, hle_per_draw_matcher_.matched(),
++                  hle_per_draw_matcher_.skipped(), hle_per_draw_matcher_.unmatched());
++    }
++    hle_per_draw_native_ = hle_per_draw_loads_ = hle_per_draw_no_frame_ = 0;
++    hle_per_draw_active_ = false;
++    hle_per_draw_target_ready_ = false;
++    hle_per_draw_frame_ = {};
 +    REXGPU_INFO("HLE shadow draws: pass {}, {} emulated draws issued again into the native image ({} skipped: "
 +                "colour targets bound or no dynamic rendering)",
 +                hle_current_pass_, hle_shadow_draws_, hle_shadow_skipped_);
@@ -663,6 +773,9 @@ index d71d508..ec78b9f 100644
 +      hle_state_line_ += "; native pass drawn in place (at the pass's end marker)";
 +    }
 +    hle_inplace_armed_ = false;
++    hle_per_draw_armed_ = false;
++    hle_per_draw_active_ = false;
++    hle_per_draw_target_ready_ = false;
 +    if (hle_dry_run_pending_) {
 +      hle_dry_run_pending_ = false;
 +      HleDryRun();
@@ -681,7 +794,7 @@ index d71d508..ec78b9f 100644
    if (!graphics_system_)
      return;
    ui::Presenter* presenter = graphics_system_->presenter();
-@@ -3886,6 +3995,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3886,6 +4011,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
  
    const RegisterFile& regs = *register_file_;
    (void)index_buffer_info;
@@ -698,7 +811,7 @@ index d71d508..ec78b9f 100644
    draw_timing_ = REXCVAR_GET(gpu_frame_stats);
    if (draw_timing_) {
      draw_mark_ = DrawTicks();
-@@ -3906,6 +4025,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3906,6 +4041,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    };
  
    xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
@@ -708,7 +821,7 @@ index d71d508..ec78b9f 100644
    if (edram_mode == xenos::EdramMode::kCopy) {
      // Special copy handling.
      return IssueCopy();
-@@ -3924,6 +4046,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3924,6 +4062,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      return draw_fail("missing_vertex_shader");
    }
    pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
@@ -716,7 +829,7 @@ index d71d508..ec78b9f 100644
    bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
    if (memexport_used_vertex) {
      if (!device_properties.vertexPipelineStoresAndAtomics) {
-@@ -3964,6 +4087,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3964,6 +4103,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
        return true;
      }
    }
@@ -724,7 +837,7 @@ index d71d508..ec78b9f 100644
    bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
    if (memexport_used_pixel) {
      if (!device_properties.fragmentStoresAndAtomics) {
-@@ -4023,6 +4147,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4023,6 +4163,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      // produced by the primitive processor and are handled by the Vulkan
      // pipeline cache.
      DRAW_SECTION(1);
@@ -732,7 +845,7 @@ index d71d508..ec78b9f 100644
      Shader::HostVertexShaderType host_vertex_shader_type =
          primitive_processing_result.host_vertex_shader_type;
      if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex &&
-@@ -4149,6 +4274,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4149,6 +4290,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    if (!render_target_updated) {
      return draw_fail("render_target_update");
    }
@@ -740,7 +853,7 @@ index d71d508..ec78b9f 100644
  
    // Create the pipeline (for this, need the render pass from the render target
    // cache), translating the shaders - doing this now to obtain the used
-@@ -4280,6 +4406,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4280,6 +4422,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
                               shader_32bit_index_dma, 0, viewport_info, used_texture_mask,
                               normalized_depth_control, normalized_color_mask);
@@ -760,10 +873,20 @@ index d71d508..ec78b9f 100644
  
    // Update uniform buffers and descriptor sets after binding the pipeline with
    // the new layout.
-@@ -4468,6 +4607,22 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4468,6 +4623,32 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1,
                                                0, 0, 0);
    }
++  if (hle_per_draw_active_ && !hle_reference_captured_ && !hle_pass_stack_.empty() &&
++      hle_pass_stack_.back() == hle_current_pass_index_) {
++    const size_t record = hle_per_draw_matcher_.Match(
++        {regs.values[XE_GPU_REG_VGT_DMA_BASE], regs.values[XE_GPU_REG_VGT_DRAW_INITIATOR]});
++    if (record != hle::DrawMatcher::kNoRecord) {
++      hle_per_draw_record_ = uint32_t(record);
++      HleDryRun();
++      hle_per_draw_record_ = UINT32_MAX;
++    }
++  }
 +  if (hle_shadow_this_draw_) {
 +    hle_shadow_this_draw_ = false;
 +    // The same draw again (pipeline, descriptor sets, index buffer and dynamic state stay bound) into the native
@@ -783,7 +906,7 @@ index d71d508..ec78b9f 100644
  
    // Invalidate textures in memexported memory and watch for changes.
    if (!memexport_ranges_.empty()) {
-@@ -4711,6 +4866,30 @@ bool VulkanCommandProcessor::IssueCopy() {
+@@ -4711,6 +4892,30 @@ bool VulkanCommandProcessor::IssueCopy() {
    }
    GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
  
@@ -814,7 +937,7 @@ index d71d508..ec78b9f 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +5965,913 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +5991,963 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1299,6 +1422,9 @@ index d71d508..ec78b9f 100644
 +void VulkanCommandProcessor::OnHleMarker(uint32_t pass, uint32_t frame, uint32_t kind, uint32_t records) {
 +  (void)records;
 +  hle_marker_frame_ = frame;
++  if (kind == 1 && hle_per_draw_armed_ && hle_state_capture_active_ && pass == hle_current_pass_index_) {
++    HleLoadPerDrawRecords(frame);
++  }
 +  if (kind == 2 && hle_inplace_armed_ && hle_state_capture_active_ && pass == hle_current_pass_index_) {
 +    hle_inplace_armed_ = false;
 +    hle_frame_number_ = frame;
@@ -1320,11 +1446,50 @@ index d71d508..ec78b9f 100644
 +  }
 +}
 +
++void VulkanCommandProcessor::HleLoadPerDrawRecords(uint64_t frame) {
++  // The fullest kept submission of this frame (the game streams the pass's records at its end; the GPU is behind).
++  HleFrameSink::Latest best;
++  for (uint32_t age = 0; age < HleFrameSink::kKeptFrames; ++age) {
++    HleFrameSink::Latest candidate;
++    if (!HleFrameSink::Get().CopyFrame(age, candidate)) break;
++    if (candidate.frame == frame && candidate.records.size() > best.records.size()) best = std::move(candidate);
++  }
++  if (best.records.empty() || !best.draw_offset) {
++    ++hle_per_draw_no_frame_;
++    return;
++  }
++  const bool extend = hle_per_draw_active_ && best.records.size() > hle_per_draw_frame_.records.size();
++  if (hle_per_draw_active_ && !extend) return;
++  std::vector<hle::DrawKey> keys;
++  std::vector<size_t> indices;
++  const size_t count = best.records.size() / best.record_size;
++  for (size_t r = 0; r < count; ++r) {
++    const uint8_t* record = best.records.data() + r * best.record_size;
++    uint32_t kind, pass, draw[3];
++    std::memcpy(&kind, record, 4);
++    std::memcpy(&pass, record + 4, 4);
++    if (((kind < 1 || kind > 4) && kind != 9) || pass != hle_current_pass_index_) continue;
++    std::memcpy(draw, record + best.draw_offset, sizeof(draw));
++    keys.push_back({draw[1], draw[0]});
++    indices.push_back(r);
++  }
++  if (extend) {
++    hle_per_draw_matcher_.Extend(std::move(keys), std::move(indices));
++  } else {
++    hle_per_draw_matcher_.Reset(std::move(keys), std::move(indices));
++  }
++  hle_per_draw_frame_ = std::move(best);
++  hle_per_draw_active_ = true;
++  ++hle_per_draw_loads_;
++}
++
 +void VulkanCommandProcessor::HleDryRun() {
 +  HleDryRunStats stats;
 +  const std::string wanted = hle_current_pass_;
-+  HleFrameSink::Latest latest;
-+  bool found = false;
++  const bool per_draw = hle_per_draw_record_ != UINT32_MAX;
++  HleFrameSink::Latest latest_storage;
++  HleFrameSink::Latest& latest = per_draw ? hle_per_draw_frame_ : latest_storage;
++  bool found = per_draw;
 +  for (uint32_t age = 0; age < HleFrameSink::kKeptFrames && !found; ++age) {
 +    found = HleFrameSink::Get().CopyFrame(age, latest) &&
 +            (hle_frame_number_ == UINT64_MAX || latest.frame == hle_frame_number_);
@@ -1356,10 +1521,11 @@ index d71d508..ec78b9f 100644
 +  const ui::vulkan::VulkanDevice::Properties& device_properties = GetVulkanDevice()->properties();
 +  bool draw_native = REXCVAR_GET(gpu_hle_native_pass);
 +  bool native_stopped = false;
-+  bool native_target_ready = false;
-+  VkRenderPass native_render_pass = VK_NULL_HANDLE;
++  bool native_target_ready = per_draw && hle_per_draw_target_ready_;
++  VkRenderPass native_render_pass = per_draw ? hle_per_draw_render_pass_ : VK_NULL_HANDLE;
 +  const uint32_t count = uint32_t(latest.records.size() / latest.record_size);
 +  for (uint32_t r = 0; r < count; ++r) {
++    if (per_draw && r != hle_per_draw_record_) continue;
 +    const uint8_t* record = latest.records.data() + size_t(r) * latest.record_size;
 +    uint32_t kind, pass;
 +    std::memcpy(&kind, record, 4);
@@ -1673,7 +1839,8 @@ index d71d508..ec78b9f 100644
 +  std::memcpy(regs.values + kFirst, saved.data(), saved.size() * sizeof(uint32_t));
 +  if (native_target_ready) {
 +    EndRenderPass();
-+    if ((hle_reference_captured_ || hle_inplace_armed_ || hle_state_capture_active_) && stats.native_draws &&
++    if (!per_draw && (hle_reference_captured_ || hle_inplace_armed_ || hle_state_capture_active_) &&
++        stats.native_draws &&
 +        !hle_compare_pending_ &&
 +        EnsureHleReadback(VkDeviceSize(64) << 20) &&
 +        VkDeviceSize(stats.native_width) * stats.native_height * 4 <= hle_readback_size_) {
@@ -1700,7 +1867,7 @@ index d71d508..ec78b9f 100644
 +      hle_compare_frame_ = stats.frame;
 +      hle_compare_pass_ = hle_current_pass_ + (hle_state_capture_active_ ? " in place" : "");
 +    }
-+    hle_reference_captured_ = false;
++    if (!per_draw) hle_reference_captured_ = false;
 +    // What the native draws bound reflects the records, not the registers now restored: the emulated draws that
 +    // follow bind everything again.
 +    current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
@@ -1722,13 +1889,19 @@ index d71d508..ec78b9f 100644
 +    dynamic_stencil_reference_front_update_needed_ = true;
 +    dynamic_stencil_reference_back_update_needed_ = true;
 +  }
-+  hle_dry_run_ = stats;
++  if (per_draw) {
++    hle_per_draw_target_ready_ = native_target_ready;
++    hle_per_draw_render_pass_ = native_render_pass;
++    hle_per_draw_native_ += stats.native_draws;
++  } else {
++    hle_dry_run_ = stats;
++  }
 +}
 +
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6951,267 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +7027,268 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -1795,8 +1968,9 @@ index d71d508..ec78b9f 100644
 +      }
 +      hle_reference_armed_ = REXCVAR_GET(gpu_hle_native_pass) && !hle_compare_pending_;
 +      hle_state_capture_pending_ = REXCVAR_GET(gpu_hle_native_pass) && !hle_current_pass_.empty();
-+      hle_inplace_armed_ = hle_state_capture_pending_ && !hle_shadow_mode_ && hle_atlas_known_ &&
-+                           hle_current_pass_index_ != UINT32_MAX;
++      hle_per_draw_armed_ = hle_state_capture_pending_ && !hle_shadow_mode_ && hle_atlas_known_ &&
++                            hle_current_pass_index_ != UINT32_MAX;
++      hle_inplace_armed_ = false;
 +      if (!hle_state_line_.empty()) {
 +        REXGPU_INFO("HLE state compare{}: {}", ab_tag, hle_state_line_);
 +        hle_state_line_.clear();
