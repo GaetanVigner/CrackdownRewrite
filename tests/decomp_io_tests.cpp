@@ -241,6 +241,11 @@ Outcome Run(const Case& c, guest_sandbox::GuestFunction function, uint32_t seed)
   for (uint32_t address : {0x82071A84u}) scene.Word(address, uint32_t(rng()));
   for (uint32_t address : {0x820EDA8Cu, 0x820ED728u, 0x820722E8u, 0x82C63FE4u}) scene.Float(address, scene.RandomFloat(rng));
 
+  // Batch 11 globals.
+  for (uint32_t address : {0x82BAB4F8u, 0x82001C44u, 0x82001C48u}) scene.Float(address, scene.RandomFloat(rng));
+  scene.Word(0x82DE2368, kBlockA + 0xC00);
+  scene.Double(0x820ED4C0, double(scene.RandomFloat(rng)));
+
   rex::ppc::FPSCRRegister::Platform::setcsr(g_default_csr);
   PPCContext ctx{};
   ctx.fpscr.InitHost();
@@ -748,6 +753,32 @@ const Case kCases[] = {
     {0x82AED2C0, &crackdown::hooks::decomp::Sub_82AED2C0, false, false, nullptr},
     {0x82B0FB40, &crackdown::hooks::decomp::Sub_82B0FB40, false, false, nullptr},
     {0x82B22708, &crackdown::hooks::decomp::Sub_82B22708, false, false, nullptr},
+    // batch 11
+    {0x82150CF0, &crackdown::hooks::decomp::Sub_82150CF0, false, true, nullptr},
+    {0x821A17C8, &crackdown::hooks::decomp::Sub_821A17C8, false, true, nullptr},
+    {0x821BC260, &crackdown::hooks::decomp::Sub_821BC260, false, true, nullptr},
+    {0x82312AB8, &crackdown::hooks::decomp::Sub_82312AB8, false, false, nullptr},
+    {0x823137F8, &crackdown::hooks::decomp::Sub_823137F8, false, false, nullptr},
+    {0x82315270, &crackdown::hooks::decomp::Sub_82315270, false, false, nullptr},
+    {0x8240BAC8, &crackdown::hooks::decomp::Sub_8240BAC8, false, false, nullptr},
+    {0x82445008, &crackdown::hooks::decomp::Sub_82445008, false, false, nullptr},
+    {0x824A3BC8, &crackdown::hooks::decomp::Sub_824A3BC8, false, false, nullptr},
+    {0x82586538, &crackdown::hooks::decomp::Sub_82586538, false, false, nullptr},
+    {0x82587D30, &crackdown::hooks::decomp::Sub_82587D30, false, false, nullptr},
+    {0x825DD398, &crackdown::hooks::decomp::Sub_825DD398, false, false, nullptr},
+    {0x8272C558, &crackdown::hooks::decomp::Sub_8272C558, false, false, nullptr},
+    {0x82794F60, &crackdown::hooks::decomp::Sub_82794F60, false, false, nullptr},
+    {0x82795160, &crackdown::hooks::decomp::Sub_82795160, false, false, nullptr},
+    {0x82839CF0, &crackdown::hooks::decomp::Sub_82839CF0, true, false, nullptr},
+    {0x82844E88, &crackdown::hooks::decomp::Sub_82844E88, false, false, nullptr},
+    {0x828CDC28, &crackdown::hooks::decomp::Sub_828CDC28, false, false, nullptr},
+    {0x82957EE8, &crackdown::hooks::decomp::Sub_82957EE8, false, false, nullptr},
+    {0x829DCDC8, &crackdown::hooks::decomp::Sub_829DCDC8, false, false, nullptr},
+    {0x829EC030, &crackdown::hooks::decomp::Sub_829EC030, false, false, nullptr},
+    {0x82A4F8A8, &crackdown::hooks::decomp::Sub_82A4F8A8, false, false, nullptr},
+    {0x82A85E18, &crackdown::hooks::decomp::Sub_82A85E18, true, false, nullptr},
+    {0x82B47F28, &crackdown::hooks::decomp::Sub_82B47F28, false, false, nullptr},
+    {0x82B6F290, &crackdown::hooks::decomp::Sub_82B6F290, false, false, nullptr},
 };
 
 }  // namespace

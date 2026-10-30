@@ -255,4 +255,31 @@ void Sub_82AED2C0(PPCContext&, uint8_t*);  // resets an 88-byte stream state
 void Sub_82B0FB40(PPCContext&, uint8_t*);  // eight global float triples set to a constant
 void Sub_82B22708(PPCContext&, uint8_t*);  // 24 global floats set to a constant
 
+// Batch 11 (2026-10-31): 25 loop-free leaf functions of 20-88 instructions.
+void Sub_82150CF0(PPCContext&, uint8_t*);  // f1 = random value scaled by f2 from the global object's LCG
+void Sub_821A17C8(PPCContext&, uint8_t*);  // time left from the frame count and the object's start (+240)
+void Sub_821BC260(PPCContext&, uint8_t*);  // time left from the frame count and the start at *r3
+void Sub_82312AB8(PPCContext&, uint8_t*);  // resets a timed object (five flag bytes)
+void Sub_823137F8(PPCContext&, uint8_t*);  // resets a timed object (four flag bytes)
+void Sub_82315270(PPCContext&, uint8_t*);  // flag bytes: sets 0x60; clears five when the object's +36 is clear
+void Sub_8240BAC8(PPCContext&, uint8_t*);  // accumulates four bytes and two floats into a double; counter + 6 (second)
+void Sub_82445008(PPCContext&, uint8_t*);  // stores f1 into the global 5x5 grid
+void Sub_824A3BC8(PPCContext&, uint8_t*);  // 28 words set to a constant
+void Sub_82586538(PPCContext&, uint8_t*);  // reports eight fields into a statistics block (rounded)
+void Sub_82587D30(PPCContext&, uint8_t*);  // reports seven fields into a statistics block (rounded)
+void Sub_825DD398(PPCContext&, uint8_t*);  // four random floats from the global LCG
+void Sub_8272C558(PPCContext&, uint8_t*);  // sound parameters from a descriptor
+void Sub_82794F60(PPCContext&, uint8_t*);  // constructor: vtable; kind 14; f1; 32 bytes copied
+void Sub_82795160(PPCContext&, uint8_t*);  // constructor: vtable; kind 15; 32 bytes copied; two words
+void Sub_82839CF0(PPCContext&, uint8_t*);  // constructor of a format table; returns 0
+void Sub_82844E88(PPCContext&, uint8_t*);  // releases a 4-bit count in a bit array
+void Sub_828CDC28(PPCContext&, uint8_t*);  // resets a stream block of the object
+void Sub_82957EE8(PPCContext&, uint8_t*);  // constructor: five vtable pointers
+void Sub_829DCDC8(PPCContext&, uint8_t*);  // constructor (null-tolerant): twelve words from a constant
+void Sub_829EC030(PPCContext&, uint8_t*);  // constructor with an embedded object (second)
+void Sub_82A4F8A8(PPCContext&, uint8_t*);  // installs the vtables of a derived class
+void Sub_82A85E18(PPCContext&, uint8_t*);  // positions a glyph; returns 0
+void Sub_82B47F28(PPCContext&, uint8_t*);  // six global doubles from two constants
+void Sub_82B6F290(PPCContext&, uint8_t*);  // nine aligned buffer sizes derived from r4
+
 }  // namespace crackdown::hooks::decomp
