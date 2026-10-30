@@ -117,5 +117,5 @@
     "shadow atlas": "native"
   },
   "_comment_passes": "passes: native renderer stage per tagged render pass (tools/progress_map.py STAGES: emulated, records, dry run, native draw, validated, native); unlisted passes are emulated.",
-  "_comment_atlas": "shadow atlas: first cascade drawn natively from the records into the emulated render target in place of the emulated draws, the EDRAM equal to the emulated draws 100% in every window (2026-10-30, gpu_hle_replace_pass)."
+  "_comment_atlas": "shadow atlas: every cascade drawn natively from the records into the emulated render target every frame in place of the emulated draws (2026-10-31, gpu_hle_replace_pass); diagnostic frames equal 100%; costs ~20% FPS in the busy scene for now."
 }
