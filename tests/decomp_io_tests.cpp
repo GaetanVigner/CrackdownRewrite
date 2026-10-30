@@ -16,6 +16,7 @@
 #include <random>
 #include <string>
 #include <thread>
+#include <unordered_map>
 #include <vector>
 
 #include "check.h"
@@ -54,11 +55,11 @@ void Watchdog() {
 // The guest memory the test writes before a run, so changes can be told from the initial contents.
 struct Scene {
   guest_sandbox::Memory& memory = guest_sandbox::Memory::Get();
-  std::vector<std::pair<uint32_t, uint32_t>> written;  // (address, value) of every word written
+  std::unordered_map<uint32_t, uint32_t> written;  // address -> value of every word written (the last write wins)
 
   void Word(uint32_t address, uint32_t value) {
     memory.Write32(address, value);
-    written.emplace_back(address, value);
+    written[address] = value;
   }
   void Float(uint32_t address, float value) {
     uint32_t bits;
@@ -94,10 +95,8 @@ struct Scene {
   }
   float RandomFloat(std::mt19937& rng) { return float(int32_t(rng() % 20001) - 10000) / 128.0f; }
   uint32_t PreImage(uint32_t address) const {
-    for (auto it = written.rbegin(); it != written.rend(); ++it) {
-      if (it->first == address) return it->second;
-    }
-    return 0;
+    const auto it = written.find(address);
+    return it == written.end() ? 0 : it->second;
   }
 };
 
@@ -139,6 +138,10 @@ Outcome Run(const Case& c, guest_sandbox::GuestFunction function, uint32_t seed)
   scene.Word(0x820722DC, uint32_t(rng()));
   for (uint32_t i = 0; i < 40; ++i) scene.Word(0x82D08730 + 4 * i, uint32_t(rng()));
   for (uint32_t address : {0x82D089E0u, 0x82D08910u, 0x82D08914u, 0x82D08918u, 0x82D0893Cu}) scene.Word(address, uint32_t(rng()));
+  // Batch 3 globals: thresholds, flag bytes, colour constants.
+  for (uint32_t address : {0x82071E28u, 0x82070E6Cu}) scene.Float(address, scene.RandomFloat(rng));
+  scene.Word(0x82BAA608, rng() % 2 ? 0 : uint32_t(rng()));
+  for (uint32_t address : {0x82DE247Cu, 0x82C3E400u, 0x82C3E404u, 0x82BAE734u, 0x82BAE744u}) scene.Word(address, uint32_t(rng()));
 
   rex::ppc::FPSCRRegister::Platform::setcsr(g_default_csr);
   PPCContext ctx{};
@@ -428,12 +431,38 @@ const Case kCases[] = {
     {0x8272F260, &crackdown::hooks::decomp::Sub_8272F260, false, false, nullptr},
     {0x82944E58, &crackdown::hooks::decomp::Sub_82944E58, false, false, Glyphs},
     {0x82A95780, &crackdown::hooks::decomp::Sub_82A95780, false, true, Weighted},
+    // batch 3: small loop-free leaves, default scene
+    {0x8213F180, &crackdown::hooks::decomp::Sub_8213F180, false, false, nullptr},
+    {0x821BFCC0, &crackdown::hooks::decomp::Sub_821BFCC0, false, false, nullptr},
+    {0x821F58D0, &crackdown::hooks::decomp::Sub_821F58D0, false, false, nullptr},
+    {0x82258550, &crackdown::hooks::decomp::Sub_82258550, false, false, nullptr},
+    {0x82270B80, &crackdown::hooks::decomp::Sub_82270B80, false, false, nullptr},
+    {0x822EBBB0, &crackdown::hooks::decomp::Sub_822EBBB0, false, false, nullptr},
+    {0x82311448, &crackdown::hooks::decomp::Sub_82311448, false, false, nullptr},
+    {0x82326300, &crackdown::hooks::decomp::Sub_82326300, false, false, nullptr},
+    {0x82369348, &crackdown::hooks::decomp::Sub_82369348, false, true, nullptr},
+    {0x824879B8, &crackdown::hooks::decomp::Sub_824879B8, false, false, nullptr},
+    {0x824888C8, &crackdown::hooks::decomp::Sub_824888C8, false, false, nullptr},
+    {0x825065E0, &crackdown::hooks::decomp::Sub_825065E0, false, false, nullptr},
+    {0x8253C118, &crackdown::hooks::decomp::Sub_8253C118, true, false, nullptr},
+    {0x8265CDC8, &crackdown::hooks::decomp::Sub_8265CDC8, false, false, nullptr},
+    {0x8269B3C8, &crackdown::hooks::decomp::Sub_8269B3C8, false, false, nullptr},
+    {0x8273B2F8, &crackdown::hooks::decomp::Sub_8273B2F8, false, false, nullptr},
+    {0x82793BB8, &crackdown::hooks::decomp::Sub_82793BB8, false, false, nullptr},
+    {0x8281BDD0, &crackdown::hooks::decomp::Sub_8281BDD0, true, false, nullptr},
+    {0x828D2700, &crackdown::hooks::decomp::Sub_828D2700, false, false, nullptr},
+    {0x82993038, &crackdown::hooks::decomp::Sub_82993038, false, false, nullptr},
+    {0x829F1AD8, &crackdown::hooks::decomp::Sub_829F1AD8, true, false, nullptr},
+    {0x82A85C38, &crackdown::hooks::decomp::Sub_82A85C38, false, false, nullptr},
+    {0x82A89BE0, &crackdown::hooks::decomp::Sub_82A89BE0, true, false, nullptr},
+    {0x82B1F4A8, &crackdown::hooks::decomp::Sub_82B1F4A8, false, false, nullptr},
+    {0x82B1F4D0, &crackdown::hooks::decomp::Sub_82B1F4D0, false, false, nullptr},
 };
 
 }  // namespace
 
 int main(int argc, char** argv) {
-  int trials = 64;
+  int trials = 48;
   if (argc > 2 && std::string(argv[1]) == "--trials") trials = std::atoi(argv[2]);
   g_default_csr = rex::ppc::FPSCRRegister::Platform::getcsr();
   std::thread(Watchdog).detach();

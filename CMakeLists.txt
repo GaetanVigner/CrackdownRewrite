@@ -205,6 +205,7 @@ set(CRACKDOWN_SOURCES
     src/crash_report.cpp
     src/decomp/leaf_batch1.cpp
     src/decomp/leaf_batch2.cpp
+    src/decomp/leaf_batch3.cpp
     src/crt_native.cpp
     src/dlc.cpp
     src/entity_registry.cpp

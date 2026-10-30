@@ -39,4 +39,31 @@ void Sub_8272F260(PPCContext&, uint8_t*);  // constructor of a 192-byte object
 void Sub_82944E58(PPCContext&, uint8_t*);  // appends glyph codes for the current symbol to a string
 void Sub_82A95780(PPCContext&, uint8_t*);  // weighted pick between two values (f1..f4 -> f1)
 
+// Batch 3 (2026-10-30): 25 small loop-free leaf functions.
+void Sub_8213F180(PPCContext&, uint8_t*);  // copies the object's float triple at +304 as a quad
+void Sub_821BFCC0(PPCContext&, uint8_t*);  // triple at +12 of element r5 of the array at +84
+void Sub_821F58D0(PPCContext&, uint8_t*);  // copies the float triple at +288 as a quad
+void Sub_82258550(PPCContext&, uint8_t*);  // toggles a global flag byte; clears a global word when it turns off
+void Sub_82270B80(PPCContext&, uint8_t*);  // links r4 to the object when the id matches and the flag at +556 is clear
+void Sub_822EBBB0(PPCContext&, uint8_t*);  // resets an object from two globals
+void Sub_82311448(PPCContext&, uint8_t*);  // sets state 4 when the owner's value is above a threshold
+void Sub_82326300(PPCContext&, uint8_t*);  // resets a counter at the object's limit; reports it in *r5
+void Sub_82369348(PPCContext&, uint8_t*);  // f1 = count * constant
+void Sub_824879B8(PPCContext&, uint8_t*);  // copies the triple at r5 as a quad
+void Sub_824888C8(PPCContext&, uint8_t*);  // copies the float triple at +800 as a quad
+void Sub_825065E0(PPCContext&, uint8_t*);  // copies the quad at +400
+void Sub_8253C118(PPCContext&, uint8_t*);  // ordering of two objects by the key at +68 (-1 / 1)
+void Sub_8265CDC8(PPCContext&, uint8_t*);  // timer tick: decrements and disarms at zero
+void Sub_8269B3C8(PPCContext&, uint8_t*);  // constructor: kind 20 and an argument
+void Sub_8273B2F8(PPCContext&, uint8_t*);  // constructor: five 1.0f and a count of 3
+void Sub_82793BB8(PPCContext&, uint8_t*);  // constructor: vtable, kind 2, four arguments
+void Sub_8281BDD0(PPCContext&, uint8_t*);  // reports a format (9, 5, two image tables); returns 0
+void Sub_828D2700(PPCContext&, uint8_t*);  // node constructor linked back from its owner
+void Sub_82993038(PPCContext&, uint8_t*);  // sets a byte and the target's pair to 1.0f
+void Sub_829F1AD8(PPCContext&, uint8_t*);  // packs four bytes into a word
+void Sub_82A85C38(PPCContext&, uint8_t*);  // stores f1 at +40 of r4 and sets flag bit 0
+void Sub_82A89BE0(PPCContext&, uint8_t*);  // clears a count and an array slot; returns 0
+void Sub_82B1F4A8(PPCContext&, uint8_t*);  // default colour triple from two constants
+void Sub_82B1F4D0(PPCContext&, uint8_t*);  // default colour triple from two constants (second)
+
 }  // namespace crackdown::hooks::decomp
