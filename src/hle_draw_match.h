@@ -15,7 +15,22 @@ namespace crackdown::hle {
 struct DrawKey {
   uint32_t dma_base = 0;
   uint32_t initiator = 0;
+  // A hash of the vertex shader float constants (c0-c255, as the register file holds them): one mesh drawn for two
+  // characters has the same index buffer and initiator but its own bone matrices.
+  uint32_t constants = 0;
+  bool operator==(const DrawKey& other) const {
+    return dma_base == other.dma_base && initiator == other.initiator && constants == other.constants;
+  }
 };
+
+// FNV-1a over dwords (the vertex shader constants of DrawKey).
+inline uint32_t HashDwords(const uint32_t* values, size_t count) {
+  uint32_t hash = 2166136261u;
+  for (size_t i = 0; i < count; ++i) {
+    hash = (hash ^ values[i]) * 16777619u;
+  }
+  return hash;
+}
 
 class DrawMatcher {
  public:
@@ -38,7 +53,7 @@ class DrawMatcher {
   size_t Match(const DrawKey& draw) {
     const size_t end = keys_.size() < cursor_ + kLookahead ? keys_.size() : cursor_ + kLookahead;
     for (size_t i = cursor_; i < end; ++i) {
-      if (keys_[i].dma_base == draw.dma_base && keys_[i].initiator == draw.initiator) {
+      if (keys_[i] == draw) {
         skipped_ += uint32_t(i - cursor_);
         cursor_ = i + 1;
         ++matched_;

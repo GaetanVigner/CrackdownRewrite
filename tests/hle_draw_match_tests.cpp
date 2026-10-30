@@ -53,6 +53,20 @@ void SameIndexBufferTwice() {
   CHECK(matcher.skipped() == 1);
 }
 
+void TwinsToldApartByConstants() {
+  // Two characters with one mesh: same index buffer and initiator, their own bone constants. The first one has no
+  // record (a draw the records miss): its draw must not take the second one's record.
+  const uint32_t bones_a[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+  const uint32_t bones_b[8] = {1, 2, 3, 4, 5, 6, 7, 9};
+  const DrawKey a = {0x8000, 4 | (90u << 16), crackdown::hle::HashDwords(bones_a, 8)};
+  const DrawKey b = {0x8000, 4 | (90u << 16), crackdown::hle::HashDwords(bones_b, 8)};
+  CHECK(a.constants != b.constants);
+  DrawMatcher matcher;
+  matcher.Reset({b}, Indices(1));
+  CHECK(matcher.Match(a) == DrawMatcher::kNoRecord);
+  CHECK(matcher.Match(b) == 100);
+}
+
 void DrawWithoutRecord() {
   std::vector<DrawKey> keys = {{0x1000, 4}, {0x2000, 4}};
   DrawMatcher matcher;
@@ -90,7 +104,8 @@ void PatchHoldsTheSameMatcher() {
     if (name.rfind("0129-", 0) != 0) continue;
     const std::string patch = check::ReadText(entry.path());
     CHECK(patch.find("+  static constexpr size_t kLookahead = 64;") != std::string::npos);
-    CHECK(patch.find("+      if (keys_[i].dma_base == draw.dma_base && keys_[i].initiator == draw.initiator) {") !=
+    CHECK(patch.find("+      if (keys_[i] == draw) {") != std::string::npos);
+    CHECK(patch.find("+    return dma_base == other.dma_base && initiator == other.initiator && constants == other.constants;") !=
           std::string::npos);
     CHECK(patch.find("+        cursor_ = i + 1;") != std::string::npos);
     return;
@@ -104,6 +119,7 @@ int main() {
   IdenticalSequence();
   SkipsRecordsNotDrawn();
   SameIndexBufferTwice();
+  TwinsToldApartByConstants();
   DrawWithoutRecord();
   BeyondLookahead();
   ExtendedByPartialFrame();

@@ -68,10 +68,10 @@ index 7a5bdd2..4a849fc 100644
    bool ExecutePacketType3_INDIRECT_BUFFER(memory::RingBuffer* reader, uint32_t packet,
 diff --git a/include/rex/graphics/hle_draw_match.h b/include/rex/graphics/hle_draw_match.h
 new file mode 100644
-index 0000000..98f4231
+index 0000000..5e1619a
 --- /dev/null
 +++ b/include/rex/graphics/hle_draw_match.h
-@@ -0,0 +1,64 @@
+@@ -0,0 +1,79 @@
 +#pragma once
 +
 +#include <cstddef>
@@ -90,7 +90,22 @@ index 0000000..98f4231
 +struct DrawKey {
 +  uint32_t dma_base = 0;
 +  uint32_t initiator = 0;
++  // A hash of the vertex shader float constants (c0-c255, as the register file holds them): one mesh drawn for two
++  // characters has the same index buffer and initiator but its own bone matrices.
++  uint32_t constants = 0;
++  bool operator==(const DrawKey& other) const {
++    return dma_base == other.dma_base && initiator == other.initiator && constants == other.constants;
++  }
 +};
++
++// FNV-1a over dwords (the vertex shader constants of DrawKey).
++inline uint32_t HashDwords(const uint32_t* values, size_t count) {
++  uint32_t hash = 2166136261u;
++  for (size_t i = 0; i < count; ++i) {
++    hash = (hash ^ values[i]) * 16777619u;
++  }
++  return hash;
++}
 +
 +class DrawMatcher {
 + public:
@@ -113,7 +128,7 @@ index 0000000..98f4231
 +  size_t Match(const DrawKey& draw) {
 +    const size_t end = keys_.size() < cursor_ + kLookahead ? keys_.size() : cursor_ + kLookahead;
 +    for (size_t i = cursor_; i < end; ++i) {
-+      if (keys_[i].dma_base == draw.dma_base && keys_[i].initiator == draw.initiator) {
++      if (keys_[i] == draw) {
 +        skipped_ += uint32_t(i - cursor_);
 +        cursor_ = i + 1;
 +        ++matched_;
@@ -638,7 +653,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..3a15d24 100644
+index d71d508..a084a0e 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,11 @@
@@ -684,7 +699,34 @@ index d71d508..3a15d24 100644
  REXCVAR_DEFINE_BOOL(vulkan_occlusion_queries_in_render_pass, false, "GPU/Vulkan",
                      "Run occlusion queries inside the guest's render passes (a host query per pass a guest query "
                      "spans, summed) instead of ending the render pass around each query")
-@@ -2503,6 +2525,109 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -2077,6 +2099,26 @@ bool VulkanCommandProcessor::SetupContext() {
+ void VulkanCommandProcessor::ShutdownContext() {
+   AwaitAllQueueOperationsCompletion();
+   StopAsyncSubmission();
++  {
++    // The HLE native pass's depth target and readback buffers.
++    const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
++    const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
++    const VkDevice device = vulkan_device->device();
++    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyFramebuffer, device, hle_native_framebuffer_vk_);
++    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImageView, device, hle_native_depth_view_);
++    ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyImage, device, hle_native_depth_image_);
++    ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, hle_native_depth_memory_);
++    for (uint32_t i = 0; i < 2; ++i) {
++      if (hle_readback_mapping_[i]) dfn.vkUnmapMemory(device, hle_readback_memory_[i]);
++      hle_readback_mapping_[i] = nullptr;
++      ui::vulkan::util::DestroyAndNullHandle(dfn.vkDestroyBuffer, device, hle_readback_buffers_[i]);
++      ui::vulkan::util::DestroyAndNullHandle(dfn.vkFreeMemory, device, hle_readback_memory_[i]);
++    }
++    hle_readback_size_ = 0;
++    hle_native_framebuffer_ = {};
++    hle_per_draw_active_ = false;
++    hle_pass_stack_.clear();
++  }
+   DestroyConstantsDescriptorSets();
+   if (gpu_time_query_pool_ != VK_NULL_HANDLE) {
+     GetVulkanDevice()->functions().vkDestroyQueryPool(GetVulkanDevice()->device(),
+@@ -2503,6 +2545,109 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
    vertex_buffers_in_sync_[0] = 0;
    vertex_buffers_in_sync_[1] = 0;
  
@@ -794,7 +836,7 @@ index d71d508..3a15d24 100644
    if (!graphics_system_)
      return;
    ui::Presenter* presenter = graphics_system_->presenter();
-@@ -3886,6 +4011,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3886,6 +4031,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
  
    const RegisterFile& regs = *register_file_;
    (void)index_buffer_info;
@@ -811,7 +853,7 @@ index d71d508..3a15d24 100644
    draw_timing_ = REXCVAR_GET(gpu_frame_stats);
    if (draw_timing_) {
      draw_mark_ = DrawTicks();
-@@ -3906,6 +4041,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3906,6 +4061,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    };
  
    xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
@@ -821,7 +863,7 @@ index d71d508..3a15d24 100644
    if (edram_mode == xenos::EdramMode::kCopy) {
      // Special copy handling.
      return IssueCopy();
-@@ -3924,6 +4062,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3924,6 +4082,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      return draw_fail("missing_vertex_shader");
    }
    pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
@@ -829,7 +871,7 @@ index d71d508..3a15d24 100644
    bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
    if (memexport_used_vertex) {
      if (!device_properties.vertexPipelineStoresAndAtomics) {
-@@ -3964,6 +4103,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3964,6 +4123,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
        return true;
      }
    }
@@ -837,7 +879,7 @@ index d71d508..3a15d24 100644
    bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
    if (memexport_used_pixel) {
      if (!device_properties.fragmentStoresAndAtomics) {
-@@ -4023,6 +4163,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4023,6 +4183,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      // produced by the primitive processor and are handled by the Vulkan
      // pipeline cache.
      DRAW_SECTION(1);
@@ -845,7 +887,7 @@ index d71d508..3a15d24 100644
      Shader::HostVertexShaderType host_vertex_shader_type =
          primitive_processing_result.host_vertex_shader_type;
      if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex &&
-@@ -4149,6 +4290,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4149,6 +4310,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    if (!render_target_updated) {
      return draw_fail("render_target_update");
    }
@@ -853,7 +895,7 @@ index d71d508..3a15d24 100644
  
    // Create the pipeline (for this, need the render pass from the render target
    // cache), translating the shaders - doing this now to obtain the used
-@@ -4280,6 +4422,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4280,6 +4442,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
                               shader_32bit_index_dma, 0, viewport_info, used_texture_mask,
                               normalized_depth_control, normalized_color_mask);
@@ -873,14 +915,15 @@ index d71d508..3a15d24 100644
  
    // Update uniform buffers and descriptor sets after binding the pipeline with
    // the new layout.
-@@ -4468,6 +4623,32 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4468,6 +4643,33 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1,
                                                0, 0, 0);
    }
 +  if (hle_per_draw_active_ && !hle_reference_captured_ && !hle_pass_stack_.empty() &&
 +      hle_pass_stack_.back() == hle_current_pass_index_) {
 +    const size_t record = hle_per_draw_matcher_.Match(
-+        {regs.values[XE_GPU_REG_VGT_DMA_BASE], regs.values[XE_GPU_REG_VGT_DRAW_INITIATOR]});
++        {regs.values[XE_GPU_REG_VGT_DMA_BASE], regs.values[XE_GPU_REG_VGT_DRAW_INITIATOR],
++         hle::HashDwords(&regs.values[XE_GPU_REG_SHADER_CONSTANT_000_X], 1024)});
 +    if (record != hle::DrawMatcher::kNoRecord) {
 +      hle_per_draw_record_ = uint32_t(record);
 +      HleDryRun();
@@ -906,7 +949,7 @@ index d71d508..3a15d24 100644
  
    // Invalidate textures in memexported memory and watch for changes.
    if (!memexport_ranges_.empty()) {
-@@ -4711,6 +4892,30 @@ bool VulkanCommandProcessor::IssueCopy() {
+@@ -4711,6 +4913,30 @@ bool VulkanCommandProcessor::IssueCopy() {
    }
    GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
  
@@ -937,7 +980,7 @@ index d71d508..3a15d24 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +5991,963 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +6012,972 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1470,7 +1513,16 @@ index d71d508..3a15d24 100644
 +    std::memcpy(&pass, record + 4, 4);
 +    if (((kind < 1 || kind > 4) && kind != 9) || pass != hle_current_pass_index_) continue;
 +    std::memcpy(draw, record + best.draw_offset, sizeof(draw));
-+    keys.push_back({draw[1], draw[0]});
++    uint32_t blocks[35];
++    std::memcpy(blocks, record + best.state_offset, sizeof(blocks));
++    uint32_t constants[1024];
++    for (uint32_t page = 0; page < 16; ++page) {
++      for (uint32_t i = 0; i < 64; ++i) {
++        const uint32_t offset = blocks[3 + page] + i;
++        constants[page * 64 + i] = offset < best.arena.size() ? rex::byte_swap(best.arena[offset]) : 0;
++      }
++    }
++    keys.push_back({draw[1], draw[0], hle::HashDwords(constants, 1024)});
 +    indices.push_back(r);
 +  }
 +  if (extend) {
@@ -1901,7 +1953,7 @@ index d71d508..3a15d24 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +7027,268 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +7057,268 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
