@@ -22,8 +22,8 @@ struct HleFrameAbi {
   const uint32_t* groups;  // {first register, dwords} pairs: the render state block's layout
   const char* const* pass_names;  // pass_count + 1 names, index 0 the untagged records
   uint32_t pass_count;
-  uint32_t reserved;
+  uint32_t draw_offset;  // byte offset in each record of {VGT_DRAW_INITIATOR, VGT_DMA_BASE, VGT_DMA_SIZE}
 };
-inline constexpr uint32_t kHleFrameAbiVersion = 3;
+inline constexpr uint32_t kHleFrameAbiVersion = 4;
 
 }  // namespace crackdown

@@ -46,6 +46,10 @@ struct DrawRecord {
   // The bound shaders' microcode as the runtime's IM_LOAD sends it (sub_826C6C48): guest physical address and
   // dwords, vertex then pixel; 0 when no shader is bound.
   uint32_t ucode[4];
+  // The draw packet the call wrote last to the ring (DRAW_INDX or DRAW_INDX_2): VGT_DRAW_INITIATOR, then VGT_DMA_BASE
+  // and VGT_DMA_SIZE when its indices come by DMA (the index buffer, which no state group carries); all 0 when the
+  // call wrote none (BeginVertices draws at EndVertices).
+  uint32_t draw[3];
 };
 
 // The render pass each record belongs to (0: none of the tagged passes), set by the pass hooks for the duration of the

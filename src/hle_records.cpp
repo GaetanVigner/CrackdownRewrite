@@ -70,6 +70,41 @@ constexpr uint32_t kVertexShader = 12416;
 constexpr uint32_t kFetchDwords = 192;
 constexpr uint32_t kBoolLoopDwords = 40;
 
+// The last draw packet the call wrote: the device's ring pointer (device+48, the last dword written: the runtime
+// writes with stwu) is walked back over at most 64 dwords to the latest type-3 DRAW_INDX (0x22: viz query, initiator,
+// [DMA base, size]) or DRAW_INDX_2 (0x36: initiator, immediate data) header whose packet ends at or before it and
+// whose size matches its initiator's index source.
+void LastDrawPacket(uint8_t* base, uint32_t device, uint32_t out[3]) {
+  out[0] = out[1] = out[2] = 0;
+  const uint32_t last = Load32(base, device + 48);
+  if (last < 0x40000000 || (last & 3)) return;
+  for (uint32_t back = 0; back < 64; ++back) {
+    const uint32_t at = last - back * 4;
+    const uint32_t header = Load32(base, at);
+    if ((header >> 30) != 3) continue;
+    const uint32_t opcode = (header >> 8) & 0x7F;
+    const uint32_t body = ((header >> 16) & 0x3FFF) + 1;
+    if (body > back) continue;  // the packet would run past the last dword written
+    if (opcode == 0x22) {
+      const uint32_t initiator = Load32(base, at + 8);
+      const bool dma = ((initiator >> 6) & 3) == 0;
+      if (body != (dma ? 4u : 2u)) continue;
+      out[0] = initiator;
+      if (dma) {
+        out[1] = Load32(base, at + 12);
+        out[2] = Load32(base, at + 16);
+      }
+      return;
+    }
+    if (opcode == 0x36) {
+      const uint32_t initiator = Load32(base, at + 4);
+      if (((initiator >> 6) & 3) == 0) continue;
+      out[0] = initiator;
+      return;
+    }
+  }
+}
+
 // A shader object's microcode as sub_826C6C48 loads it (IM_LOAD): guest physical address and dwords. Pixel shader:
 // blob = obj + [obj+64], code at [obj+24] + [blob+40], [blob+44] bytes. Vertex shader: variant v (1 when bit 0x20 of
 // [obj+872] is set), blob = obj + [obj+896+8v], code at [obj+32] + [blob+872], [blob+876] bytes; the runtime patches
@@ -485,6 +520,7 @@ const DrawRecord* HleRecordCall(uint8_t* base, uint32_t device, RecordKind kind,
   record.pixel_shader = Load32(base, device + kPixelShader);
   ShaderMicrocode(base, record.vertex_shader, true, &record.ucode[0]);
   ShaderMicrocode(base, record.pixel_shader, false, &record.ucode[2]);
+  LastDrawPacket(base, device, record.draw);
 
   const uint32_t touched = ApplyOverlay(state, masks);
   const uint64_t after_overlay = __rdtsc();
@@ -662,6 +698,7 @@ void HleRecordsFrame() {
         frame.groups = groups.data();
         frame.pass_names = kRenderPassNames;
         frame.pass_count = kRenderPassCount;
+        frame.draw_offset = uint32_t(offsetof(DrawRecord, draw));
         submit(&frame);
       }
     }

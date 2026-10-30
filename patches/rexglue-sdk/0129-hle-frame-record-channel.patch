@@ -5,7 +5,7 @@ counts records by kind; the Vulkan command processor logs those counts under gpu
 received"). Nothing calls it unless the game turns on crackdown_hle_plugin_channel, so the default path is unchanged.
 The game keeps its own copy of HleFrameAbi (src/hle_frame_abi.h); tests/vulkan_per_draw_tests checks both match.
 
-ABI version 3 (steps 3a, 3b-1): each record also carries its shaders' microcode (guest physical address and dwords, vertex
+ABI version 2 (step 3a): each record also carries its shaders' microcode (guest physical address and dwords, vertex
 then pixel) at HleFrameAbi::ucode_offset. Every gpu_frame_stats window the command thread resolves the latest
 frame's draws against the shaders emulation already loaded (VulkanPipelineCache::FindShader, same microcode hash, no
 shader created) and logs "HLE shaders resolved": the first thing a native pass needs from a record.
@@ -15,12 +15,16 @@ are and the render pass names: the same window also logs an inventory per tagged
 pass inventory": draws, depth only, colour and depth, MSAA, distinct shader pairs and target configurations,
 textures and vertex bindings a draw), to choose the first pass to draw natively.
 
+Version 4 adds each record's draw packet (VGT_DRAW_INITIATOR, VGT_DMA_BASE, VGT_DMA_SIZE, read back from the ring
+after the call: the index buffer no state group carries); the pass inventory counts the index sources (DMA,
+immediate, auto index, missing) and primitive types, what a native pass needs to issue the draws.
+
 diff --git a/include/rex/graphics/hle_frame.h b/include/rex/graphics/hle_frame.h
 new file mode 100644
-index 0000000..53a3abc
+index 0000000..67cb9d7
 --- /dev/null
 +++ b/include/rex/graphics/hle_frame.h
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,88 @@
 +/**
 + * @file        graphics/hle_frame.h
 + * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
@@ -56,9 +60,9 @@ index 0000000..53a3abc
 +  const uint32_t* groups;  // {first register, dwords} pairs: the render state block's layout
 +  const char* const* pass_names;  // pass_count + 1 names, index 0 the untagged records
 +  uint32_t pass_count;
-+  uint32_t reserved;
++  uint32_t draw_offset;  // byte offset in each record of {VGT_DRAW_INITIATOR, VGT_DMA_BASE, VGT_DMA_SIZE}
 +};
-+inline constexpr uint32_t kHleFrameAbiVersion = 3;
++inline constexpr uint32_t kHleFrameAbiVersion = 4;
 +
 +// The plugin's copy of the latest frame, and counters for gpu_frame_stats. The game thread submits, the GPU command
 +// thread reads; the native renderer will take its records from here.
@@ -86,6 +90,7 @@ index 0000000..53a3abc
 +    uint32_t record_size = 0;
 +    uint32_t ucode_offset = 0;
 +    uint32_t state_offset = 0;
++    uint32_t draw_offset = 0;
 +    uint64_t frame = 0;
 +    std::vector<uint32_t> arena;  // big-endian dwords, as the game keeps them
 +    std::vector<uint32_t> groups;
@@ -99,6 +104,7 @@ index 0000000..53a3abc
 +  uint32_t record_size_ = 0;
 +  uint32_t ucode_offset_ = 0;
 +  uint32_t state_offset_ = 0;
++  uint32_t draw_offset_ = 0;
 +  std::vector<uint32_t> groups_;
 +  std::vector<std::string> pass_names_;
 +  std::vector<uint8_t> records_;
@@ -134,10 +140,10 @@ index 2bf96ca..a2d471a 100644
      flags.cpp
 diff --git a/src/graphics/hle_frame.cpp b/src/graphics/hle_frame.cpp
 new file mode 100644
-index 0000000..88c7fc8
+index 0000000..42e00ad
 --- /dev/null
 +++ b/src/graphics/hle_frame.cpp
-@@ -0,0 +1,85 @@
+@@ -0,0 +1,88 @@
 +/**
 + * @file        graphics/hle_frame.cpp
 + * @brief       Game-side draw records handed to the GPU plugin (HLE renderer channel)
@@ -163,7 +169,8 @@ index 0000000..88c7fc8
 +      (frame.arena_dwords && !frame.arena) ||
 +      (frame.ucode_offset && frame.ucode_offset + 16 > frame.record_size) ||
 +      (frame.state_offset && frame.state_offset + 35 * 4 > frame.record_size) ||
-+      (frame.group_count && !frame.groups) || (frame.pass_count && !frame.pass_names)) {
++      (frame.group_count && !frame.groups) || (frame.pass_count && !frame.pass_names) ||
++      (frame.draw_offset && frame.draw_offset + 12 > frame.record_size)) {
 +    return false;
 +  }
 +  const size_t record_bytes = size_t(frame.record_count) * frame.record_size;
@@ -172,6 +179,7 @@ index 0000000..88c7fc8
 +  record_size_ = frame.record_size;
 +  ucode_offset_ = frame.ucode_offset;
 +  state_offset_ = frame.state_offset;
++  draw_offset_ = frame.draw_offset;
 +  groups_.assign(frame.groups, frame.groups + size_t(frame.group_count) * 2);
 +  if (pass_names_.size() != size_t(frame.pass_count) + 1 && frame.pass_count) {
 +    pass_names_.clear();
@@ -208,6 +216,7 @@ index 0000000..88c7fc8
 +  latest.record_size = record_size_;
 +  latest.ucode_offset = ucode_offset_;
 +  latest.state_offset = state_offset_;
++  latest.draw_offset = draw_offset_;
 +  latest.arena = arena_;
 +  latest.groups = groups_;
 +  latest.pass_names = pass_names_;
@@ -249,7 +258,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..7f2db7f 100644
+index d71d508..21adeed 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,7 @@
@@ -268,7 +277,7 @@ index d71d508..7f2db7f 100644
  #include <rex/graphics/vulkan/pipeline_cache.h>
  #include <rex/graphics/vulkan/render_target_cache.h>
  #include <rex/graphics/vulkan/shader.h>
-@@ -5865,6 +5867,124 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +5867,138 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -292,6 +301,9 @@ index d71d508..7f2db7f 100644
 +      }
 +      struct PassInventory {
 +        uint32_t draws = 0, depth_only = 0, color_depth = 0, msaa[4] = {}, unanalyzed = 0;
++        // Index source of the draw packet the call wrote (ABI 4): DMA, immediate, auto index, not found.
++        uint32_t index_source[4] = {};
++        std::unordered_set<uint32_t> primitive_types;
 +        uint64_t textures = 0, vertex_bindings = 0;
 +        std::unordered_set<uint64_t> shader_pairs, targets;
 +      };
@@ -358,6 +370,16 @@ index d71d508..7f2db7f 100644
 +        if (pixel_shader && pixel_shader->is_ucode_analyzed()) {
 +          inventory.textures += pixel_shader->texture_bindings().size();
 +        }
++        if (latest.draw_offset) {
++          uint32_t draw[3];
++          std::memcpy(draw, record + latest.draw_offset, sizeof(draw));
++          if (!draw[0]) {
++            ++inventory.index_source[3];
++          } else {
++            ++inventory.index_source[(draw[0] >> 6) & 3];
++            inventory.primitive_types.insert(draw[0] & 0x3F);
++          }
++        }
 +      }
 +      for (size_t pass = 0; pass < passes.size(); ++pass) {
 +        const PassInventory& inventory = passes[pass];
@@ -366,12 +388,13 @@ index d71d508..7f2db7f 100644
 +        REXGPU_INFO(
 +            "HLE pass inventory{} (frame {}): {}: draws {}, depth only {}, colour and depth {}, MSAA 1x/2x/4x "
 +            "{}/{}/{}, shader pairs {}, target configurations {}, textures a draw {:.1f}, vertex bindings a draw "
-+            "{:.1f}, unanalysed {}",
++            "{:.1f}, unanalysed {}, index source DMA/immediate/auto/missing {}/{}/{}/{}, primitive types {}",
 +            ab_tag, latest.frame, pass < latest.pass_names.size() ? latest.pass_names[pass] : std::string("?"),
 +            inventory.draws, inventory.depth_only, inventory.color_depth, inventory.msaa[0], inventory.msaa[1],
 +            inventory.msaa[2], inventory.shader_pairs.size(), inventory.targets.size(),
 +            double(inventory.textures) / pass_draws, double(inventory.vertex_bindings) / pass_draws,
-+            inventory.unanalyzed);
++            inventory.unanalyzed, inventory.index_source[0], inventory.index_source[1],
++            inventory.index_source[2], inventory.index_source[3], inventory.primitive_types.size());
 +      }
 +      REXGPU_INFO(
 +          "HLE shaders resolved{} (frame {}): {} draws, vertex shaders found {}, pixel shaders found {} ({} "
