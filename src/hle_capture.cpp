@@ -651,11 +651,16 @@ bool WalkRing(uint32_t from, uint32_t from_switches, uint32_t to, Walk walk) {
 
 uint32_t g_record_cursor_switches = 0;
 
-void WalkRecordGap(uint32_t pre) {
-  if (g_record_cursor) {
+// The PM4 written to the ring since the last hooked call: its state writes, and its draws as records.
+void WalkRecordGap(uint8_t* base, uint32_t device, uint32_t pre) {
+  if (g_record_cursor && pre != g_record_cursor) {
+    HleBufferBegin(base, device, true);
+    g_buffer_walk = true;
     WalkRing(g_record_cursor, g_record_cursor_switches, pre, [](uint32_t physical, uint32_t dwords) {
       WalkConstantWrites(physical, dwords, 0, HleWritePhase::kBeforeFlush);
     });
+    g_buffer_walk = false;
+    HleBufferEnd();
   }
 }
 
@@ -692,6 +697,8 @@ void WriteHleMarker(uint8_t* base, uint32_t pass, uint32_t kind) {
     ++g_markers_skipped;
     return;
   }
+  // The streamed pass's records reach the plugin before its end marker can reach the GPU.
+  if (kind == 2 && pass == HleStreamPass()) HleSubmitPartialFrame();
   const uint32_t words[6] = {0xC0001000u | (4u << 16), kHleMarkerMagic, pass, uint32_t(HleRecordsFrameNumber()),
                              kind, HleRecordsInFrame()};
   for (uint32_t word : words) {
@@ -712,7 +719,7 @@ const DrawRecord* CallWithRecord(PPCContext& ctx, uint8_t* base, RecordKind kind
   const uint32_t pre = Load32(base, device + kWritePointer);
   const uint32_t pre_switches = g_ring_switches;
   const uint32_t caller = uint32_t(ctx.lr);
-  if (HleRecordsEnabled()) WalkRecordGap(pre);
+  if (HleRecordsEnabled()) WalkRecordGap(base, device, pre);
   original();
   const DrawRecord* record = HleRecordCall(base, device, kind, args, masks);
   if (!record) {

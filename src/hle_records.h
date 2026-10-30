@@ -76,6 +76,10 @@ bool HleRecordsEnabled();
 // the GPU side knows where each pass's draws are in the command stream.
 inline constexpr uint32_t kHleMarkerMagic = 0x484C454D;  // 'HLEM'
 bool HleMarkersEnabled();
+// The pass (crackdown_hle_stream_pass, 0 none) whose end hands the frame's records so far to the plugin before its
+// end marker, so the GPU side can draw it natively in place (H2).
+uint32_t HleStreamPass();
+void HleSubmitPartialFrame();
 uint64_t HleRecordsFrameNumber();
 uint32_t HleRecordsInFrame();
 
@@ -117,7 +121,9 @@ void HleNoteSegment(uint32_t physical, uint32_t dwords);
 // from the call's record and takes the buffer's register writes (big-endian values, from 0x2000) and shader loads
 // (guest physical microcode, dwords); each draw packet then becomes a kBufferDraw record (VGT_DRAW_INITIATOR,
 // VGT_DMA_BASE, VGT_DMA_SIZE).
-void HleBufferBegin(uint8_t* base, uint32_t device);
+// `ring_gap`: PM4 written to the ring between hooked calls (the engine's own, unhooked D3D functions); its draws
+// come after the previous call's record, which is added to the frame first.
+void HleBufferBegin(uint8_t* base, uint32_t device, bool ring_gap = false);
 void HleBufferRegisters(uint32_t first, uint32_t dwords, const uint8_t* values);
 void HleBufferShader(bool pixel, uint32_t physical, uint32_t dwords);
 void HleBufferBoolLoop(uint32_t first, uint32_t dwords, const uint8_t* values);

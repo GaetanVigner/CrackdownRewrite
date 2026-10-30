@@ -51,6 +51,11 @@ REXCVAR_DEFINE_BOOL(crackdown_hle_markers, false, "Crackdown",
                     "each tagged render pass begins and ends")
     .lifecycle(rex::cvar::Lifecycle::kHotReload);
 
+REXCVAR_DEFINE_INT32(crackdown_hle_stream_pass, 0, "Crackdown",
+                     "Developer diagnostics (HLE renderer H2): the render pass (index, 0 none; 5 the shadow atlas) "
+                     "whose end hands the frame's records so far to the GPU plugin, before its end marker")
+    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+
 REXCVAR_DEFINE_BOOL(crackdown_hle_plugin_channel, false, "Crackdown",
                     "Developer diagnostics (HLE renderer H1b): with crackdown_hle_records on, hand each frame's draw "
                     "records and state blocks to the GPU plugin (rex_gpu_hle_submit_frame, SDK patch 0129), which "
@@ -222,6 +227,7 @@ struct State {
   uint32_t window_values[3] = {};
   uint32_t window_device[3] = {};
   bool buffer_active = false;
+  bool buffer_gap = false;  // a ring gap walk: its constant writes apply at once (they precede the next flush)
   uint32_t buffer_registers[0x400];
   uint32_t buffer_ucode[4];
   uint32_t buffer_bool_loop[kBoolLoopDwords];
@@ -677,14 +683,24 @@ void HleNoteStateWrite(HleStateSpace space, uint32_t first, uint32_t dwords, con
   if (phase == HleWritePhase::kAfterRecord) {
     // The record is built: the next one sees these values unless its flush replaces them, like any earlier write.
     state.buffer_touched |= ApplyPending(state, state.pending_after);
+  } else if (phase == HleWritePhase::kBeforeFlush && state.buffer_active && state.buffer_gap) {
+    // A ring gap's draws see its writes: applied now rather than at the next call (same result there, as the
+    // call's overlay applies the writes before its flush anyway).
+    state.buffer_touched |= ApplyPending(state, state.pending_before);
   }
 }
 
-void HleBufferBegin(uint8_t* base, uint32_t device) {
+void HleBufferBegin(uint8_t* base, uint32_t device, bool ring_gap) {
   if (!HleRecordsEnabled()) return;
   State& state = g_state;
   SpinLock lock(state.lock);
   if (state.render_state == UINT32_MAX) return;
+  if (ring_gap) {
+    // The previous call's record precedes the gap's draws.
+    if (t_record_pending && PluginChannelEnabled()) state.frame_records.push_back(t_record);
+    t_record_pending = false;
+  }
+  state.buffer_gap = ring_gap;
   // The image starts as the call's render state (its record was just built).
   std::memset(state.buffer_registers, 0, sizeof(state.buffer_registers));
   uint32_t position = state.render_state;
@@ -825,6 +841,46 @@ void HleNoteSegment(uint32_t physical, uint32_t dwords) {
   if (state.segments_seen.insert((uint64_t(physical) << 20) | dwords).second) ++state.counters.new_segments;
 }
 
+// Hands the frame's records so far, and the block arena they reference, to the GPU plugin (lock held).
+void SubmitToPlugin(State& state) {
+  SubmitFrame submit = FindSubmitFrame();
+  if (!submit) return;
+  HleFrameAbi frame = {};
+  frame.version = kHleFrameAbiVersion;
+  frame.struct_size = sizeof(HleFrameAbi);
+  frame.frame = state.frame_number;
+  frame.records = state.frame_records.data();
+  frame.record_count = uint32_t(state.frame_records.size());
+  frame.record_size = sizeof(DrawRecord);
+  frame.arena = state.arena.data();
+  frame.arena_dwords = uint32_t(state.arena.size());
+  frame.ucode_offset = uint32_t(offsetof(DrawRecord, ucode));
+  frame.state_offset = uint32_t(offsetof(DrawRecord, render_state));
+  static const auto groups = [] {
+    std::vector<uint32_t> pairs;
+    for (const Group& group : kRenderStateGroups) pairs.insert(pairs.end(), {group.first_register, group.count});
+    return pairs;
+  }();
+  frame.group_count = uint32_t(groups.size() / 2);
+  frame.groups = groups.data();
+  frame.pass_names = kRenderPassNames;
+  frame.pass_count = kRenderPassCount;
+  frame.draw_offset = uint32_t(offsetof(DrawRecord, draw));
+  submit(&frame);
+}
+
+uint32_t HleStreamPass() { return uint32_t(REXCVAR_GET(crackdown_hle_stream_pass)); }
+
+void HleSubmitPartialFrame() {
+  if (!PluginChannelEnabled() || !HleRecordsEnabled()) return;
+  State& state = g_state;
+  SpinLock lock(state.lock);
+  // The last call's record is complete once the pass ends.
+  if (t_record_pending) state.frame_records.push_back(t_record);
+  t_record_pending = false;
+  SubmitToPlugin(state);
+}
+
 void HleRecordsFrame() {
   State& state = g_state;
   {
@@ -833,30 +889,7 @@ void HleRecordsFrame() {
     // Before the arena is compacted: the frame's records reference its blocks.
     if (PluginChannelEnabled() && HleRecordsEnabled()) {
       if (t_record_pending) state.frame_records.push_back(t_record);
-      if (SubmitFrame submit = FindSubmitFrame()) {
-        HleFrameAbi frame = {};
-        frame.version = kHleFrameAbiVersion;
-        frame.struct_size = sizeof(HleFrameAbi);
-        frame.frame = state.frame_number;
-        frame.records = state.frame_records.data();
-        frame.record_count = uint32_t(state.frame_records.size());
-        frame.record_size = sizeof(DrawRecord);
-        frame.arena = state.arena.data();
-        frame.arena_dwords = uint32_t(state.arena.size());
-        frame.ucode_offset = uint32_t(offsetof(DrawRecord, ucode));
-        frame.state_offset = uint32_t(offsetof(DrawRecord, render_state));
-        static const auto groups = [] {
-          std::vector<uint32_t> pairs;
-          for (const Group& group : kRenderStateGroups) pairs.insert(pairs.end(), {group.first_register, group.count});
-          return pairs;
-        }();
-        frame.group_count = uint32_t(groups.size() / 2);
-        frame.groups = groups.data();
-        frame.pass_names = kRenderPassNames;
-        frame.pass_count = kRenderPassCount;
-        frame.draw_offset = uint32_t(offsetof(DrawRecord, draw));
-        submit(&frame);
-      }
+      SubmitToPlugin(state);
     }
     state.frame_records.clear();
     t_record_pending = false;
