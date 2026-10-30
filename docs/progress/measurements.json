@@ -117,5 +117,5 @@
     "shadow atlas": "validated"
   },
   "_comment_passes": "passes: native renderer stage per tagged render pass (tools/progress_map.py STAGES: emulated, records, dry run, native draw, validated, native); unlisted passes are emulated.",
-  "_comment_atlas": "shadow atlas: validated for static geometry (2026-10-30); dynamic (skinned) geometry needs the native pass to run in place (H2)."
+  "_comment_atlas": "shadow atlas: native per draw matched the emulation 100% in one window (2026-10-30); 36-78% in others, under study."
 }

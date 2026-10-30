@@ -653,7 +653,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..0b55111 100644
+index d71d508..37b0b17 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,12 @@
@@ -981,7 +981,7 @@ index d71d508..0b55111 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +6013,986 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +6013,988 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -1199,7 +1199,9 @@ index d71d508..0b55111 100644
 +    ++hle_dumps_by_pass_[hle_compare_pass_];
 +  }
 +  std::string pass = hle_compare_pass_;
-+  const uint64_t frame = hle_compare_frame_;
++  // Shadow and per-draw pairs have no record frame number: a running count keeps their dumps apart.
++  static uint64_t pair_count = 0;
++  const uint64_t frame = hle_compare_frame_ ? hle_compare_frame_ : ++pair_count;
 +  std::thread([texels = std::move(texels), widths0 = widths[0], widths1 = widths[1], width, height, unorm24,
 +               native_clear, dump, pass = std::move(pass), frame]() {
 +    auto depth = [&](uint32_t buffer, uint32_t row_width, uint32_t x, uint32_t y) -> double {
@@ -1968,7 +1970,7 @@ index d71d508..0b55111 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +7072,268 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +7074,268 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
