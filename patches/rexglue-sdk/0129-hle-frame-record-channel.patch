@@ -24,6 +24,12 @@ Dry run (step 3b-2.2): once a stats window, at the swap, the records of one pass
 through primitive processing, shader translation and ConfigurePipeline with a depth-only render pass key of their
 own, as a native pass would; nothing is drawn. "HLE dry run" logs how many get a pipeline and where the rest stop.
 
+Native pass (step 3b-2.3, gpu_hle_native_pass, off): the dry run's records are also drawn, through IssueDraw's
+binding path (viewport, dynamic state, system constants, bindings, vertex buffer residency, index buffer), into a
+depth image of the plugin's own (as wide as the guest surface, as high as the EDRAM holds at that pitch, at the draw
+resolution scale, cleared to the far plane each run); then the registers are restored and every binding cache
+invalidated, so the emulated frame is unchanged.
+
 diff --git a/include/rex/graphics/hle_frame.h b/include/rex/graphics/hle_frame.h
 new file mode 100644
 index 0000000..67cb9d7
@@ -119,10 +125,10 @@ index 0000000..67cb9d7
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..3952da2 100644
+index 4f8a0cb..dbd1ffd 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
-@@ -470,6 +470,22 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -470,6 +470,35 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -140,8 +146,21 @@ index 4f8a0cb..3952da2 100644
 +    uint64_t host_vertices = 0;
 +    uint32_t host_primitive_types = 0;  // bit per host primitive type
 +    uint32_t depth_format = 0, msaa = 0;
++    // gpu_hle_native_pass: draws issued into the native depth image, and those that could not be.
++    uint32_t native_draws = 0, native_failed = 0;
++    uint32_t native_width = 0, native_height = 0;
 +    bool ran = false;
 +  } hle_dry_run_;
++  // The native pass's depth target (kept between runs; recreated when the format or size changes).
++  bool EnsureHleNativeDepth(VkFormat format, uint32_t width, uint32_t height, VkRenderPass render_pass);
++  VkImage hle_native_depth_image_ = VK_NULL_HANDLE;
++  VkDeviceMemory hle_native_depth_memory_ = VK_NULL_HANDLE;
++  VkImageView hle_native_depth_view_ = VK_NULL_HANDLE;
++  VkFramebuffer hle_native_framebuffer_vk_ = VK_NULL_HANDLE;
++  VkRenderPass hle_native_render_pass_ = VK_NULL_HANDLE;
++  VkFormat hle_native_depth_format_ = VK_FORMAT_UNDEFINED;
++  VkImageLayout hle_native_depth_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
++  VulkanRenderTargetCache::Framebuffer hle_native_framebuffer_;
    uint64_t cpu_stats_frames_ = 0;
    std::chrono::steady_clock::time_point cpu_stats_start_;
    uint64_t cpu_stats_processor_ns_ = 0;
@@ -290,7 +309,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..eecf09d 100644
+index d71d508..8e8804f 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,7 @@
@@ -309,7 +328,7 @@ index d71d508..eecf09d 100644
  #include <rex/graphics/vulkan/pipeline_cache.h>
  #include <rex/graphics/vulkan/render_target_cache.h>
  #include <rex/graphics/vulkan/shader.h>
-@@ -109,6 +111,11 @@ REXCVAR_DEFINE_BOOL(vulkan_skip_unchanged_constant_writes, true, "GPU/Vulkan",
+@@ -109,6 +111,16 @@ REXCVAR_DEFINE_BOOL(vulkan_skip_unchanged_constant_writes, true, "GPU/Vulkan",
                      "already have, keep the constant buffers and texture bindings derived from them")
      .lifecycle(rex::cvar::Lifecycle::kHotReload);
  
@@ -318,10 +337,15 @@ index d71d508..eecf09d 100644
 +                      "pipeline creation once a gpu_frame_stats window (empty: none)")
 +    .lifecycle(rex::cvar::Lifecycle::kHotReload);
 +
++REXCVAR_DEFINE_BOOL(gpu_hle_native_pass, false, "GPU",
++                    "HLE renderer (patch 0129): also draw the dry run pass's records into a depth image of the "
++                    "plugin's own, once a gpu_frame_stats window (the emulated frame is not changed)")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++
  REXCVAR_DEFINE_BOOL(vulkan_occlusion_queries_in_render_pass, false, "GPU/Vulkan",
                      "Run occlusion queries inside the guest's render passes (a host query per pass a guest query "
                      "spans, summed) instead of ending the render pass around each query")
-@@ -2503,6 +2510,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -2503,6 +2515,11 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
    vertex_buffers_in_sync_[0] = 0;
    vertex_buffers_in_sync_[1] = 0;
  
@@ -333,10 +357,92 @@ index d71d508..eecf09d 100644
    if (!graphics_system_)
      return;
    ui::Presenter* presenter = graphics_system_->presenter();
-@@ -5786,6 +5798,158 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +5803,394 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
++bool VulkanCommandProcessor::EnsureHleNativeDepth(VkFormat format, uint32_t width, uint32_t height,
++                                                  VkRenderPass render_pass) {
++  const ui::vulkan::VulkanDevice* const vulkan_device = GetVulkanDevice();
++  const ui::vulkan::VulkanDevice::Functions& dfn = vulkan_device->functions();
++  const VkDevice device = vulkan_device->device();
++  if (hle_native_depth_image_ != VK_NULL_HANDLE && hle_native_depth_format_ == format &&
++      hle_native_framebuffer_.host_extent.width == width && hle_native_framebuffer_.host_extent.height == height &&
++      (render_pass == VK_NULL_HANDLE || render_pass == hle_native_render_pass_)) {
++    return true;
++  }
++  // Replaced: the old one may still be in flight.
++  const uint64_t submission = GetCurrentSubmission();
++  if (hle_native_framebuffer_vk_ != VK_NULL_HANDLE) {
++    destroy_framebuffers_.emplace_back(submission, hle_native_framebuffer_vk_);
++    hle_native_framebuffer_vk_ = VK_NULL_HANDLE;
++  }
++  if (hle_native_depth_view_ != VK_NULL_HANDLE) {
++    destroy_image_views_.emplace_back(submission, hle_native_depth_view_);
++    hle_native_depth_view_ = VK_NULL_HANDLE;
++  }
++  if (hle_native_depth_image_ != VK_NULL_HANDLE) {
++    destroy_images_.emplace_back(submission, hle_native_depth_image_);
++    hle_native_depth_image_ = VK_NULL_HANDLE;
++  }
++  if (hle_native_depth_memory_ != VK_NULL_HANDLE) {
++    destroy_memory_.emplace_back(submission, hle_native_depth_memory_);
++    hle_native_depth_memory_ = VK_NULL_HANDLE;
++  }
++  hle_native_framebuffer_ = {};
++  hle_native_depth_layout_ = VK_IMAGE_LAYOUT_UNDEFINED;
++
++  VkImageCreateInfo image_create_info = {};
++  image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
++  image_create_info.imageType = VK_IMAGE_TYPE_2D;
++  image_create_info.format = format;
++  image_create_info.extent = {width, height, 1};
++  image_create_info.mipLevels = 1;
++  image_create_info.arrayLayers = 1;
++  image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
++  image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
++  image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
++                            VK_IMAGE_USAGE_SAMPLED_BIT;
++  image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
++  image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
++  if (!ui::vulkan::util::CreateDedicatedAllocationImage(vulkan_device, image_create_info,
++                                                        ui::vulkan::util::MemoryPurpose::kDeviceLocal,
++                                                        hle_native_depth_image_, hle_native_depth_memory_)) {
++    REXGPU_ERROR("HLE native pass: failed to create the {}x{} depth image", width, height);
++    return false;
++  }
++  VkImageViewCreateInfo view_create_info = {};
++  view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
++  view_create_info.image = hle_native_depth_image_;
++  view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
++  view_create_info.format = format;
++  view_create_info.subresourceRange = ui::vulkan::util::InitializeSubresourceRange(
++      VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT);
++  if (dfn.vkCreateImageView(device, &view_create_info, nullptr, &hle_native_depth_view_) != VK_SUCCESS) {
++    REXGPU_ERROR("HLE native pass: failed to create the depth image view");
++    return false;
++  }
++  if (render_pass != VK_NULL_HANDLE) {
++    VkFramebufferCreateInfo framebuffer_create_info = {};
++    framebuffer_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
++    framebuffer_create_info.renderPass = render_pass;
++    framebuffer_create_info.attachmentCount = 1;
++    framebuffer_create_info.pAttachments = &hle_native_depth_view_;
++    framebuffer_create_info.width = width;
++    framebuffer_create_info.height = height;
++    framebuffer_create_info.layers = 1;
++    if (dfn.vkCreateFramebuffer(device, &framebuffer_create_info, nullptr, &hle_native_framebuffer_vk_) !=
++        VK_SUCCESS) {
++      REXGPU_ERROR("HLE native pass: failed to create the framebuffer");
++      return false;
++    }
++  }
++  hle_native_render_pass_ = render_pass;
++  hle_native_depth_format_ = format;
++  hle_native_framebuffer_ = VulkanRenderTargetCache::Framebuffer(hle_native_framebuffer_vk_, {width, height});
++  return true;
++}
++
 +void VulkanCommandProcessor::HleDryRun() {
 +  HleDryRunStats stats;
 +  const std::string wanted = REXCVAR_GET(gpu_hle_dry_run_pass);
@@ -362,7 +468,9 @@ index d71d508..eecf09d 100644
 +    return offset < latest.arena.size() ? rex::byte_swap(latest.arena[offset]) : 0;
 +  };
 +  const ui::vulkan::VulkanDevice::Properties& device_properties = GetVulkanDevice()->properties();
-+  (void)device_properties;
++  bool draw_native = REXCVAR_GET(gpu_hle_native_pass);
++  bool native_target_ready = false;
++  VkRenderPass native_render_pass = VK_NULL_HANDLE;
 +  const uint32_t count = uint32_t(latest.records.size() / latest.record_size);
 +  for (uint32_t r = 0; r < count; ++r) {
 +    const uint8_t* record = latest.records.data() + size_t(r) * latest.record_size;
@@ -484,15 +592,167 @@ index d71d508..eecf09d 100644
 +    } else {
 +      ++stats.failed_pipeline;
 +    }
++    if (!draw_native || placeholder || pipeline == VK_NULL_HANDLE) continue;
++
++    // The native draw (step 3b-2.3): IssueDraw's binding path, into the plugin's own depth image.
++    if (surface_info.msaa_samples != xenos::MsaaSamples::k1X) {
++      ++stats.native_failed;
++      continue;
++    }
++    if (!native_target_ready) {
++      // As wide as the guest surface, as high as the EDRAM holds at that pitch, at the draw resolution scale.
++      const uint32_t pitch = std::max(uint32_t(surface_info.surface_pitch), 1u);
++      const uint32_t max_dimension = device_properties.maxImageDimension2D;
++      const uint32_t width =
++          std::min(pitch * render_target_cache_->draw_resolution_scale_x(), max_dimension);
++      const uint32_t height = std::min(std::min(2048u * 80u * 16u / pitch, 8192u) *
++                                           render_target_cache_->draw_resolution_scale_y(),
++                                       max_dimension);
++      const bool dynamic_rendering =
++          REXCVAR_GET(vulkan_dynamic_rendering) && device_properties.dynamicRendering;
++      const VkRenderPass render_pass =
++          dynamic_rendering ? VK_NULL_HANDLE : render_target_cache_->GetHostRenderTargetsRenderPass(render_pass_key);
++      if (!EnsureHleNativeDepth(render_target_cache_->GetDepthVulkanFormat(render_pass_key.depth_format), width,
++                                height, render_pass)) {
++        ++stats.native_failed;
++        draw_native = false;
++        continue;
++      }
++      native_render_pass = render_pass;
++      stats.native_width = width;
++      stats.native_height = height;
++      // Cleared to the far plane at each run, inside its render pass (the old contents are discarded).
++      EndRenderPass();
++      PushImageMemoryBarrier(hle_native_depth_image_,
++                             ui::vulkan::util::InitializeSubresourceRange(VK_IMAGE_ASPECT_DEPTH_BIT |
++                                                                          VK_IMAGE_ASPECT_STENCIL_BIT),
++                             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
++                             VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT | VK_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT,
++                             VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
++                             VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT |
++                                 VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
++                             VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
++                             VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, false);
++      hle_native_depth_layout_ = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
++      SubmitBarriersAndEnterRenderTargetCacheRenderPass(native_render_pass, &hle_native_framebuffer_,
++                                                        hle_native_depth_view_, true);
++      VkClearAttachment clear = {};
++      clear.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
++      clear.clearValue.depthStencil = {1.0f, 0};
++      VkClearRect clear_rect = {};
++      clear_rect.rect.extent = hle_native_framebuffer_.host_extent;
++      clear_rect.layerCount = 1;
++      deferred_command_buffer_.CmdVkClearAttachments(1, &clear, 1, &clear_rect);
++      native_target_ready = true;
++    }
++    if (current_guest_graphics_pipeline_ != pipeline) {
++      deferred_command_buffer_.CmdVkBindPipeline(VK_PIPELINE_BIND_POINT_GRAPHICS, pipeline);
++      current_guest_graphics_pipeline_ = pipeline;
++      current_external_graphics_pipeline_ = VK_NULL_HANDLE;
++    }
++    auto layout = static_cast<const PipelineLayout*>(pipeline_layout);
++    if (current_guest_graphics_pipeline_layout_ != layout) {
++      current_graphics_descriptor_sets_bound_up_to_date_ = 0;
++      current_guest_graphics_pipeline_layout_ = layout;
++    }
++    draw_util::ViewportInfo viewport_info;
++    draw_util::GetHostViewportInfoAtHostScale(
++        regs, render_target_cache_->host_scale_quarters_x(), render_target_cache_->host_scale_quarters_y(), false,
++        device_properties.maxViewportDimensions[0], device_properties.maxViewportDimensions[1], true,
++        normalized_depth_control,
++        render_target_cache_->GetPath() == RenderTargetCache::Path::kHostRenderTargets &&
++            render_target_cache_->depth_float24_convert_in_pixel_shader(),
++        render_target_cache_->GetPath() == RenderTargetCache::Path::kHostRenderTargets,
++        pixel_shader && pixel_shader->writes_depth(), viewport_info);
++    UpdateDynamicState(viewport_info, primitive_polygonal, normalized_depth_control);
++    const auto initiator = regs.Get<reg::VGT_DRAW_INITIATOR>();
++    const bool shader_32bit_index_dma =
++        !device_properties.fullDrawIndexUint32 &&
++        primitive.index_buffer_type == PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA &&
++        initiator.index_size == xenos::IndexFormat::kInt32 &&
++        primitive.host_vertex_shader_type == Shader::HostVertexShaderType::kVertex;
++    UpdateSystemConstantValues(primitive_polygonal, primitive, shader_32bit_index_dma, 0, viewport_info, 0,
++                               normalized_depth_control, normalized_color_mask);
++    if (!UpdateBindings(vertex_shader, pixel_shader)) {
++      ++stats.native_failed;
++      continue;
++    }
++    bool vertices_ready = true;
++    const Shader::ConstantRegisterMap& constant_map = vertex_shader->constant_register_map();
++    for (uint32_t i = 0; i < rex::countof(constant_map.vertex_fetch_bitmap) && vertices_ready; ++i) {
++      uint32_t bits = constant_map.vertex_fetch_bitmap[i];
++      uint32_t j;
++      while (rex::bit_scan_forward(bits, &j)) {
++        bits &= ~(uint32_t(1) << j);
++        const xenos::xe_gpu_vertex_fetch_t fetch = regs.GetVertexFetch(i * 32 + j);
++        if (fetch.type != xenos::FetchConstantType::kVertex ||
++            !shared_memory_->RequestRange(fetch.address << 2, fetch.size << 2)) {
++          vertices_ready = false;
++          break;
++        }
++      }
++    }
++    if (!vertices_ready) {
++      ++stats.native_failed;
++      continue;
++    }
++    shared_memory_->Use(VulkanSharedMemory::Usage::kRead);
++    SubmitBarriersAndEnterRenderTargetCacheRenderPass(native_render_pass, &hle_native_framebuffer_,
++                                                      hle_native_depth_view_, true);
++    if (primitive.index_buffer_type == PrimitiveProcessor::ProcessedIndexBufferType::kNone ||
++        shader_32bit_index_dma) {
++      deferred_command_buffer_.CmdVkDraw(primitive.host_draw_vertex_count, 1, 0, 0);
++    } else {
++      std::pair<VkBuffer, VkDeviceSize> index_buffer;
++      switch (primitive.index_buffer_type) {
++        case PrimitiveProcessor::ProcessedIndexBufferType::kGuestDMA:
++          index_buffer = {shared_memory_->buffer(), primitive.guest_index_base};
++          break;
++        case PrimitiveProcessor::ProcessedIndexBufferType::kHostConverted:
++          index_buffer = primitive_processor_->GetConvertedIndexBuffer(primitive.host_index_buffer_handle);
++          break;
++        default:
++          index_buffer = primitive_processor_->GetBuiltinIndexBuffer(primitive.host_index_buffer_handle);
++          break;
++      }
++      deferred_command_buffer_.CmdVkBindIndexBuffer(
++          index_buffer.first, index_buffer.second,
++          primitive.host_index_format == xenos::IndexFormat::kInt16 ? VK_INDEX_TYPE_UINT16 : VK_INDEX_TYPE_UINT32);
++      deferred_command_buffer_.CmdVkDrawIndexed(primitive.host_draw_vertex_count, 1, 0, 0, 0);
++    }
++    ++stats.native_draws;
 +  }
 +  std::memcpy(regs.values + kFirst, saved.data(), saved.size() * sizeof(uint32_t));
++  if (native_target_ready) {
++    EndRenderPass();
++    // What the native draws bound reflects the records, not the registers now restored: the emulated draws that
++    // follow bind everything again.
++    current_guest_graphics_pipeline_ = VK_NULL_HANDLE;
++    current_guest_graphics_pipeline_layout_ = nullptr;
++    current_constant_buffers_up_to_date_ = 0;
++    current_graphics_descriptor_sets_bound_up_to_date_ = 0;
++    std::memset(current_float_constant_map_vertex_, 0, sizeof(current_float_constant_map_vertex_));
++    std::memset(current_float_constant_map_pixel_, 0, sizeof(current_float_constant_map_pixel_));
++    vertex_buffers_in_sync_[0] = 0;
++    vertex_buffers_in_sync_[1] = 0;
++    dynamic_viewport_update_needed_ = true;
++    dynamic_scissor_update_needed_ = true;
++    dynamic_depth_bias_update_needed_ = true;
++    dynamic_blend_constants_update_needed_ = true;
++    dynamic_stencil_compare_mask_front_update_needed_ = true;
++    dynamic_stencil_compare_mask_back_update_needed_ = true;
++    dynamic_stencil_write_mask_front_update_needed_ = true;
++    dynamic_stencil_write_mask_back_update_needed_ = true;
++    dynamic_stencil_reference_front_update_needed_ = true;
++    dynamic_stencil_reference_back_update_needed_ = true;
++  }
 +  hle_dry_run_ = stats;
 +}
 +
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +6029,151 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +6270,152 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
@@ -502,11 +762,12 @@ index d71d508..eecf09d 100644
 +      REXGPU_INFO(
 +          "HLE dry run{} (frame {}, pass {}): {} records, {} expanded ({} without a draw packet), {} without a "
 +          "shader, primitives processed {} ({} failed, {} host vertices, host types 0x{:X}), translated {} ({} "
-+          "failed), pipelines {} ready, {} compiling, {} failed; depth format {}, MSAA {}",
++          "failed), pipelines {} ready, {} compiling, {} failed; depth format {}, MSAA {}; native draws {} ({} "
++          "failed) into {}x{}",
 +          ab_tag, dry.frame, REXCVAR_GET(gpu_hle_dry_run_pass), dry.records, dry.expanded, dry.skipped,
 +          dry.no_shader, dry.processed, dry.failed_process, dry.host_vertices, dry.host_primitive_types,
 +          dry.translated, dry.failed_translation, dry.pipelines, dry.placeholders, dry.failed_pipeline,
-+          dry.depth_format, dry.msaa);
++          dry.depth_format, dry.msaa, dry.native_draws, dry.native_failed, dry.native_width, dry.native_height);
 +      hle_dry_run_ = {};
 +    }
 +    if (hle.frames) hle_dry_run_pending_ = true;
