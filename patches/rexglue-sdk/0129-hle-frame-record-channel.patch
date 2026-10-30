@@ -257,7 +257,7 @@ index 0000000..b9f609b
 +
 +}  // namespace rex::graphics
 diff --git a/include/rex/graphics/vulkan/command_processor.h b/include/rex/graphics/vulkan/command_processor.h
-index 4f8a0cb..f37b4ef 100644
+index 4f8a0cb..438391b 100644
 --- a/include/rex/graphics/vulkan/command_processor.h
 +++ b/include/rex/graphics/vulkan/command_processor.h
 @@ -11,6 +11,9 @@
@@ -270,7 +270,7 @@ index 4f8a0cb..f37b4ef 100644
  #include <atomic>
  #include <chrono>
  #include <climits>
-@@ -470,6 +473,164 @@ class VulkanCommandProcessor : public CommandProcessor {
+@@ -470,6 +473,165 @@ class VulkanCommandProcessor : public CommandProcessor {
    // gpu_frame_stats: every 10 s, logs the CPU time per frame of the command processor and
    // submission threads (waits excluded) next to the frame time.
    void LogCpuFrameStats();
@@ -317,6 +317,7 @@ index 4f8a0cb..f37b4ef 100644
 +  VkFormat hle_second_format_ = VK_FORMAT_UNDEFINED;
 +  bool hle_second_ready_ = false;
 +  uint32_t hle_second_draws_ = 0;
++  uint32_t hle_draws_in_guest_query_ = 0;
 +  // Per draw, the samples each draw passes the emulated way (query 2i) and natively (2i + 1), and what the draw is,
 +  // to list the draws whose native rendering differs.
 +  static constexpr uint32_t kHleDrawQueries = 256;
@@ -682,7 +683,7 @@ index ec756d3..5086b15 100644
    return rex::system::kGpuPluginAbiVersion;
  }
 diff --git a/src/graphics/vulkan/command_processor.cpp b/src/graphics/vulkan/command_processor.cpp
-index d71d508..167cb1d 100644
+index d71d508..1ed04b2 100644
 --- a/src/graphics/vulkan/command_processor.cpp
 +++ b/src/graphics/vulkan/command_processor.cpp
 @@ -11,6 +11,12 @@
@@ -759,7 +760,7 @@ index d71d508..167cb1d 100644
    DestroyConstantsDescriptorSets();
    if (gpu_time_query_pool_ != VK_NULL_HANDLE) {
      GetVulkanDevice()->functions().vkDestroyQueryPool(GetVulkanDevice()->device(),
-@@ -2503,6 +2549,150 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
+@@ -2503,6 +2549,152 @@ void VulkanCommandProcessor::IssueSwap(uint32_t frontbuffer_ptr, uint32_t frontb
    vertex_buffers_in_sync_[0] = 0;
    vertex_buffers_in_sync_[1] = 0;
  
@@ -813,8 +814,10 @@ index d71d508..167cb1d 100644
 +          hle_reference_extent_ = extent;
 +          hle_reference_done_ = true;
 +          hle_compare_pass_ = hle_current_pass_ + " (native vs emulated draws, same frame)";
-+          REXGPU_INFO("HLE native per draw: {} draws also issued the emulated way into the second image",
-+                      hle_second_draws_);
++          REXGPU_INFO("HLE native per draw: {} draws also issued the emulated way into the second image; {} draws "
++                      "inside guest occlusion queries left out of both",
++                      hle_second_draws_, hle_draws_in_guest_query_);
++          hle_draws_in_guest_query_ = 0;
 +        }
 +        hle_second_ready_ = false;
 +        hle_second_draws_ = 0;
@@ -910,7 +913,7 @@ index d71d508..167cb1d 100644
    if (!graphics_system_)
      return;
    ui::Presenter* presenter = graphics_system_->presenter();
-@@ -3886,6 +4076,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3886,6 +4078,16 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
  
    const RegisterFile& regs = *register_file_;
    (void)index_buffer_info;
@@ -927,7 +930,7 @@ index d71d508..167cb1d 100644
    draw_timing_ = REXCVAR_GET(gpu_frame_stats);
    if (draw_timing_) {
      draw_mark_ = DrawTicks();
-@@ -3906,6 +4106,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3906,6 +4108,9 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    };
  
    xenos::EdramMode edram_mode = regs.Get<reg::RB_MODECONTROL>().edram_mode;
@@ -937,7 +940,7 @@ index d71d508..167cb1d 100644
    if (edram_mode == xenos::EdramMode::kCopy) {
      // Special copy handling.
      return IssueCopy();
-@@ -3924,6 +4127,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3924,6 +4129,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      return draw_fail("missing_vertex_shader");
    }
    pipeline_cache_->AnalyzeShaderUcode(*vertex_shader);
@@ -945,7 +948,7 @@ index d71d508..167cb1d 100644
    bool memexport_used_vertex = vertex_shader->memexport_eM_written() != 0;
    if (memexport_used_vertex) {
      if (!device_properties.vertexPipelineStoresAndAtomics) {
-@@ -3964,6 +4168,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -3964,6 +4170,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
        return true;
      }
    }
@@ -953,7 +956,7 @@ index d71d508..167cb1d 100644
    bool memexport_used_pixel = pixel_shader && (pixel_shader->memexport_eM_written() != 0);
    if (memexport_used_pixel) {
      if (!device_properties.fragmentStoresAndAtomics) {
-@@ -4023,6 +4228,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4023,6 +4230,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      // produced by the primitive processor and are handled by the Vulkan
      // pipeline cache.
      DRAW_SECTION(1);
@@ -961,7 +964,7 @@ index d71d508..167cb1d 100644
      Shader::HostVertexShaderType host_vertex_shader_type =
          primitive_processing_result.host_vertex_shader_type;
      if (host_vertex_shader_type != Shader::HostVertexShaderType::kVertex &&
-@@ -4149,6 +4355,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4149,6 +4357,7 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    if (!render_target_updated) {
      return draw_fail("render_target_update");
    }
@@ -969,7 +972,7 @@ index d71d508..167cb1d 100644
  
    // Create the pipeline (for this, need the render pass from the render target
    // cache), translating the shaders - doing this now to obtain the used
-@@ -4280,6 +4487,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4280,6 +4489,19 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
    UpdateSystemConstantValues(primitive_polygonal, primitive_processing_result,
                               shader_32bit_index_dma, 0, viewport_info, used_texture_mask,
                               normalized_depth_control, normalized_color_mask);
@@ -989,7 +992,7 @@ index d71d508..167cb1d 100644
  
    // Update uniform buffers and descriptor sets after binding the pipeline with
    // the new layout.
-@@ -4468,6 +4688,79 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
+@@ -4468,6 +4690,83 @@ bool VulkanCommandProcessor::IssueDraw(xenos::PrimitiveType prim_type, uint32_t
      deferred_command_buffer_.CmdVkDrawIndexed(primitive_processing_result.host_draw_vertex_count, 1,
                                                0, 0, 0);
    }
@@ -998,7 +1001,11 @@ index d71d508..167cb1d 100644
 +    const size_t record = hle_per_draw_matcher_.Match(
 +        {regs.values[XE_GPU_REG_VGT_DMA_BASE], regs.values[XE_GPU_REG_VGT_DRAW_INITIATOR],
 +         hle::HashDwords(&regs.values[XE_GPU_REG_SHADER_CONSTANT_000_X], 1024)});
-+    if (record != hle::DrawMatcher::kNoRecord) {
++    if (record != hle::DrawMatcher::kNoRecord && active_occlusion_query_.valid) {
++      // Drawn inside a guest occlusion query: left out of both images (the suspects of the remaining difference;
++      // one occlusion query at a time, so they cannot be measured per draw either).
++      ++hle_draws_in_guest_query_;
++    } else if (record != hle::DrawMatcher::kNoRecord) {
 +      // A query pair for this draw (none while a guest occlusion query is open: one occlusion query at a time).
 +      uint32_t query = UINT32_MAX;
 +      if (!active_occlusion_query_.valid && hle_draw_query_count_ < kHleDrawQueries) {
@@ -1069,7 +1076,7 @@ index d71d508..167cb1d 100644
  
    // Invalidate textures in memexported memory and watch for changes.
    if (!memexport_ranges_.empty()) {
-@@ -4711,6 +5004,30 @@ bool VulkanCommandProcessor::IssueCopy() {
+@@ -4711,6 +5010,30 @@ bool VulkanCommandProcessor::IssueCopy() {
    }
    GpuContextScope gpu_context_scope(*this, kGpuCategoryResolves);
  
@@ -1100,7 +1107,7 @@ index d71d508..167cb1d 100644
    ReadbackResolveMode readback_mode = GetReadbackResolveMode(REXCVAR_GET(vulkan_readback_resolve));
    render_target_cache_->SetResolveReadbackSizeLimit(GetReadbackResolveSizeLimit(readback_mode));
    if (readback_mode == ReadbackResolveMode::kDisabled) {
-@@ -5786,6 +6103,1121 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
+@@ -5786,6 +6109,1121 @@ VulkanCommandProcessor::ScopedTicks::~ScopedTicks() {
    }
  }
  
@@ -2222,7 +2229,7 @@ index d71d508..167cb1d 100644
  void VulkanCommandProcessor::LogCpuFrameStats() {
    const auto now = std::chrono::steady_clock::now();
    const uint64_t processor_ns = ThreadCpuTimeNs();
-@@ -5865,6 +7297,269 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
+@@ -5865,6 +7303,269 @@ void VulkanCommandProcessor::LogCpuFrameStats() {
          "a draw: {}",
          ab_tag, double(constants_sets_written_) / frames, double(texture_sets_written_) / frames,
          bindings);
