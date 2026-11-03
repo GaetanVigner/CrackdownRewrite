@@ -23,6 +23,7 @@
 #include <trg/game_helpers.h>
 
 #include "achievements_input.h"
+#include "any360_graphics.h"
 #include "achievements_overlay.h"
 #include "active_log.h"
 #include "aspect_ratio.h"
@@ -264,6 +265,7 @@ class CrackdownApp : public rex::ReXApp {
       }
     }
     if (runtime()) {
+      crackdown::StartAny360GraphicsIfAsked();
       MountCacheDevice(runtime()->file_system(), user_data_root());
       crackdown::InstallCrashDiagnostics(runtime()->virtual_membase());
       crackdown::InstallGlyphOverlay(runtime()->file_system(), game_data_root(), user_data_root(),

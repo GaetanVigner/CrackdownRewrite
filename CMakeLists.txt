@@ -184,6 +184,7 @@ get_directory_property(CRACKDOWN_TRG_VERSION DIRECTORY "${_trg_patched_dir}" DEF
 
 set(CRACKDOWN_SOURCES
     src/main.cpp
+    src/any360_graphics.cpp
     src/achievements_input.cpp
     src/achievements_overlay.cpp
     src/active_log.cpp
@@ -315,6 +316,20 @@ endif()
 
 rexglue_setup_host_target(crackdown GPU_PLUGINS xenos)
 target_link_libraries(crackdown PRIVATE trg::launcher)
+
+# Test branch: the GPU through Any360 (any360::sys + any360::gfx) behind the any360_gpu setting
+# (src/any360_graphics.cpp). Any360's layers come from its checkout, built with this toolchain.
+set(CRACKDOWN_ANY360_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../any360" CACHE PATH "Any360 checkout (github.com/GaetanVigner/Any360)")
+set(ANY360_REFERENCE_SDK "${CRACKDOWN_SDK_DIR}" CACHE PATH "ReXGlue SDK install Any360 builds against" FORCE)
+add_subdirectory("${CRACKDOWN_ANY360_DIR}/layer/sys" any360 EXCLUDE_FROM_ALL)
+target_link_libraries(crackdown PRIVATE any360_host_rexglue)
+# Line tables for Any360's code (not the recompiled title's) and a PDB, for profiles symbolized with llvm-symbolizer.
+foreach(_any360_target any360_gfx any360_gfx_vulkan any360_host_rexglue any360_sys any360_xenos_shader)
+  if(TARGET ${_any360_target})
+    target_compile_options(${_any360_target} PRIVATE -gline-tables-only -gcodeview)
+  endif()
+endforeach()
+target_link_options(crackdown PRIVATE "-Wl,/DEBUG")
 target_compile_definitions(crackdown PRIVATE
     CRACKDOWN_PORT_VERSION="${PROJECT_VERSION}"
     CRACKDOWN_TRG_VERSION="${CRACKDOWN_TRG_VERSION}"
