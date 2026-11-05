@@ -395,13 +395,15 @@ class CrackdownApp : public rex::ReXApp {
       if (!crackdown::RelaunchSelf(L"--crackdown_skip_launcher=true")) {
         return false;
       }
-      app_context().CallInUIThreadDeferred([this] { app_context().QuitFromUIThread(); });
+      // Hard exit, as when the window closes: a graceful quit tears the process down under the threads already running
+      // (the title's, the GPU's) and ends in abort().
+      RequestHardExitFromUIThread();
       return true;
     };
     callbacks.quit = [this] {
       launcher_open_ = false;
       SetCursorOverlayOpen(false);
-      app_context().CallInUIThreadDeferred([this] { app_context().QuitFromUIThread(); });
+      RequestHardExitFromUIThread();
     };
     callbacks.window_handle = [this] { return window() ? window()->GetNativeWindowHandle() : nullptr; };
     callbacks.window_fullscreen = [this] { return window() && window()->IsFullscreen(); };
