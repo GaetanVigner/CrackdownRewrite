@@ -15,6 +15,10 @@ REXCVAR_DEFINE_BOOL(any360_sys_trace, false, "Kernel",
                     "Any360: log the first call of each system call that goes to any360::sys");
 REXCVAR_DEFINE_BOOL(any360_sys_trace_all, false, "Kernel",
                     "Any360: log every system call that goes to any360::sys, with its arguments and result (slow)");
+REXCVAR_DEFINE_STRING(any360_sys_runtime_calls, "", "Kernel",
+                      "Any360: system calls left to the runtime though their group is on, comma-separated (debugging)");
+REXCVAR_DEFINE_STRING(any360_sys_trace_groups, "", "Kernel",
+                      "Any360: the groups any360_sys_trace_all reports, comma-separated; empty: all");
 
 // Every system call any360::sys provides, overridden in the executable: the runtime's unless its group is switched.
 // VdSwap and the other video calls are the graphics binding's (any360_graphics.cpp).
@@ -31,11 +35,25 @@ void StartAny360SystemIfAsked(const std::filesystem::path& game_data_root, const
   options.trace_calls = REXCVAR_GET(any360_sys_trace);
   options.trace_every_call = REXCVAR_GET(any360_sys_trace_all);
   options.log = [](const std::string& line) { REXLOG_INFO("Any360 system: {}", line); };
+  {
+    std::stringstream traced(REXCVAR_GET(any360_sys_trace_groups));
+    std::string name;
+    while (std::getline(traced, name, ',')) {
+      any360::host::rexglue::SysGroup group;
+      if (any360::host::rexglue::ParseSysGroup(name, group)) options.trace_groups.push_back(group);
+    }
+    std::stringstream kept(REXCVAR_GET(any360_sys_runtime_calls));
+    while (std::getline(kept, name, ',')) {
+      if (!name.empty()) options.runtime_calls.push_back(name);
+    }
+  }
   // As the runtime mounts them (Runtime::SetupVfs, MountCacheDevice).
   const bool game_writes = rex::cvar::GetFlagByName("allow_game_relative_writes") == "true";
   options.mounts.push_back({"\\Device\\Harddisk0\\Partition1", std::filesystem::absolute(game_data_root).string(),
                             !game_writes, {"game:", "d:"}});
   options.mounts.push_back({"\\Device\\cache0", (user_data_root / "4D5307DC" / "cache").string(), false, {}});
+  // XAM: the saves and the profile settings where the runtime keeps them.
+  options.user_data_root = std::filesystem::absolute(user_data_root).string();
   if (!any360::host::rexglue::StartSystem(options, error)) {
     REXLOG_ERROR("Any360 system: {} (every system call stays on the runtime)", error);
     return;
