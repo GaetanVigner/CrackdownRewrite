@@ -1,0 +1,51 @@
+#include "any360_system.h"
+
+#include <rex/cvar.h>
+#include <rex/logging.h>
+
+#include <sstream>
+#include <string>
+
+#include "any360/host/system.h"
+
+REXCVAR_DEFINE_STRING(any360_sys_groups, "", "Kernel",
+                      "Any360: system call groups run on any360::sys, comma-separated (stateless, files, objects, threads, "
+                      "memory, xam, input, audio); empty: all on the runtime");
+REXCVAR_DEFINE_BOOL(any360_sys_trace, false, "Kernel",
+                    "Any360: log the first call of each system call that goes to any360::sys");
+
+// Every system call any360::sys provides, overridden in the executable: the runtime's unless its group is switched.
+// VdSwap and the other video calls are the graphics binding's (any360_graphics.cpp).
+#include "any360/host/system_exports.inc"
+
+namespace crackdown {
+
+void StartAny360SystemIfAsked() {
+  const std::string groups = REXCVAR_GET(any360_sys_groups);
+  if (groups.empty()) return;
+  std::string error;
+  any360::host::rexglue::SystemOptions options;
+  options.trace_calls = REXCVAR_GET(any360_sys_trace);
+  options.log = [](const std::string& line) { REXLOG_INFO("Any360 system: {}", line); };
+  if (!any360::host::rexglue::StartSystem(options, error)) {
+    REXLOG_ERROR("Any360 system: {} (every system call stays on the runtime)", error);
+    return;
+  }
+  std::stringstream list(groups);
+  std::string name, switched;
+  while (std::getline(list, name, ',')) {
+    while (!name.empty() && name.front() == ' ') name.erase(name.begin());
+    while (!name.empty() && name.back() == ' ') name.pop_back();
+    any360::host::rexglue::SysGroup group;
+    if (!any360::host::rexglue::ParseSysGroup(name, group)) {
+      REXLOG_WARN("Any360 system: no group named '{}'", name);
+      continue;
+    }
+    any360::host::rexglue::EnableSystemGroup(group, true);
+    switched += (switched.empty() ? "" : ", ") + name;
+  }
+  const uint32_t variables = any360::host::rexglue::BindVariables();
+  REXLOG_INFO("Any360 system: {} on any360::sys ({} variable imports)", switched.empty() ? "no group" : switched, variables);
+}
+
+}  // namespace crackdown

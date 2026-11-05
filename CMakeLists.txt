@@ -185,6 +185,7 @@ get_directory_property(CRACKDOWN_TRG_VERSION DIRECTORY "${_trg_patched_dir}" DEF
 set(CRACKDOWN_SOURCES
     src/main.cpp
     src/any360_graphics.cpp
+    src/any360_system.cpp
     src/achievements_input.cpp
     src/achievements_overlay.cpp
     src/active_log.cpp
