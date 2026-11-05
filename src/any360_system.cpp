@@ -13,6 +13,8 @@ REXCVAR_DEFINE_STRING(any360_sys_groups, "", "Kernel",
                       "memory, xam, input, audio); empty: all on the runtime");
 REXCVAR_DEFINE_BOOL(any360_sys_trace, false, "Kernel",
                     "Any360: log the first call of each system call that goes to any360::sys");
+REXCVAR_DEFINE_BOOL(any360_sys_trace_all, false, "Kernel",
+                    "Any360: log every system call that goes to any360::sys, with its arguments and result (slow)");
 
 // Every system call any360::sys provides, overridden in the executable: the runtime's unless its group is switched.
 // VdSwap and the other video calls are the graphics binding's (any360_graphics.cpp).
@@ -20,13 +22,19 @@ REXCVAR_DEFINE_BOOL(any360_sys_trace, false, "Kernel",
 
 namespace crackdown {
 
-void StartAny360SystemIfAsked() {
+void StartAny360SystemIfAsked(const std::filesystem::path& game_data_root, const std::filesystem::path& user_data_root) {
   const std::string groups = REXCVAR_GET(any360_sys_groups);
   if (groups.empty()) return;
   std::string error;
   any360::host::rexglue::SystemOptions options;
   options.trace_calls = REXCVAR_GET(any360_sys_trace);
+  options.trace_every_call = REXCVAR_GET(any360_sys_trace_all);
   options.log = [](const std::string& line) { REXLOG_INFO("Any360 system: {}", line); };
+  // As the runtime mounts them (Runtime::SetupVfs, MountCacheDevice).
+  const bool game_writes = rex::cvar::GetFlagByName("allow_game_relative_writes") == "true";
+  options.mounts.push_back({"\\Device\\Harddisk0\\Partition1", std::filesystem::absolute(game_data_root).string(),
+                            !game_writes, {"game:", "d:"}});
+  options.mounts.push_back({"\\Device\\cache0", (user_data_root / "4D5307DC" / "cache").string(), false, {}});
   if (!any360::host::rexglue::StartSystem(options, error)) {
     REXLOG_ERROR("Any360 system: {} (every system call stays on the runtime)", error);
     return;

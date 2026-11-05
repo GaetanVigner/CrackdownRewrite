@@ -267,7 +267,7 @@ class CrackdownApp : public rex::ReXApp {
     }
     if (runtime()) {
       crackdown::StartAny360GraphicsIfAsked();
-      crackdown::StartAny360SystemIfAsked();
+      crackdown::StartAny360SystemIfAsked(game_data_root(), user_data_root());
       MountCacheDevice(runtime()->file_system(), user_data_root());
       crackdown::InstallCrashDiagnostics(runtime()->virtual_membase());
       crackdown::InstallGlyphOverlay(runtime()->file_system(), game_data_root(), user_data_root(),
