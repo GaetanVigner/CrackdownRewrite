@@ -17,6 +17,8 @@ REXCVAR_DEFINE_BOOL(any360_sys_trace_all, false, "Kernel",
                     "Any360: log every system call that goes to any360::sys, with its arguments and result (slow)");
 REXCVAR_DEFINE_STRING(any360_sys_runtime_calls, "", "Kernel",
                       "Any360: system calls left to the runtime though their group is on, comma-separated (debugging)");
+REXCVAR_DEFINE_STRING(any360_sys_trace_names, "", "Kernel",
+                      "Any360: the calls any360_sys_trace_all reports, comma-separated; empty: all");
 REXCVAR_DEFINE_STRING(any360_sys_trace_groups, "", "Kernel",
                       "Any360: the groups any360_sys_trace_all reports, comma-separated; empty: all");
 
@@ -41,6 +43,10 @@ void StartAny360SystemIfAsked(const std::filesystem::path& game_data_root, const
     while (std::getline(traced, name, ',')) {
       any360::host::rexglue::SysGroup group;
       if (any360::host::rexglue::ParseSysGroup(name, group)) options.trace_groups.push_back(group);
+    }
+    std::stringstream traced_names(REXCVAR_GET(any360_sys_trace_names));
+    while (std::getline(traced_names, name, ',')) {
+      if (!name.empty()) options.trace_names.push_back(name);
     }
     std::stringstream kept(REXCVAR_GET(any360_sys_runtime_calls));
     while (std::getline(kept, name, ',')) {
@@ -67,6 +73,18 @@ void StartAny360SystemIfAsked(const std::filesystem::path& game_data_root, const
     if (!any360::host::rexglue::ParseSysGroup(name, group)) {
       REXLOG_WARN("Any360 system: no group named '{}'", name);
       continue;
+    }
+    if (group == any360::host::rexglue::SysGroup::kAudio) {
+#ifdef ANY360_REXGLUE_AUDIO
+      // The decoder and the output first: the audio calls need them.
+      if (!any360::host::rexglue::StartAudio(error)) {
+        REXLOG_ERROR("Any360 system: audio stays on the runtime: {}", error);
+        continue;
+      }
+#else
+      REXLOG_ERROR("Any360 system: audio stays on the runtime: built without the XMA decoder (ANY360_FFMPEG_INCLUDE)");
+      continue;
+#endif
     }
     any360::host::rexglue::EnableSystemGroup(group, true);
     switched += (switched.empty() ? "" : ", ") + name;
