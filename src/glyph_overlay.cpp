@@ -29,6 +29,7 @@
 #include "font_atlas.h"
 #include "font_rerender.h"
 #include "guest_layout.h"
+#include "any360_system.h"
 #include "guest_memory.h"
 #include "sha256.h"
 
@@ -373,6 +374,8 @@ void crackdown::InstallGlyphOverlay(rex::filesystem::VirtualFileSystem* file_sys
   }
   file_system->RegisterSymbolicLink(std::string(kGamePartition) + "\\Local\\" + std::string(language_key),
                                     std::string(kMountPath) + "\\" + std::string(language_key));
+  // The same redirection when any360::sys serves the title's files.
+  crackdown::MountOnAny360Files(std::string(kGamePartition) + "\\Local\\" + std::string(language_key), folder);
   // The game opens game:\Local\<lang>\crackdown_font.dds; say where the VFS sends it.
   const std::string probe = "game:\\Local\\" + std::string(language_key) + "\\crackdown_font.dds";
   if (rex::filesystem::Entry* entry = file_system->ResolvePath(probe)) {

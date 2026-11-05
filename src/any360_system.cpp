@@ -19,6 +19,7 @@ REXCVAR_DEFINE_BOOL(any360_sys_trace_all, false, "Kernel",
 // Every system call any360::sys provides, overridden in the executable: the runtime's unless its group is switched.
 // VdSwap and the other video calls are the graphics binding's (any360_graphics.cpp).
 #include "any360/host/system_exports.inc"
+#include "any360/sys/files.h"
 
 namespace crackdown {
 
@@ -54,6 +55,13 @@ void StartAny360SystemIfAsked(const std::filesystem::path& game_data_root, const
   }
   const uint32_t variables = any360::host::rexglue::BindVariables();
   REXLOG_INFO("Any360 system: {} on any360::sys ({} variable imports)", switched.empty() ? "no group" : switched, variables);
+}
+
+void MountOnAny360Files(const std::string& guest_folder, const std::filesystem::path& host) {
+  if (REXCVAR_GET(any360_sys_groups).empty()) return;
+  // The longest mounted prefix wins, so this folder shadows the title's own under the partition's mount.
+  any360::sys::Files().Mount(guest_folder, host, /*read_only=*/true);
+  REXLOG_INFO("Any360 system: {} mounted at {}", guest_folder, host.string());
 }
 
 }  // namespace crackdown
