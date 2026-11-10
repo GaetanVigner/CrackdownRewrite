@@ -29,6 +29,7 @@
 #include "font_atlas.h"
 #include "font_rerender.h"
 #include "guest_layout.h"
+#include "any360/host/system.h"
 #include "any360_system.h"
 #include "guest_memory.h"
 #include "sha256.h"
@@ -446,6 +447,8 @@ void crackdown::UpdateButtonGlyphs(uint8_t* base) {
   auto* runtime = rex::system::kernel_state() ? rex::system::kernel_state()->emulator() : nullptr;
   if (auto* input = runtime ? static_cast<rex::input::InputSystem*>(runtime->input_system()) : nullptr) {
     rex::input::X_INPUT_CAPABILITIES caps = {};
+    // Any360's input sampling thread calls the runtime's input system too, which takes one caller at a time.
+    const auto lock = any360::host::rexglue::LockHostInput();
     if (input->GetCapabilities(0, 0, &caps) == 0) {
       keyboard = uint16_t(caps.gamepad.buttons) == 0xFFFF && int16_t(caps.gamepad.thumb_lx) == 0x7FFF;
     }
