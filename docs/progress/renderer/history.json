@@ -1,5 +1,5 @@
 {
-  "d3d_entry_points": 209,
+  "d3d_entry_points": 175,
   "days": [
     {
       "date": "2026-10-12",
@@ -262,7 +262,7 @@
     },
     {
       "date": "2026-11-10",
-      "commit": "9b8fd48e3",
+      "commit": "743731e20",
       "hooked": 16,
       "functions": [
         "826AED90",

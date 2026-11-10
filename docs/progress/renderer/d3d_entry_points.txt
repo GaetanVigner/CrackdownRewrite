@@ -1,38 +1,5 @@
-# The title's D3D runtime entry points: functions in 0x826A0000-0x826CFFFF that game code outside that range calls
-# (static call graph of the generated code, 2026-10-28). tools/progress.py counts the ones the port hooks.
-826A0550
-826A10C8
-826A2A60
-826A2B08
-826A2F38
-826A3770
-826A3818
-826A38C0
-826A3988
-826A3D00
-826A3D80
-826A3E08
-826A4E70
-826A5018
-826A5348
-826A5BE8
-826A6168
-826A6570
-826A6848
-826A6918
-826A69D0
-826A6A50
-826A6AF8
-826A8A60
-826A8FA0
-826A90B0
-826A9668
-826A98B8
-826A9A18
-826A9C38
-826AB510
-826AC8F0
-826ACB80
+# The title's D3D runtime entry points: functions in 0x826ACC90-0x826CF4AF that game code outside that range calls
+# (static call graph of the generated code, tools/d3d_entry_points.py, 2026-11-10). tools/progress.py counts the ones the port hooks.
 826ACC90
 826ACD08
 826ACD88
@@ -180,6 +147,7 @@
 826BBFB8
 826BC0A0
 826BC108
+826BC178
 826BCA90
 826BCA98
 826BD1B8
@@ -197,6 +165,7 @@
 826C0D38
 826C3440
 826C35D8
+826C3670
 826C3750
 826C3D90
 826C4030
@@ -204,8 +173,5 @@
 826C4258
 826C42F8
 826C4610
+826C4920
 826C4C70
-826CF688
-826CF8F8
-826CFBE8
-826CFCE0

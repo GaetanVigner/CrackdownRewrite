@@ -24,7 +24,7 @@ OUT = ROOT / 'docs' / 'progress' / 'renderer'
 GENERATED = ROOT / 'generated' / 'default'
 SDK_KERNEL = ROOT / 'out' / 'rexglue-sdk-src' / 'src' / 'kernel'
 HOOK = re.compile(r'(?:CRACKDOWN_BIND(?:_REPLACEMENT)?\(|REX_HOOK(?:_RAW)?\(sub_)(?:0x)?([0-9A-Fa-f]{8})\b')
-D3D_RUNTIME = (0x826A0000, 0x826D0000)
+D3D_RUNTIME = (0x826ACC90, 0x826CF4B0)  # from library recognition (Any360 titles/crackdown/modules.json); keep in step with tools/d3d_entry_points.py
 
 STAGES = [  # render pass stages, in order
     ('emulated', '#6e7681', 'drawn by the GPU emulation'),
