@@ -27,8 +27,10 @@ void WalkVelocity(PPCContext&, uint8_t*, GuestFunction original);
 void JumpLaunch(PPCContext&, uint8_t*, GuestFunction original);
 
 void CrtMemcpy(PPCContext&, uint8_t*, GuestFunction original);
+void CrtCopyForward(PPCContext&, uint8_t*, GuestFunction original);
 void CrtMemmove(PPCContext&, uint8_t*, GuestFunction original);
 void CrtMemset(PPCContext&, uint8_t*, GuestFunction original);
+void XdkVectorCopy(PPCContext&, uint8_t*, GuestFunction original);
 
 void EntityDestroyed(PPCContext&, uint8_t*, GuestFunction original);
 

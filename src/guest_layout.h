@@ -63,6 +63,10 @@ struct GuestLayout {
   uint32_t orb_supply_points;
   uint32_t orb_unset_pan;
   uint32_t orb_pan_factor;
+
+  // The global the XDK's vector copy subtracts from the count in its byte loop (the lis / lwz pair before that loop
+  // in this guest's build of the function); 0 where that function is not bound.
+  uint32_t vector_copy_byte_step;
 };
 
 inline constexpr uint32_t kCharacterPositionOffset = 0x140;
@@ -110,6 +114,7 @@ inline constexpr GuestLayout kLayoutBase = {
     .orb_supply_points = 0x82DE2678,
     .orb_unset_pan = 0x820722DC,
     .orb_pan_factor = 0x8207047C,
+    .vector_copy_byte_step = 0x82B84FE4,
 };
 
 inline constexpr GuestLayout kLayoutTitleUpdate6 = {
@@ -155,6 +160,7 @@ inline constexpr GuestLayout kLayoutTitleUpdate6 = {
     .orb_supply_points = 0x82E79AD4,
     .orb_unset_pan = 0x820725DC,
     .orb_pan_factor = 0x82070594,
+    .vector_copy_byte_step = 0,
 };
 
 inline constexpr const GuestLayout& LayoutFor(content::GuestBuild build) {
