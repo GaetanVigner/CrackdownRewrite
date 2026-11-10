@@ -46,8 +46,9 @@ cores that emulation, not the GPU, is the limit. Two lines of work remove it:
 - **[Any360](https://github.com/GaetanVigner/Any360) under the game** (the picture above). The Xbox system calls run
   on `any360::sys` (all 248 the game imports: files, threads, memory, saves, sound, input), and the GPU on
   `any360::gfx`, a Vulkan renderer with resolution scaling, anti-aliasing and a pipeline cache (160-220 FPS at 1440p
-  with 4x MSAA in the city on an RTX 5070 Ti). Both are opt-in on the branch `any360-sys-test` until they become the
-  default. Then comes Any360 as the host, and the game's own code rewritten function by function, each rewrite
+  with 4x MSAA in the city on an RTX 5070 Ti). Both are opt-in until they become the default (`--any360_gpu=true` and
+  `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`); building needs an Any360 checkout
+  next to this repository (`CRACKDOWN_ANY360_DIR`, by default `../any360`). Then comes Any360 as the host, and the game's own code rewritten function by function, each rewrite
   proven equal to the recompiled original in a sandbox.
 - **A renderer that knows the game** (the chart below). Once the game's draws reach a renderer that understands them
   as passes and objects instead of Xbox 360 command packets, the same draw records feed **FSR upscaling** (motion
@@ -117,7 +118,7 @@ and the open problems are in `HLE_RENDERER_PLAN.md` (kept next to the repository
   input the native Vulkan renderer will draw from instead of decoding the emulated GPU's command stream. A test checks
   both sides agree on the exchange format; one battery run checks every frame arrives and what it costs.
 
-- **Any360 under the game.** On the branch `any360-sys-test` the game runs with every system call on `any360::sys`
+- **Any360 under the game.** With those two settings the game runs with every system call on `any360::sys`
   (no call reaches the ReXGlue kernel: files, objects, threads, memory, saves and profile, a native XMA decoder with
   SDL output, gamepad input) and its graphics on `any360::gfx`. The Simpsons Game and Test Drive Unlimited run on the
   same layers.

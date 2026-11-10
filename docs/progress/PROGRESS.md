@@ -8,8 +8,8 @@ Generated on 2026-11-10 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 
 | Axis | Done | Of | Share | Notes |
 |---|---|---|---|---|
-| System calls on `any360::sys` | 248 | 248 | 100% | all eight groups, opt-in: branch `any360-sys-test`, `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`; no call reaches ReXGlue's kernel then |
-| Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in: branches `any360-graphics-test` and `any360-sys-test`, `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
+| System calls on `any360::sys` | 248 | 248 | 100% | all eight groups, opt-in on `main`: `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`; no call reaches ReXGlue's kernel then |
+| Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 376 | 40,453 | 0.9% | 0 more verified against the original in the sandbox |
 | Library functions (SDK, middleware) replaced | 26 | 766 | 3.4% | replaced as units, not decompiled |
@@ -288,7 +288,7 @@ The 248 kernel and XAM functions the title imports, by the group a title switche
 
 ## Graphics
 
-What `any360::gfx` handles of the Xbox 360 GPU (the same for every title; a title uses a part of it). In this title: opt-in: branches `any360-graphics-test` and `any360-sys-test`, `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti.
+What `any360::gfx` handles of the Xbox 360 GPU (the same for every title; a title uses a part of it). In this title: opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti.
 
 | Family | Native | Not yet | Total |
 |---|---|---|---|

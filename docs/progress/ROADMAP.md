@@ -4,17 +4,17 @@ Generated on 2026-11-10 with [PROGRESS.md](PROGRESS.md). The rewrite is done whe
 
 ## 1. System calls on any360::sys
 
-All 248 imports run on `any360::sys` (all eight groups, opt-in: branch `any360-sys-test`, `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`; no call reaches ReXGlue's kernel then).
+All 248 imports run on `any360::sys` (all eight groups, opt-in on `main`: `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`; no call reaches ReXGlue's kernel then).
 
 Still to do: make it the default build (today it is opt-in), then remove the ReXGlue kernel from the link.
 
 ## 2. Graphics on any360::gfx
 
-The title draws through `any360::gfx`: opt-in: branches `any360-graphics-test` and `any360-sys-test`, `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti.
+The title draws through `any360::gfx`: opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti.
 
 Still to do: make it the default renderer (today ReXGlue's Xenos emulation is), then drop the emulated GPU from the build.
 
-- Merge the two Any360 branches into `main`: they need an Any360 checkout next to the repository, so `main` builds without them today.
+- `main` needs an Any360 checkout next to the repository to build (`CRACKDOWN_ANY360_DIR`, by default `../any360`): make it optional, as in The Simpsons Game, or fetched by the build.
 - The game-side draw records (HLE renderer, milestones H1-H4 below) feed a renderer that knows the game's passes instead of translating Xenos commands; they move onto `any360::gfx` once the emulated path is the fallback only.
 
 GPU features `any360::gfx` does not handle yet (40 of 323; none stops this title today, each is one a title may need):
