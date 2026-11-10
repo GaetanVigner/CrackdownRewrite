@@ -27,7 +27,7 @@ Crackdown Recompiled is a native PC recompilation of Crackdown for Xbox 360, wit
 | **System calls** | 248 of 248 on `any360::sys` (opt-in) |
 | **Graphics** | `any360::gfx`, a Vulkan renderer handling 283 of 323 Xbox 360 GPU features (opt-in) |
 | **Host** | ReXGlue's loader, threads and window; Any360's own host is not started |
-| **Game code** | 376 of 40,453 functions rewritten in C++ (0.9%) |
+| **Game code** | 281 of 29,541 functions rewritten in C++ (1.0%), 29 more verified against the original |
 
 Updated 2026-11-10. Every system call, module and rewritten function: [PROGRESS.md](docs/progress/PROGRESS.md). What is missing, step by step: [ROADMAP.md](docs/progress/ROADMAP.md). Function by function: [functions.csv](docs/progress/functions.csv).
 <!-- progress:end -->

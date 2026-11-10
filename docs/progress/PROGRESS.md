@@ -11,8 +11,9 @@ Generated on 2026-11-10 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | System calls on `any360::sys` | 248 | 248 | 100% | all eight groups, opt-in on `main`: `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`; no call reaches ReXGlue's kernel then |
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
-| Game functions rewritten in C++ | 376 | 40,453 | 0.9% | 0 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 26 | 766 | 3.4% | replaced as units, not decompiled |
+| Game functions rewritten in C++ | 281 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
+| Library functions (SDK, middleware) replaced | 80 | 6,377 | 1.3% | replaced as units, not decompiled |
+| Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
 | Instructions of rewritten functions | 31,514 | 2,667,844 | 1.2% | PowerPC instructions of the original |
 
 ## System calls
@@ -305,23 +306,32 @@ What `any360::gfx` handles of the Xbox 360 GPU (the same for every title; a titl
 
 ## Game code
 
-Every function of the executable by module (named address ranges; the rest by 1 MB area until symbol recovery names them). **native**: rewritten: bound to C++. **verified**: checked against the original in the sandbox. **library**: SDK or middleware code, replaced as a unit. **recompiled**: recompiled PowerPC, still to rewrite.
+Every function of the executable by module (named address ranges; the rest by 1 MB area until symbol recovery names them). **native**: rewritten: bound to C++. **verified**: checked against the original in the sandbox. **library**: SDK code, replaced as a unit by Any360. **middleware**: third-party engine code (physics, AI, video ...): kept or relinked, not rewritten. **recompiled**: recompiled PowerPC, still to rewrite.
 
 | Module | Kind | Functions | Instructions | Native | Verified | Still recompiled | Native share |
 |---|---|---|---|---|---|---|---|
-| code 82Axxxxx | game | 4,604 | 265,577 | 31 | 0 | 4,573 | 0.7% |
-| code 828xxxxx | game | 2,226 | 260,939 | 21 | 0 | 2,205 | 0.9% |
-| code 827xxxxx | game | 2,503 | 260,475 | 31 | 0 | 2,472 | 1.2% |
-| code 829xxxxx | game | 3,947 | 260,184 | 28 | 0 | 3,919 | 0.7% |
+| XDK D3DX and XGraphics (shader compiler) | library | 4,171 | 487,670 | 39 | 0 | 4,132 | 0.9% |
 | code 825xxxxx | game | 3,839 | 259,174 | 51 | 0 | 3,788 | 1.3% |
 | code 823xxxxx | game | 3,852 | 257,976 | 52 | 0 | 3,800 | 1.3% |
 | code 824xxxxx | game | 3,353 | 257,848 | 47 | 0 | 3,306 | 1.4% |
 | code 822xxxxx | game | 2,435 | 256,713 | 28 | 0 | 2,407 | 1.1% |
+| code 826xxxxx | game | 3,366 | 223,024 | 24 | 29 | 3,313 | 0.7% |
 | code 821xxxxx | game | 3,871 | 210,799 | 41 | 0 | 3,830 | 1.1% |
-| code 826xxxxx | game | 3,177 | 209,444 | 21 | 0 | 3,156 | 0.7% |
-| code 82Bxxxxx | game | 6,646 | 118,058 | 25 | 0 | 6,621 | 0.4% |
-| XDK D3D runtime | library | 742 | 48,557 | 24 | 291 | 427 | 3.2% |
-| CRT register save/restore helpers | library | 22 | 2,094 | 2 | 0 | 20 | 9.1% |
+| Havok Physics | middleware | 2,699 | 191,551 | 25 | 0 | 2,674 | 0.9% |
+| code 82Bxxxxx | game | 6,519 | 101,666 | 24 | 0 | 6,495 | 0.4% |
+| code 82Axxxxx | game | 1,258 | 65,283 | 7 | 0 | 1,251 | 0.6% |
+| Kynapse (AI) | middleware | 947 | 56,021 | 3 | 0 | 944 | 0.3% |
+| SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
+| C runtime (CRT) | library | 595 | 41,901 | 7 | 0 | 588 | 1.2% |
+| XDK D3D runtime | library | 553 | 34,977 | 21 | 262 | 270 | 3.8% |
+| code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
+| Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
+| XDK audio (XAudio, XMA) | library | 484 | 28,795 | 7 | 0 | 477 | 1.4% |
+| code 827xxxxx | game | 366 | 25,239 | 2 | 0 | 364 | 0.5% |
+| XDK Xbox Live and voice (XOnline, XHV) | library | 378 | 21,114 | 5 | 0 | 373 | 1.3% |
+| Massive (in-game advertising) | middleware | 368 | 16,437 | 0 | 0 | 368 | 0% |
+| Bink video | middleware | 127 | 16,392 | 1 | 0 | 126 | 0.8% |
+| XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 1 | 0 | 193 | 0.5% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
 <details><summary>The 402 rewritten functions</summary>
@@ -567,9 +577,9 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82694200` | code 826xxxxx | 40 | `decomp::Sub_82694200` | decomp/leaf_batch5.cpp |
 | `8269A9D8` | code 826xxxxx | 3 | `OrbFrontendScreenDestroyed` | orb_map.cpp |
 | `8269B3C8` | code 826xxxxx | 10 | `decomp::Sub_8269B3C8` | decomp/leaf_batch3.cpp |
-| `826A6B50` | XDK D3D runtime | 70 | `SimulationUpdate` | frame_pacing.cpp |
-| `826A7698` | XDK D3D runtime | 172 | `FrameLoop` | frame_pacing.cpp |
-| `826A8940` | XDK D3D runtime | 71 | `EngineMovie` | skip_intro.cpp |
+| `826A6B50` | code 826xxxxx | 70 | `SimulationUpdate` | frame_pacing.cpp |
+| `826A7698` | code 826xxxxx | 172 | `FrameLoop` | frame_pacing.cpp |
+| `826A8940` | code 826xxxxx | 71 | `EngineMovie` | skip_intro.cpp |
 | `826AED90` | XDK D3D runtime | 92 | `D3dCreateRenderTarget` | single_tile_scene.cpp |
 | `826B1150` | XDK D3D runtime | 2 | `PresentInterval` | frame_pacing.cpp |
 | `826B3C48` | XDK D3D runtime | 115 | `D3dSetShaderGprAllocation` | hle_capture.cpp |
@@ -594,117 +604,117 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826D5C28` | code 826xxxxx | 72 | `decomp::Sub_826D5C28` | decomp/leaf_batch7.cpp |
 | `8270D108` | code 827xxxxx | 22 | `decomp::Sub_8270D108` | decomp/leaf_batch13.cpp |
 | `8270D160` | code 827xxxxx | 28 | `RenderHud` | hle_capture.cpp |
-| `82726F50` | code 827xxxxx | 15 | `decomp::Sub_82726F50` | decomp/leaf_batch6.cpp |
-| `82726FC8` | code 827xxxxx | 15 | `decomp::Sub_82726FC8` | decomp/leaf_batch6.cpp |
-| `8272A530` | code 827xxxxx | 19 | `decomp::Sub_8272A530` | decomp/leaf_batch10.cpp |
-| `8272C558` | code 827xxxxx | 20 | `decomp::Sub_8272C558` | decomp/leaf_batch11.cpp |
-| `8272F260` | code 827xxxxx | 45 | `decomp::Sub_8272F260` | decomp/leaf_batch2.cpp |
-| `82730D90` | code 827xxxxx | 16 | `decomp::Sub_82730D90` | decomp/leaf_batch7.cpp |
-| `8273B2F8` | code 827xxxxx | 10 | `decomp::Sub_8273B2F8` | decomp/leaf_batch3.cpp |
-| `8273C678` | code 827xxxxx | 21 | `decomp::Sub_8273C678` | decomp/leaf_batch12.cpp |
-| `8273CC98` | code 827xxxxx | 18 | `decomp::Sub_8273CC98` | decomp/leaf_batch9.cpp |
-| `82740710` | code 827xxxxx | 17 | `decomp::Sub_82740710` | decomp/leaf_batch8.cpp |
-| `82743798` | code 827xxxxx | 3 | `FilterPadState` | achievements_input.cpp |
-| `8278EA38` | code 827xxxxx | 28 | `decomp::Sub_8278EA38` | decomp/leaf_batch13.cpp |
-| `82793BB8` | code 827xxxxx | 10 | `decomp::Sub_82793BB8` | decomp/leaf_batch3.cpp |
-| `82793DF8` | code 827xxxxx | 19 | `decomp::Sub_82793DF8` | decomp/leaf_batch10.cpp |
-| `82793ED8` | code 827xxxxx | 13 | `decomp::Sub_82793ED8` | decomp/leaf_batch4.cpp |
-| `82794140` | code 827xxxxx | 18 | `decomp::Sub_82794140` | decomp/leaf_batch9.cpp |
-| `827944D8` | code 827xxxxx | 14 | `decomp::Sub_827944D8` | decomp/leaf_batch5.cpp |
-| `82794510` | code 827xxxxx | 14 | `decomp::Sub_82794510` | decomp/leaf_batch5.cpp |
-| `827945C0` | code 827xxxxx | 22 | `decomp::Sub_827945C0` | decomp/leaf_batch13.cpp |
-| `82794868` | code 827xxxxx | 22 | `decomp::Sub_82794868` | decomp/leaf_batch1.cpp |
-| `82794C58` | code 827xxxxx | 21 | `decomp::Sub_82794C58` | decomp/leaf_batch12.cpp |
-| `82794E68` | code 827xxxxx | 17 | `decomp::Sub_82794E68` | decomp/leaf_batch8.cpp |
-| `82794F60` | code 827xxxxx | 21 | `decomp::Sub_82794F60` | decomp/leaf_batch11.cpp |
-| `82794FB8` | code 827xxxxx | 21 | `decomp::Sub_82794FB8` | decomp/leaf_batch12.cpp |
-| `82795010` | code 827xxxxx | 22 | `decomp::Sub_82795010` | decomp/leaf_batch13.cpp |
-| `82795160` | code 827xxxxx | 21 | `decomp::Sub_82795160` | decomp/leaf_batch11.cpp |
-| `827C5CC8` | code 827xxxxx | 19 | `decomp::Sub_827C5CC8` | decomp/leaf_batch10.cpp |
-| `827C7F08` | code 827xxxxx | 16 | `decomp::Sub_827C7F08` | decomp/leaf_batch7.cpp |
-| `827F4660` | code 827xxxxx | 13 | `decomp::Sub_827F4660` | decomp/leaf_batch4.cpp |
-| `82807698` | code 828xxxxx | 16 | `decomp::Sub_82807698` | decomp/leaf_batch6.cpp |
-| `8281B120` | code 828xxxxx | 15 | `decomp::Sub_8281B120` | decomp/leaf_batch5.cpp |
-| `8281BDD0` | code 828xxxxx | 11 | `decomp::Sub_8281BDD0` | decomp/leaf_batch3.cpp |
-| `82832BF8` | code 828xxxxx | 21 | `decomp::Sub_82832BF8` | decomp/leaf_batch8.cpp |
-| `82832F88` | code 828xxxxx | 14 | `decomp::Sub_82832F88` | decomp/leaf_batch4.cpp |
-| `828397B8` | code 828xxxxx | 26 | `decomp::Sub_828397B8` | decomp/leaf_batch10.cpp |
-| `82839CF0` | code 828xxxxx | 32 | `decomp::Sub_82839CF0` | decomp/leaf_batch11.cpp |
-| `8283EEC8` | code 828xxxxx | 18 | `decomp::Sub_8283EEC8` | decomp/leaf_batch7.cpp |
-| `82844E88` | code 828xxxxx | 32 | `decomp::Sub_82844E88` | decomp/leaf_batch11.cpp |
-| `82845E00` | code 828xxxxx | 22 | `decomp::Sub_82845E00` | decomp/leaf_batch9.cpp |
-| `82846518` | code 828xxxxx | 19 | `decomp::Sub_82846518` | decomp/leaf_batch7.cpp |
-| `8284D670` | code 828xxxxx | 17 | `decomp::Sub_8284D670` | decomp/leaf_batch6.cpp |
-| `8284DBD8` | code 828xxxxx | 24 | `decomp::Sub_8284DBD8` | decomp/leaf_batch10.cpp |
-| `8285B180` | code 828xxxxx | 26 | `decomp::Sub_8285B180` | decomp/leaf_batch10.cpp |
-| `8285E988` | code 828xxxxx | 19 | `decomp::Sub_8285E988` | decomp/leaf_batch8.cpp |
-| `8287A968` | code 828xxxxx | 14 | `decomp::Sub_8287A968` | decomp/leaf_batch4.cpp |
-| `8287CCF0` | code 828xxxxx | 22 | `decomp::Sub_8287CCF0` | decomp/leaf_batch9.cpp |
-| `828C6468` | code 828xxxxx | 83 | `decomp::Sub_828C6468` | decomp/leaf_batch12.cpp |
-| `828CDC28` | code 828xxxxx | 30 | `decomp::Sub_828CDC28` | decomp/leaf_batch11.cpp |
-| `828D2700` | code 828xxxxx | 12 | `decomp::Sub_828D2700` | decomp/leaf_batch3.cpp |
-| `828FEE28` | code 828xxxxx | 16 | `decomp::Sub_828FEE28` | decomp/leaf_batch5.cpp |
+| `82726F50` | SpeedTree | 15 | `decomp::Sub_82726F50` | decomp/leaf_batch6.cpp |
+| `82726FC8` | SpeedTree | 15 | `decomp::Sub_82726FC8` | decomp/leaf_batch6.cpp |
+| `8272A530` | SpeedTree | 19 | `decomp::Sub_8272A530` | decomp/leaf_batch10.cpp |
+| `8272C558` | SpeedTree | 20 | `decomp::Sub_8272C558` | decomp/leaf_batch11.cpp |
+| `8272F260` | SpeedTree | 45 | `decomp::Sub_8272F260` | decomp/leaf_batch2.cpp |
+| `82730D90` | SpeedTree | 16 | `decomp::Sub_82730D90` | decomp/leaf_batch7.cpp |
+| `8273B2F8` | SpeedTree | 10 | `decomp::Sub_8273B2F8` | decomp/leaf_batch3.cpp |
+| `8273C678` | SpeedTree | 21 | `decomp::Sub_8273C678` | decomp/leaf_batch12.cpp |
+| `8273CC98` | SpeedTree | 18 | `decomp::Sub_8273CC98` | decomp/leaf_batch9.cpp |
+| `82740710` | SpeedTree | 17 | `decomp::Sub_82740710` | decomp/leaf_batch8.cpp |
+| `82743798` | XAPI (Win32 layer over the kernel and XAM) | 3 | `FilterPadState` | achievements_input.cpp |
+| `8278EA38` | XDK D3DX and XGraphics (shader compiler) | 28 | `decomp::Sub_8278EA38` | decomp/leaf_batch13.cpp |
+| `82793BB8` | XDK D3DX and XGraphics (shader compiler) | 10 | `decomp::Sub_82793BB8` | decomp/leaf_batch3.cpp |
+| `82793DF8` | XDK D3DX and XGraphics (shader compiler) | 19 | `decomp::Sub_82793DF8` | decomp/leaf_batch10.cpp |
+| `82793ED8` | XDK D3DX and XGraphics (shader compiler) | 13 | `decomp::Sub_82793ED8` | decomp/leaf_batch4.cpp |
+| `82794140` | XDK D3DX and XGraphics (shader compiler) | 18 | `decomp::Sub_82794140` | decomp/leaf_batch9.cpp |
+| `827944D8` | XDK D3DX and XGraphics (shader compiler) | 14 | `decomp::Sub_827944D8` | decomp/leaf_batch5.cpp |
+| `82794510` | XDK D3DX and XGraphics (shader compiler) | 14 | `decomp::Sub_82794510` | decomp/leaf_batch5.cpp |
+| `827945C0` | XDK D3DX and XGraphics (shader compiler) | 22 | `decomp::Sub_827945C0` | decomp/leaf_batch13.cpp |
+| `82794868` | XDK D3DX and XGraphics (shader compiler) | 22 | `decomp::Sub_82794868` | decomp/leaf_batch1.cpp |
+| `82794C58` | XDK D3DX and XGraphics (shader compiler) | 21 | `decomp::Sub_82794C58` | decomp/leaf_batch12.cpp |
+| `82794E68` | XDK D3DX and XGraphics (shader compiler) | 17 | `decomp::Sub_82794E68` | decomp/leaf_batch8.cpp |
+| `82794F60` | XDK D3DX and XGraphics (shader compiler) | 21 | `decomp::Sub_82794F60` | decomp/leaf_batch11.cpp |
+| `82794FB8` | XDK D3DX and XGraphics (shader compiler) | 21 | `decomp::Sub_82794FB8` | decomp/leaf_batch12.cpp |
+| `82795010` | XDK D3DX and XGraphics (shader compiler) | 22 | `decomp::Sub_82795010` | decomp/leaf_batch13.cpp |
+| `82795160` | XDK D3DX and XGraphics (shader compiler) | 21 | `decomp::Sub_82795160` | decomp/leaf_batch11.cpp |
+| `827C5CC8` | XDK D3DX and XGraphics (shader compiler) | 19 | `decomp::Sub_827C5CC8` | decomp/leaf_batch10.cpp |
+| `827C7F08` | XDK D3DX and XGraphics (shader compiler) | 16 | `decomp::Sub_827C7F08` | decomp/leaf_batch7.cpp |
+| `827F4660` | XDK D3DX and XGraphics (shader compiler) | 13 | `decomp::Sub_827F4660` | decomp/leaf_batch4.cpp |
+| `82807698` | XDK D3DX and XGraphics (shader compiler) | 16 | `decomp::Sub_82807698` | decomp/leaf_batch6.cpp |
+| `8281B120` | XDK D3DX and XGraphics (shader compiler) | 15 | `decomp::Sub_8281B120` | decomp/leaf_batch5.cpp |
+| `8281BDD0` | XDK D3DX and XGraphics (shader compiler) | 11 | `decomp::Sub_8281BDD0` | decomp/leaf_batch3.cpp |
+| `82832BF8` | XDK D3DX and XGraphics (shader compiler) | 21 | `decomp::Sub_82832BF8` | decomp/leaf_batch8.cpp |
+| `82832F88` | XDK D3DX and XGraphics (shader compiler) | 14 | `decomp::Sub_82832F88` | decomp/leaf_batch4.cpp |
+| `828397B8` | XDK D3DX and XGraphics (shader compiler) | 26 | `decomp::Sub_828397B8` | decomp/leaf_batch10.cpp |
+| `82839CF0` | XDK D3DX and XGraphics (shader compiler) | 32 | `decomp::Sub_82839CF0` | decomp/leaf_batch11.cpp |
+| `8283EEC8` | XDK D3DX and XGraphics (shader compiler) | 18 | `decomp::Sub_8283EEC8` | decomp/leaf_batch7.cpp |
+| `82844E88` | XDK D3DX and XGraphics (shader compiler) | 32 | `decomp::Sub_82844E88` | decomp/leaf_batch11.cpp |
+| `82845E00` | XDK D3DX and XGraphics (shader compiler) | 22 | `decomp::Sub_82845E00` | decomp/leaf_batch9.cpp |
+| `82846518` | XDK D3DX and XGraphics (shader compiler) | 19 | `decomp::Sub_82846518` | decomp/leaf_batch7.cpp |
+| `8284D670` | XDK D3DX and XGraphics (shader compiler) | 17 | `decomp::Sub_8284D670` | decomp/leaf_batch6.cpp |
+| `8284DBD8` | XDK D3DX and XGraphics (shader compiler) | 24 | `decomp::Sub_8284DBD8` | decomp/leaf_batch10.cpp |
+| `8285B180` | XDK D3DX and XGraphics (shader compiler) | 26 | `decomp::Sub_8285B180` | decomp/leaf_batch10.cpp |
+| `8285E988` | XDK D3DX and XGraphics (shader compiler) | 19 | `decomp::Sub_8285E988` | decomp/leaf_batch8.cpp |
+| `8287A968` | XDK D3DX and XGraphics (shader compiler) | 14 | `decomp::Sub_8287A968` | decomp/leaf_batch4.cpp |
+| `8287CCF0` | XDK D3DX and XGraphics (shader compiler) | 22 | `decomp::Sub_8287CCF0` | decomp/leaf_batch9.cpp |
+| `828C6468` | XDK D3DX and XGraphics (shader compiler) | 83 | `decomp::Sub_828C6468` | decomp/leaf_batch12.cpp |
+| `828CDC28` | XDK D3DX and XGraphics (shader compiler) | 30 | `decomp::Sub_828CDC28` | decomp/leaf_batch11.cpp |
+| `828D2700` | XDK D3DX and XGraphics (shader compiler) | 12 | `decomp::Sub_828D2700` | decomp/leaf_batch3.cpp |
+| `828FEE28` | XDK D3DX and XGraphics (shader compiler) | 16 | `decomp::Sub_828FEE28` | decomp/leaf_batch5.cpp |
 | `8292D4B0` | code 829xxxxx | 19 | `decomp::Sub_8292D4B0` | decomp/leaf_batch9.cpp |
 | `8293D600` | code 829xxxxx | 13 | `decomp::Sub_8293D600` | decomp/leaf_batch4.cpp |
 | `82944E58` | code 829xxxxx | 44 | `decomp::Sub_82944E58` | decomp/leaf_batch2.cpp |
 | `8294AA18` | code 829xxxxx | 40 | `decomp::Sub_8294AA18` | decomp/leaf_batch1.cpp |
 | `8294DDD0` | code 829xxxxx | 18 | `decomp::Sub_8294DDD0` | decomp/leaf_batch8.cpp |
-| `829518F0` | code 829xxxxx | 13 | `decomp::Sub_829518F0` | decomp/leaf_batch4.cpp |
-| `82953330` | code 829xxxxx | 14 | `decomp::Sub_82953330` | decomp/leaf_batch5.cpp |
-| `82957EE8` | code 829xxxxx | 22 | `decomp::Sub_82957EE8` | decomp/leaf_batch11.cpp |
-| `8297DEB0` | code 829xxxxx | 16 | `decomp::Sub_8297DEB0` | decomp/leaf_batch7.cpp |
-| `82981388` | code 829xxxxx | 25 | `decomp::Sub_82981388` | decomp/leaf_batch1.cpp |
-| `82987A58` | code 829xxxxx | 24 | `decomp::Sub_82987A58` | decomp/leaf_batch12.cpp |
-| `82988798` | code 829xxxxx | 24 | `decomp::Sub_82988798` | decomp/leaf_batch13.cpp |
-| `8298A330` | code 829xxxxx | 22 | `decomp::Sub_8298A330` | decomp/leaf_batch12.cpp |
-| `8298A828` | code 829xxxxx | 19 | `decomp::Sub_8298A828` | decomp/leaf_batch9.cpp |
-| `8298C970` | code 829xxxxx | 23 | `decomp::Sub_8298C970` | decomp/leaf_batch12.cpp |
-| `8298D7B0` | code 829xxxxx | 16 | `decomp::Sub_8298D7B0` | decomp/leaf_batch7.cpp |
-| `8298F838` | code 829xxxxx | 24 | `decomp::Sub_8298F838` | decomp/leaf_batch13.cpp |
-| `8298FA58` | code 829xxxxx | 15 | `decomp::Sub_8298FA58` | decomp/leaf_batch6.cpp |
-| `82993038` | code 829xxxxx | 10 | `decomp::Sub_82993038` | decomp/leaf_batch3.cpp |
-| `829A3680` | code 829xxxxx | 24 | `decomp::Sub_829A3680` | decomp/leaf_batch13.cpp |
-| `829DC450` | code 829xxxxx | 18 | `decomp::Sub_829DC450` | decomp/leaf_batch8.cpp |
-| `829DCDC8` | code 829xxxxx | 22 | `decomp::Sub_829DCDC8` | decomp/leaf_batch11.cpp |
-| `829EBFF8` | code 829xxxxx | 14 | `decomp::Sub_829EBFF8` | decomp/leaf_batch5.cpp |
-| `829EC030` | code 829xxxxx | 22 | `decomp::Sub_829EC030` | decomp/leaf_batch11.cpp |
-| `829EC830` | code 829xxxxx | 21 | `decomp::Sub_829EC830` | decomp/leaf_batch10.cpp |
-| `829F0F40` | code 829xxxxx | 15 | `decomp::Sub_829F0F40` | decomp/leaf_batch6.cpp |
-| `829F1438` | code 829xxxxx | 21 | `decomp::Sub_829F1438` | decomp/leaf_batch10.cpp |
-| `829F1AD8` | code 829xxxxx | 10 | `decomp::Sub_829F1AD8` | decomp/leaf_batch3.cpp |
-| `82A151E8` | code 82Axxxxx | 22 | `decomp::Sub_82A151E8` | decomp/leaf_batch12.cpp |
-| `82A24A70` | code 82Axxxxx | 16 | `decomp::Sub_82A24A70` | decomp/leaf_batch7.cpp |
-| `82A27D10` | code 82Axxxxx | 29 | `decomp::Sub_82A27D10` | decomp/leaf_batch13.cpp |
+| `829518F0` | Havok Physics | 13 | `decomp::Sub_829518F0` | decomp/leaf_batch4.cpp |
+| `82953330` | Havok Physics | 14 | `decomp::Sub_82953330` | decomp/leaf_batch5.cpp |
+| `82957EE8` | Havok Physics | 22 | `decomp::Sub_82957EE8` | decomp/leaf_batch11.cpp |
+| `8297DEB0` | Havok Physics | 16 | `decomp::Sub_8297DEB0` | decomp/leaf_batch7.cpp |
+| `82981388` | Havok Physics | 25 | `decomp::Sub_82981388` | decomp/leaf_batch1.cpp |
+| `82987A58` | Havok Physics | 24 | `decomp::Sub_82987A58` | decomp/leaf_batch12.cpp |
+| `82988798` | Havok Physics | 24 | `decomp::Sub_82988798` | decomp/leaf_batch13.cpp |
+| `8298A330` | Havok Physics | 22 | `decomp::Sub_8298A330` | decomp/leaf_batch12.cpp |
+| `8298A828` | Havok Physics | 19 | `decomp::Sub_8298A828` | decomp/leaf_batch9.cpp |
+| `8298C970` | Havok Physics | 23 | `decomp::Sub_8298C970` | decomp/leaf_batch12.cpp |
+| `8298D7B0` | Havok Physics | 16 | `decomp::Sub_8298D7B0` | decomp/leaf_batch7.cpp |
+| `8298F838` | Havok Physics | 24 | `decomp::Sub_8298F838` | decomp/leaf_batch13.cpp |
+| `8298FA58` | Havok Physics | 15 | `decomp::Sub_8298FA58` | decomp/leaf_batch6.cpp |
+| `82993038` | Havok Physics | 10 | `decomp::Sub_82993038` | decomp/leaf_batch3.cpp |
+| `829A3680` | Havok Physics | 24 | `decomp::Sub_829A3680` | decomp/leaf_batch13.cpp |
+| `829DC450` | Havok Physics | 18 | `decomp::Sub_829DC450` | decomp/leaf_batch8.cpp |
+| `829DCDC8` | Havok Physics | 22 | `decomp::Sub_829DCDC8` | decomp/leaf_batch11.cpp |
+| `829EBFF8` | Havok Physics | 14 | `decomp::Sub_829EBFF8` | decomp/leaf_batch5.cpp |
+| `829EC030` | Havok Physics | 22 | `decomp::Sub_829EC030` | decomp/leaf_batch11.cpp |
+| `829EC830` | Havok Physics | 21 | `decomp::Sub_829EC830` | decomp/leaf_batch10.cpp |
+| `829F0F40` | Havok Physics | 15 | `decomp::Sub_829F0F40` | decomp/leaf_batch6.cpp |
+| `829F1438` | Havok Physics | 21 | `decomp::Sub_829F1438` | decomp/leaf_batch10.cpp |
+| `829F1AD8` | Havok Physics | 10 | `decomp::Sub_829F1AD8` | decomp/leaf_batch3.cpp |
+| `82A151E8` | Kynapse (AI) | 22 | `decomp::Sub_82A151E8` | decomp/leaf_batch12.cpp |
+| `82A24A70` | Kynapse (AI) | 16 | `decomp::Sub_82A24A70` | decomp/leaf_batch7.cpp |
+| `82A27D10` | Kynapse (AI) | 29 | `decomp::Sub_82A27D10` | decomp/leaf_batch13.cpp |
 | `82A3F0A0` | code 82Axxxxx | 14 | `decomp::Sub_82A3F0A0` | decomp/leaf_batch5.cpp |
 | `82A45648` | code 82Axxxxx | 18 | `decomp::Sub_82A45648` | decomp/leaf_batch9.cpp |
-| `82A49908` | code 82Axxxxx | 21 | `AudioReleaseHandle` | title_compat.cpp |
-| `82A4BEF8` | code 82Axxxxx | 24 | `AudioMixerCallback` | audio_mixer_priority.cpp |
-| `82A4BF98` | code 82Axxxxx | 17 | `decomp::Sub_82A4BF98` | decomp/leaf_batch8.cpp |
-| `82A4F8A8` | code 82Axxxxx | 21 | `decomp::Sub_82A4F8A8` | decomp/leaf_batch11.cpp |
-| `82A4FA70` | code 82Axxxxx | 3 | `AudioResetEvent` | audio_guest_sync.cpp |
-| `82A50000` | code 82Axxxxx | 64 | `AudioBarrier` | audio_guest_sync.cpp |
-| `82A52168` | code 82Axxxxx | 29 | `decomp::Sub_82A52168` | decomp/leaf_batch13.cpp |
+| `82A49908` | XDK audio (XAudio, XMA) | 21 | `AudioReleaseHandle` | title_compat.cpp |
+| `82A4BEF8` | XDK audio (XAudio, XMA) | 24 | `AudioMixerCallback` | audio_mixer_priority.cpp |
+| `82A4BF98` | XDK audio (XAudio, XMA) | 17 | `decomp::Sub_82A4BF98` | decomp/leaf_batch8.cpp |
+| `82A4F8A8` | XDK audio (XAudio, XMA) | 21 | `decomp::Sub_82A4F8A8` | decomp/leaf_batch11.cpp |
+| `82A4FA70` | XDK audio (XAudio, XMA) | 3 | `AudioResetEvent` | audio_guest_sync.cpp |
+| `82A50000` | XDK audio (XAudio, XMA) | 64 | `AudioBarrier` | audio_guest_sync.cpp |
+| `82A52168` | XDK audio (XAudio, XMA) | 29 | `decomp::Sub_82A52168` | decomp/leaf_batch13.cpp |
 | `82A792E0` | code 82Axxxxx | 14 | `decomp::Sub_82A792E0` | decomp/leaf_batch5.cpp |
 | `82A85C38` | code 82Axxxxx | 10 | `decomp::Sub_82A85C38` | decomp/leaf_batch3.cpp |
 | `82A85E18` | code 82Axxxxx | 20 | `decomp::Sub_82A85E18` | decomp/leaf_batch11.cpp |
 | `82A85FD0` | code 82Axxxxx | 18 | `decomp::Sub_82A85FD0` | decomp/leaf_batch9.cpp |
-| `82A89BE0` | code 82Axxxxx | 10 | `decomp::Sub_82A89BE0` | decomp/leaf_batch3.cpp |
-| `82A94078` | code 82Axxxxx | 33 | `decomp::Sub_82A94078` | decomp/leaf_batch1.cpp |
-| `82A95278` | code 82Axxxxx | 24 | `decomp::Sub_82A95278` | decomp/leaf_batch12.cpp |
-| `82A95780` | code 82Axxxxx | 41 | `decomp::Sub_82A95780` | decomp/leaf_batch2.cpp |
-| `82A97790` | code 82Axxxxx | 17 | `decomp::Sub_82A97790` | decomp/leaf_batch8.cpp |
-| `82AAAB88` | code 82Axxxxx | 19 | `decomp::Sub_82AAAB88` | decomp/leaf_batch10.cpp |
-| `82AB2FF0` | code 82Axxxxx | 29 | `decomp::Sub_82AB2FF0` | decomp/leaf_batch13.cpp |
-| `82AB52B0` | code 82Axxxxx | 16 | `decomp::Sub_82AB52B0` | decomp/leaf_batch7.cpp |
-| `82AB52F0` | code 82Axxxxx | 15 | `decomp::Sub_82AB52F0` | decomp/leaf_batch6.cpp |
-| `82AB5F10` | code 82Axxxxx | 66 | `CrtMemmove` | crt_native.cpp |
-| `82AB5FD0` | code 82Axxxxx | 15 | `decomp::Sub_82AB5FD0` | decomp/leaf_batch6.cpp |
-| `82ABDE40` | CRT register save/restore helpers | 161 | `CrtMemset` | crt_native.cpp |
-| `82ABDF90` | CRT register save/restore helpers | 251 | `CrtMemcpy` | crt_native.cpp |
-| `82AC4470` | code 82Axxxxx | 13 | `decomp::Sub_82AC4470` | decomp/leaf_batch4.cpp |
+| `82A89BE0` | XDK Xbox Live and voice (XOnline, XHV) | 10 | `decomp::Sub_82A89BE0` | decomp/leaf_batch3.cpp |
+| `82A94078` | XDK Xbox Live and voice (XOnline, XHV) | 33 | `decomp::Sub_82A94078` | decomp/leaf_batch1.cpp |
+| `82A95278` | XDK Xbox Live and voice (XOnline, XHV) | 24 | `decomp::Sub_82A95278` | decomp/leaf_batch12.cpp |
+| `82A95780` | XDK Xbox Live and voice (XOnline, XHV) | 41 | `decomp::Sub_82A95780` | decomp/leaf_batch2.cpp |
+| `82A97790` | XDK Xbox Live and voice (XOnline, XHV) | 17 | `decomp::Sub_82A97790` | decomp/leaf_batch8.cpp |
+| `82AAAB88` | Havok Physics | 19 | `decomp::Sub_82AAAB88` | decomp/leaf_batch10.cpp |
+| `82AB2FF0` | Havok Physics | 29 | `decomp::Sub_82AB2FF0` | decomp/leaf_batch13.cpp |
+| `82AB52B0` | C runtime (CRT) | 16 | `decomp::Sub_82AB52B0` | decomp/leaf_batch7.cpp |
+| `82AB52F0` | C runtime (CRT) | 15 | `decomp::Sub_82AB52F0` | decomp/leaf_batch6.cpp |
+| `82AB5F10` | C runtime (CRT) | 66 | `CrtMemmove` | crt_native.cpp |
+| `82AB5FD0` | C runtime (CRT) | 15 | `decomp::Sub_82AB5FD0` | decomp/leaf_batch6.cpp |
+| `82ABDE40` | C runtime (CRT) | 161 | `CrtMemset` | crt_native.cpp |
+| `82ABDF90` | C runtime (CRT) | 251 | `CrtMemcpy` | crt_native.cpp |
+| `82AC4470` | C runtime (CRT) | 13 | `decomp::Sub_82AC4470` | decomp/leaf_batch4.cpp |
 | `82AD8038` | code 82Axxxxx | 22 | `decomp::Sub_82AD8038` | decomp/leaf_batch12.cpp |
-| `82AED2C0` | code 82Axxxxx | 19 | `decomp::Sub_82AED2C0` | decomp/leaf_batch10.cpp |
-| `82AEDC80` | code 82Axxxxx | 13 | `decomp::Sub_82AEDC80` | decomp/leaf_batch4.cpp |
+| `82AED2C0` | Lua | 19 | `decomp::Sub_82AED2C0` | decomp/leaf_batch10.cpp |
+| `82AEDC80` | Lua | 13 | `decomp::Sub_82AEDC80` | decomp/leaf_batch4.cpp |
 | `82B0FB40` | code 82Bxxxxx | 29 | `decomp::Sub_82B0FB40` | decomp/leaf_batch10.cpp |
 | `82B0FDA8` | code 82Bxxxxx | 13 | `decomp::Sub_82B0FDA8` | decomp/leaf_batch4.cpp |
 | `82B0FE18` | code 82Bxxxxx | 13 | `decomp::Sub_82B0FE18` | decomp/leaf_batch4.cpp |
@@ -729,7 +739,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82B4A610` | code 82Bxxxxx | 16 | `decomp::Sub_82B4A610` | decomp/leaf_batch7.cpp |
 | `82B4A7A0` | code 82Bxxxxx | 16 | `decomp::Sub_82B4A7A0` | decomp/leaf_batch7.cpp |
 | `82B52010` | code 82Bxxxxx | 17 | `decomp::Sub_82B52010` | decomp/leaf_batch8.cpp |
-| `82B6F290` | code 82Bxxxxx | 32 | `decomp::Sub_82B6F290` | decomp/leaf_batch11.cpp |
+| `82B6F290` | Bink video | 32 | `decomp::Sub_82B6F290` | decomp/leaf_batch11.cpp |
 
 </details>
 
@@ -741,7 +751,7 @@ Any360's own steps towards hosting a title without ReXGlue's runtime ([Any360 RE
 |---|---|---|
 | 9 | no call reaching the runtime: every path, the raw hard drive devices, the profile defaults on `any360::sys` | done (Crackdown; the host stays ReXGlue's until step 13) |
 | 10 | a second title (The Simpsons Game) on the full system binding | done (all groups, levels, saves, sound, gamepad) |
-| 11 | third and fourth titles (Test Drive Unlimited, Sonic 06) | not started |
+| 11 | third and fourth titles (Test Drive Unlimited, Sonic 06) | partial: Test Drive Unlimited boots to its title screen with all eight groups on `any360::sys` and no call reaching the runtime; gameplay, saves and sound not checked yet; Sonic 06 not started |
 | 12 | paths no title took yet: `XMA*` decoding, STFS packages, several users, guide UIs, Live offline, xbdm | partial: 602 of 2,914 exports native with scenario tests, none of the 2,294 reference stubs sorted |
 | 13 | Any360's own host: XEX loader, address space, threads, guest dispatch, MMIO, devices | not started |
 | 14 | the platform layer: window, input, audio, presenter on Windows and Linux (Steam Deck) | partial: SDL3 audio output only |
