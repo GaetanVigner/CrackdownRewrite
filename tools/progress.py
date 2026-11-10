@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """Progress of the native renderer work, as a chart for the README.
 
-Writes docs/progress/history.json and docs/progress/progress.svg from:
+Writes docs/progress/renderer/history.json and docs/progress/renderer/progress.svg from:
 - the git history: for each day with commits on the current branch (first parent, last commit of the day), how many
-  of the title's D3D runtime entry points (docs/progress/d3d_entry_points.txt) the port hooks: every draw, state flush,
+  of the title's D3D runtime entry points (docs/progress/renderer/d3d_entry_points.txt) the port hooks: every draw, state flush,
   resolve and command buffer replay the native renderer takes over goes through one of them;
-- docs/progress/measurements.json, appended by hand after each capture comparison: the share of GPU draws whose state
+- docs/progress/renderer/measurements.json, appended by hand after each capture comparison: the share of GPU draws whose state
   the HLE draw records reproduce exactly, render passes covered, and the roadmap.
 
 Usage: python tools/progress.py [--worktree]   (--worktree adds today's uncommitted sources as the last point)
@@ -19,7 +19,7 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / 'docs' / 'progress'
+OUT = ROOT / 'docs' / 'progress' / 'renderer'
 HOOK = re.compile(r'(?:CRACKDOWN_BIND(?:_REPLACEMENT)?\(|REX_HOOK(?:_RAW)?\(sub_)(826[A-C][0-9A-F]{4})\b')
 
 

@@ -1,0 +1,36 @@
+{
+ "title": "Crackdown",
+ "date": "2026-11-10",
+ "system_calls": {
+  "total": 248,
+  "any360": 248,
+  "ready": 0,
+  "runtime": 0,
+  "stub": 0,
+  "missing": 0
+ },
+ "gpu_units": {
+  "total": 323,
+  "native": 283,
+  "bound": true
+ },
+ "functions": {
+  "total": 41219,
+  "native": 402,
+  "verified": 291,
+  "library": 449,
+  "recompiled": 40077
+ },
+ "game_functions": {
+  "total": 40453,
+  "native": 376,
+  "verified": 0
+ },
+ "instructions": {
+  "total": 2667844,
+  "native": 31514,
+  "verified": 4546,
+  "library": 40853,
+  "recompiled": 2590931
+ }
+}
