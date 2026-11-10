@@ -12,9 +12,9 @@ Generated on 2026-11-10 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 281 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 80 | 6,377 | 1.3% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 82 | 6,377 | 1.3% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 31,514 | 2,667,844 | 1.2% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 31,797 | 2,667,844 | 1.2% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -322,7 +322,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | code 82Axxxxx | game | 1,258 | 65,283 | 7 | 0 | 1,251 | 0.6% |
 | Kynapse (AI) | middleware | 947 | 56,021 | 3 | 0 | 944 | 0.3% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
-| C runtime (CRT) | library | 595 | 41,901 | 7 | 0 | 588 | 1.2% |
+| C runtime (CRT) | library | 595 | 41,901 | 8 | 0 | 587 | 1.3% |
 | XDK D3D runtime | library | 553 | 34,977 | 21 | 262 | 270 | 3.8% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
@@ -331,10 +331,10 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XDK Xbox Live and voice (XOnline, XHV) | library | 378 | 21,114 | 5 | 0 | 373 | 1.3% |
 | Massive (in-game advertising) | middleware | 368 | 16,437 | 0 | 0 | 368 | 0% |
 | Bink video | middleware | 127 | 16,392 | 1 | 0 | 126 | 0.8% |
-| XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 1 | 0 | 193 | 0.5% |
+| XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 402 rewritten functions</summary>
+<details><summary>The 404 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -614,6 +614,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `8273C678` | SpeedTree | 21 | `decomp::Sub_8273C678` | decomp/leaf_batch12.cpp |
 | `8273CC98` | SpeedTree | 18 | `decomp::Sub_8273CC98` | decomp/leaf_batch9.cpp |
 | `82740710` | SpeedTree | 17 | `decomp::Sub_82740710` | decomp/leaf_batch8.cpp |
+| `827427F0` | XAPI (Win32 layer over the kernel and XAM) | 204 | `XdkVectorCopy` | crt_native.cpp |
 | `82743798` | XAPI (Win32 layer over the kernel and XAM) | 3 | `FilterPadState` | achievements_input.cpp |
 | `8278EA38` | XDK D3DX and XGraphics (shader compiler) | 28 | `decomp::Sub_8278EA38` | decomp/leaf_batch13.cpp |
 | `82793BB8` | XDK D3DX and XGraphics (shader compiler) | 10 | `decomp::Sub_82793BB8` | decomp/leaf_batch3.cpp |
@@ -711,6 +712,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82AB5FD0` | C runtime (CRT) | 15 | `decomp::Sub_82AB5FD0` | decomp/leaf_batch6.cpp |
 | `82ABDE40` | C runtime (CRT) | 161 | `CrtMemset` | crt_native.cpp |
 | `82ABDF90` | C runtime (CRT) | 251 | `CrtMemcpy` | crt_native.cpp |
+| `82ABE3B0` | C runtime (CRT) | 79 | `CrtCopyForward` | crt_native.cpp |
 | `82AC4470` | C runtime (CRT) | 13 | `decomp::Sub_82AC4470` | decomp/leaf_batch4.cpp |
 | `82AD8038` | code 82Axxxxx | 22 | `decomp::Sub_82AD8038` | decomp/leaf_batch12.cpp |
 | `82AED2C0` | Lua | 19 | `decomp::Sub_82AED2C0` | decomp/leaf_batch10.cpp |

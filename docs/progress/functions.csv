@@ -22197,7 +22197,7 @@ address,module,kind,instructions,state,handler,file
 82742568,XAPI (Win32 layer over the kernel and XAM),library,18,library,,
 827425B0,XAPI (Win32 layer over the kernel and XAM),library,68,library,,
 827426C0,XAPI (Win32 layer over the kernel and XAM),library,75,library,,
-827427F0,XAPI (Win32 layer over the kernel and XAM),library,204,library,,
+827427F0,XAPI (Win32 layer over the kernel and XAM),library,204,native,XdkVectorCopy,crt_native.cpp
 82742B28,XAPI (Win32 layer over the kernel and XAM),library,121,library,,
 82742D10,XAPI (Win32 layer over the kernel and XAM),library,1,library,,
 82742D18,XAPI (Win32 layer over the kernel and XAM),library,89,library,,
@@ -33238,7 +33238,7 @@ address,module,kind,instructions,state,handler,file
 82ABDE40,C runtime (CRT),library,161,native,CrtMemset,crt_native.cpp
 82ABDF84,C runtime (CRT),library,18,library,,
 82ABDF90,C runtime (CRT),library,251,native,CrtMemcpy,crt_native.cpp
-82ABE3B0,C runtime (CRT),library,79,library,,
+82ABE3B0,C runtime (CRT),library,79,native,CrtCopyForward,crt_native.cpp
 82ABE458,C runtime (CRT),library,138,library,,
 82ABE4F0,C runtime (CRT),library,17,library,,
 82ABE4F8,C runtime (CRT),library,16,library,,

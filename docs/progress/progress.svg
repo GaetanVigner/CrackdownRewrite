@@ -1177,7 +1177,7 @@
 <rect x="646.4" y="494.7" width="13.0" height="13.0" fill="#8957e5"/>
 <rect x="605.8" y="508.3" width="13.0" height="13.0" fill="#8957e5"/>
 <rect x="619.3" y="508.3" width="13.0" height="13.0" fill="#8957e5"/>
-<rect x="605.8" y="453.8" width="54.2" height="68.2" fill="none" stroke="#0d1117" stroke-width="2"><title>C runtime (CRT): 7 native, 588 library</title></rect>
+<rect x="605.8" y="453.8" width="54.2" height="68.2" fill="none" stroke="#0d1117" stroke-width="2"><title>C runtime (CRT): 8 native, 587 library</title></rect>
 <rect x="488.9" y="521.9" width="15.1" height="10.5" fill="#2da44e"/>
 <rect x="504.6" y="521.9" width="15.1" height="10.5" fill="#1b7c83"/>
 <rect x="520.3" y="521.9" width="15.1" height="10.5" fill="#1b7c83"/>
@@ -1275,7 +1275,7 @@
 <rect x="637.9" y="583.5" width="10.4" height="11.5" fill="#8957e5"/>
 <rect x="649.0" y="583.5" width="10.4" height="11.5" fill="#8957e5"/>
 <rect x="626.9" y="595.6" width="10.4" height="11.5" fill="#8957e5"/>
-<rect x="626.9" y="571.4" width="33.1" height="36.4" fill="none" stroke="#0d1117" stroke-width="2"><title>XAPI (Win32 layer over the kernel and XAM): 1 native, 193 library</title></rect>
+<rect x="626.9" y="571.4" width="33.1" height="36.4" fill="none" stroke="#0d1117" stroke-width="2"><title>XAPI (Win32 layer over the kernel and XAM): 2 native, 192 library</title></rect>
 <rect x="626.9" y="607.8" width="10.3" height="11.5" fill="#2da44e"/>
 <rect x="637.8" y="607.8" width="10.3" height="11.5" fill="#1b7c83"/>
 <rect x="648.6" y="607.8" width="10.3" height="11.5" fill="#1b7c83"/>

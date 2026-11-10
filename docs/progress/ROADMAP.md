@@ -47,11 +47,11 @@ SDK code linked into the executable is not decompiled: Any360 provides the same 
 | Library range | Functions | Instructions | Replaced | Verified in the sandbox | Left |
 |---|---|---|---|---|---|
 | XDK D3DX and XGraphics (shader compiler) | 4,171 | 487,670 | 39 | 0 | 4,132 |
-| C runtime (CRT) | 595 | 41,901 | 7 | 0 | 588 |
+| C runtime (CRT) | 595 | 41,901 | 8 | 0 | 587 |
 | XDK D3D runtime | 553 | 34,977 | 21 | 262 | 532 |
 | XDK audio (XAudio, XMA) | 484 | 28,795 | 7 | 0 | 477 |
 | XDK Xbox Live and voice (XOnline, XHV) | 378 | 21,114 | 5 | 0 | 373 |
-| XAPI (Win32 layer over the kernel and XAM) | 194 | 9,291 | 1 | 0 | 193 |
+| XAPI (Win32 layer over the kernel and XAM) | 194 | 9,291 | 2 | 0 | 192 |
 | kernel import thunks | 2 | 6 | 0 | 0 | 2 |
 
 Third-party middleware the game links (physics, AI, scripting, video and the like) is neither the game's own code nor something Any360 provides. It is not rewritten function by function: it stays recompiled, or is replaced by the vendor's library for the target platform (or an open implementation) once the game's code around it is portable.
