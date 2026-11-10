@@ -1,3 +1,4 @@
+#include "any360/host/rexglue.h"
 #include "frame_rate.h"
 
 #include <algorithm>
@@ -142,7 +143,12 @@ void crackdown::hooks::SwapBuilder(PPCContext& ctx, uint8_t* base, GuestFunction
 
 // Named like the SDK's export, so REX_EXTERN would call this hook again: the original is called by its entry point.
 REX_HOOK_RAW(__imp__VdSwap) {
-  rex::ppc::HostToGuestFunction<rex::kernel::xboxkrnl::VdSwap_entry>(ctx, base);
+  // Test branch any360-graphics-test: with the GPU bound to Any360, its VdSwap builds the swap packets.
+  if (any360::host::rexglue::GraphicsBound()) {
+    any360_VdSwap(ctx, base);
+  } else {
+    rex::ppc::HostToGuestFunction<rex::kernel::xboxkrnl::VdSwap_entry>(ctx, base);
+  }
   if (!t_repeat_present) {
     crackdown::CountGuestFrame();
   }

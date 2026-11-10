@@ -96,6 +96,7 @@ const std::vector<std::string> kGameSettingKeys = [] {
       "internal_render_scale",
       "swap_post_effect",
       "crackdown_msaa_compatibility",
+      "any360_gpu_msaa",
       "crackdown_detailed_logging",
       "anisotropic_override",
       "mnk_mode",

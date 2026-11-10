@@ -884,10 +884,19 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
              {{"100", "100% Native"}, {"75", "75% Performance"}, {"50", "50% Low-end"}});
     ui.Choice("Anti-aliasing", "Smooths jagged edges after the frame is drawn. Extreme is softer but cleaner.",
               "swap_post_effect", "none", {{"none", "Off"}, {"fxaa", "FXAA"}, {"fxaa_extreme", "FXAA Extreme"}});
-    ui.Toggle("Multisampling",
-              "The game draws parts of the scene with multisampling, which cannot be turned off. 2\xC3\x97 MSAA is "
-              "fastest; try 4\xC3\x97 only if the 2\xC3\x97 parts show graphics problems.",
-              "crackdown_msaa_compatibility", false, "2\xC3\x97 MSAA", "4\xC3\x97 MSAA (Compatibility)");
+    if (rex::cvar::GetFlagByName("any360_gpu") == "true") {
+      // Any360's renderer: MSAA of its own over the 3D scene, apart from the render resolution.
+      ui.Choice("Multisampling",
+                "Smooths the edges of 3D objects (MSAA). More samples cost more GPU time, on top of the render "
+                "resolution.",
+                "any360_gpu_msaa", "1",
+                {{"1", "Off"}, {"2", "2\xC3\x97"}, {"4", "4\xC3\x97"}, {"8", "8\xC3\x97"}});
+    } else {
+      ui.Toggle("Multisampling",
+                "The game draws parts of the scene with multisampling, which cannot be turned off. 2\xC3\x97 MSAA is "
+                "fastest; try 4\xC3\x97 only if the 2\xC3\x97 parts show graphics problems.",
+                "crackdown_msaa_compatibility", false, "2\xC3\x97 MSAA", "4\xC3\x97 MSAA (Compatibility)");
+    }
     ui.Choice("Texture filtering",
               "Anisotropic filtering keeps textures sharp at oblique angles. Game leaves it to the game.",
               "anisotropic_override", "3",

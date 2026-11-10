@@ -1,0 +1,381 @@
+gpu_any360_capture (off, hot reload): with a draw trace (gpu_draw_trace, which F8 and crackdown_hle_auto_capture
+start), also writes an Any360 frame capture of the same frames to <trace>.a360cap (hle_gpu_N.a360cap): the register
+file, active shaders and display gamma ramp at the first kick after the trace starts, then before every primary
+buffer execution the physical memory pages changed since the last one and the ring span, and after every swap the
+presenter's frame. The
+writer (any360_capture.h/.cpp) is copied from Any360 (github.com/GaetanVigner/Any360, layer/gfx capture.h), whose
+gfx_replay replays the file through Any360's command processor and Vulkan renderer and compares the frames
+(docs/CAPTURE.md there). Page hashing costs tens of milliseconds per kick while it records. Captures hold game data:
+keep them local. With the cvar off nothing changes.
+diff --git a/include/rex/graphics/any360_capture.h b/include/rex/graphics/any360_capture.h
+new file mode 100644
+index 0000000..a086a3a
+--- /dev/null
++++ b/include/rex/graphics/any360_capture.h
+@@ -0,0 +1,69 @@
++// Copied from Any360 (github.com/GaetanVigner/Any360, layer/gfx/include/any360/gfx/capture.h): the frame capture
++// writer, so any360::gfx's gfx_replay can replay this reference's frames. Format and its documentation: Any360's
++// docs/CAPTURE.md.
++//
++// Frame captures: what a GPU front end executed, recorded so any360::gfx can replay it offline and say what a real
++// title's frames need (the draws it cannot make yet, the GPU units they use) and how close its image is to the
++// reference's. Producer-agnostic: ReXGlue's command processor (in a title's repository) or any360::gfx's own feed
++// the same writer from two hooks, a kick of the ring and a swap.
++//
++// File (little-endian): the magic "A360CAP\0", a u32 version, then chunks of {u32 type, u32 0, u64 payload bytes,
++// payload}:
++//   kInfo       UTF-8 text: the producer, the title, the place
++//   kMemory     u32 physical bytes (the guest's physical memory size the capture covers)
++//   kRegisters  u32 count, count u32 values: the register file when the capture starts
++//   kPages      u32 count, then count times {u32 page index, 4096 bytes}: physical memory pages that changed (all
++//               non-zero pages the first time)
++//   kKick       u32 ring base (physical), u32 ring dwords, u32 read index, u32 write index: the ring the GPU then ran
++//               from read to write (its contents are in the pages)
++//   kFrame      u32 width, u32 height, width * height RGBA8 pixels (R in the low byte): the reference's presented
++//               frame at a swap (optional)
++//   kShaders    u32 vertex dwords, u32 pixel dwords, then the active shaders' microcode (host order) when the
++//               capture starts (optional: a capture starting mid-stream otherwise lacks them until the next load)
++// The pages hold the title's data: captures stay on the machine that made them, never in a repository.
++#pragma once
++
++#include <cstdint>
++#include <cstdio>
++#include <string>
++#include <vector>
++
++namespace rex::graphics::any360_capture {
++
++constexpr uint32_t kVersion = 1, kPageBytes = 4096;
++enum ChunkType : uint32_t { kInfo = 1, kMemory = 2, kRegisters = 3, kPages = 4, kKick = 5, kFrame = 6, kShaders = 7, kGammaRamp = 8 };
++
++class Writer {
++ public:
++  ~Writer() { Close(); }
++  // Starts a capture of `physical` (the guest's physical memory, `bytes` long) with the register file `registers`
++  // (`count` dwords) as it is now.
++  bool Open(const std::string& path, const uint8_t* physical, uint32_t bytes, const uint32_t* registers, uint32_t count,
++            const std::string& info);
++  // The active shaders when the capture starts (host-order microcode), if the producer knows them.
++  void Shaders(const std::vector<uint32_t>& vertex, const std::vector<uint32_t>& pixel);
++  // The display gamma ramp when the capture starts (256 table entries, 384 PWL values).
++  void GammaRamp(const uint32_t* table, const uint32_t* pwl);
++  // Before the GPU runs the ring from `read` to `write`: the pages written since the last kick, then the kick.
++  void Kick(uint32_t ring_base, uint32_t ring_dwords, uint32_t read, uint32_t write);
++  // The reference's frame at a swap.
++  void Frame(uint32_t width, uint32_t height, const uint32_t* rgba);
++  void Close();
++  bool is_open() const { return file_ != nullptr; }
++  uint64_t bytes_written() const { return written_; }
++
++ private:
++  void Chunk(uint32_t type, const void* a, uint64_t a_bytes, const void* b = nullptr, uint64_t b_bytes = 0);
++  void WriteChangedPages();
++
++  std::FILE* file_ = nullptr;
++  const uint8_t* physical_ = nullptr;
++  uint32_t bytes_ = 0;
++  std::vector<uint64_t> page_hashes_;
++  uint64_t written_ = 0;
++};
++
++// A fast 64-bit hash of a page (change detection, not security).
++uint64_t PageHash(const uint8_t* page);
++
++}  // namespace rex::graphics::any360_capture
+diff --git a/include/rex/graphics/command_processor.h b/include/rex/graphics/command_processor.h
+index 4a849fc..84c397a 100644
+--- a/include/rex/graphics/command_processor.h
++++ b/include/rex/graphics/command_processor.h
+@@ -150,6 +150,9 @@ class CommandProcessor {
+   // gpu_draw_trace_resolve_data: whether the trace records resolve contents, and the record of the
+   // last resolve's guest memory bytes (read back by the backend).
+   bool DrawTraceResolveDataWanted() const;
++  // gpu_any360_capture: at the start of every primary buffer execution, and after every swap.
++  void Any360CaptureKick(uint32_t read_index, uint32_t write_index);
++  void Any360CaptureSwap();
+   void DrawTraceResolveData(uint32_t address, const void* data, uint32_t length);
+   // The readback mode set by the cvars, ignoring the one gpu_draw_trace_resolve_data forces, and
+   // whether that mode copies a resolve of `length` bytes back to guest memory.
+diff --git a/src/graphics/CMakeLists.txt b/src/graphics/CMakeLists.txt
+index a2d471a..0cd7a0d 100644
+--- a/src/graphics/CMakeLists.txt
++++ b/src/graphics/CMakeLists.txt
+@@ -19,6 +19,7 @@ set(REXGPU_XENOS_SOURCES
+     # GPU system
+     graphics_system.cpp
+     command_processor.cpp
++    any360_capture.cpp
+     guest_wake.cpp
+     util/draw_extent_estimator.cpp
+     util/draw.cpp
+diff --git a/src/graphics/any360_capture.cpp b/src/graphics/any360_capture.cpp
+new file mode 100644
+index 0000000..8a3f9c6
+--- /dev/null
++++ b/src/graphics/any360_capture.cpp
+@@ -0,0 +1,125 @@
++// Copied from Any360 (layer/gfx/src/capture.cpp): the writer half.
++#include "rex/graphics/any360_capture.h"
++
++#include <algorithm>
++#include <cstring>
++#include <thread>
++
++
++namespace rex::graphics::any360_capture {
++
++namespace {
++constexpr char kMagic[8] = {'A', '3', '6', '0', 'C', 'A', 'P', '\0'};
++}
++
++uint64_t PageHash(const uint8_t* page) {
++  // Multiply-xorshift over 8-byte words: about the speed of a memory read.
++  uint64_t h = 0x9E3779B97F4A7C15ull;
++  for (uint32_t i = 0; i < kPageBytes; i += 8) {
++    uint64_t w;
++    std::memcpy(&w, page + i, 8);
++    h = (h ^ w) * 0xBF58476D1CE4E5B9ull;
++    h ^= h >> 31;
++  }
++  return h;
++}
++
++bool Writer::Open(const std::string& path, const uint8_t* physical, uint32_t bytes, const uint32_t* registers,
++                  uint32_t count, const std::string& info) {
++  Close();
++  file_ = std::fopen(path.c_str(), "wb");
++  if (!file_) return false;
++  physical_ = physical;
++  bytes_ = bytes & ~(kPageBytes - 1);
++  written_ = 0;
++  std::fwrite(kMagic, 1, 8, file_);
++  std::fwrite(&kVersion, 4, 1, file_);
++  written_ += 12;
++  Chunk(kInfo, info.data(), info.size());
++  Chunk(kMemory, &bytes_, 4);
++  Chunk(kRegisters, &count, 4, registers, uint64_t(count) * 4);
++  // Every page starts as "zero": the first kick writes all the pages that hold anything.
++  static const uint8_t zero[kPageBytes] = {};
++  page_hashes_.assign(bytes_ / kPageBytes, PageHash(zero));
++  return true;
++}
++
++void Writer::Shaders(const std::vector<uint32_t>& vertex, const std::vector<uint32_t>& pixel) {
++  if (!file_) return;
++  std::vector<uint32_t> payload = {uint32_t(vertex.size()), uint32_t(pixel.size())};
++  payload.insert(payload.end(), vertex.begin(), vertex.end());
++  payload.insert(payload.end(), pixel.begin(), pixel.end());
++  Chunk(kShaders, payload.data(), payload.size() * 4);
++}
++
++void Writer::GammaRamp(const uint32_t* table, const uint32_t* pwl) {
++  if (!file_) return;
++  Chunk(kGammaRamp, table, 256 * 4, pwl, 384 * 4);
++}
++
++void Writer::WriteChangedPages() {
++  // Hashing all of memory at every kick is the capture's cost (512 MB: tens of milliseconds): split over threads.
++  const uint32_t pages = uint32_t(page_hashes_.size());
++  const uint32_t workers = pages < 4096 ? 1 : std::clamp(std::thread::hardware_concurrency(), 1u, 16u);
++  std::vector<std::vector<uint32_t>> found(workers);
++  auto scan = [&](uint32_t w) {
++    for (uint32_t p = pages * uint64_t(w) / workers, end = pages * uint64_t(w + 1) / workers; p < end; ++p) {
++      const uint64_t h = PageHash(physical_ + size_t(p) * kPageBytes);
++      if (h != page_hashes_[p]) {
++        page_hashes_[p] = h;
++        found[w].push_back(p);
++      }
++    }
++  };
++  if (workers == 1) {
++    scan(0);
++  } else {
++    std::vector<std::thread> threads;
++    for (uint32_t w = 0; w < workers; ++w) threads.emplace_back(scan, w);
++    for (std::thread& t : threads) t.join();
++  }
++  std::vector<uint32_t> changed;
++  for (const auto& f : found) changed.insert(changed.end(), f.begin(), f.end());
++  if (changed.empty()) return;
++  const uint32_t count = uint32_t(changed.size());
++  const uint64_t payload = 4 + uint64_t(count) * (4 + kPageBytes);
++  const uint32_t header[2] = {kPages, 0};
++  std::fwrite(header, 4, 2, file_);
++  std::fwrite(&payload, 8, 1, file_);
++  std::fwrite(&count, 4, 1, file_);
++  for (uint32_t p : changed) {
++    std::fwrite(&p, 4, 1, file_);
++    std::fwrite(physical_ + size_t(p) * kPageBytes, 1, kPageBytes, file_);
++  }
++  written_ += 16 + payload;
++}
++
++void Writer::Kick(uint32_t ring_base, uint32_t ring_dwords, uint32_t read, uint32_t write) {
++  if (!file_) return;
++  WriteChangedPages();
++  const uint32_t kick[4] = {ring_base, ring_dwords, read, write};
++  Chunk(kKick, kick, sizeof(kick));
++}
++
++void Writer::Frame(uint32_t width, uint32_t height, const uint32_t* rgba) {
++  if (!file_) return;
++  const uint32_t size[2] = {width, height};
++  Chunk(kFrame, size, 8, rgba, uint64_t(width) * height * 4);
++}
++
++void Writer::Close() {
++  if (file_) std::fclose(file_);
++  file_ = nullptr;
++}
++
++void Writer::Chunk(uint32_t type, const void* a, uint64_t a_bytes, const void* b, uint64_t b_bytes) {
++  const uint32_t header[2] = {type, 0};
++  const uint64_t payload = a_bytes + b_bytes;
++  std::fwrite(header, 4, 2, file_);
++  std::fwrite(&payload, 8, 1, file_);
++  if (a_bytes) std::fwrite(a, 1, a_bytes, file_);
++  if (b_bytes) std::fwrite(b, 1, b_bytes, file_);
++  written_ += 16 + payload;
++}
++
++}  // namespace rex::graphics::any360_capture
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+index aebe726..858bfb2 100644
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -32,12 +32,14 @@
+ #include <rex/dbg.h>
+ #include <rex/perf/counter.h>
+ #include <rex/chrono/clock.h>
++#include <rex/graphics/any360_capture.h>
+ #include <rex/graphics/command_processor.h>
+ #include <rex/graphics/flags.h>
+ #include <rex/graphics/gpu_frame_stats.h>
+ #include <rex/graphics/graphics_system.h>
+ #include <rex/graphics/guest_wake.h>
+ #include <rex/graphics/pipeline/texture/info.h>
++#include <rex/ui/presenter.h>
+ #include <rex/graphics/sampler_info.h>
+ #include <rex/graphics/xenos.h>
+ #include <rex/logging.h>
+@@ -109,6 +111,11 @@ REXCVAR_DEFINE_BOOL(gpu_draw_trace_resolve_data, false, "GPU",
+                     "Developer diagnostics: with gpu_draw_trace, also write the guest memory bytes of "
+                     "every resolve (read back synchronously while recording) to <trace>_resolves.bin")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DEFINE_BOOL(gpu_any360_capture, false, "GPU",
++                    "Developer diagnostics: with gpu_draw_trace, also write an Any360 frame capture of the "
++                    "same frames (registers, changed memory pages, ring kicks, presented frames) to "
++                    "<trace>.a360cap, for Any360's gfx_replay. Holds game data: keep it local")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ REXCVAR_DEFINE_BOOL(gpu_frame_stats, false, "GPU",
+                     "Log every 10 s what the guest command stream asked per frame: draws, "
+                     "resolves, packets, constant registers, shader loads and texture lookups")
+@@ -277,6 +284,16 @@ struct DrawTrace {
+ };
+ DrawTrace g_draw_trace;
+ 
++// gpu_any360_capture: the Any360 capture riding on a draw trace. It opens at the first kick after the trace starts
++// (so its register file is the one that kick starts from), records every kick, and the presented frame at each
++// later swap, until the trace's frame count.
++struct Any360Capture {
++  any360_capture::Writer writer;
++  std::string pending_path;  // set at the swap that starts a trace
++  uint32_t frames_left = 0, frames = 0;
++};
++Any360Capture g_any360_capture;
++
+ void WriteU32(std::FILE* file, uint32_t value) { std::fwrite(&value, sizeof(value), 1, file); }
+ 
+ void WriteShaderHead(std::FILE* file, const Shader* shader) {
+@@ -319,6 +336,15 @@ void CommandProcessor::DrawTraceSwap() {
+     return;
+   }
+   trace.path = path;
++  if (REXCVAR_GET(gpu_any360_capture)) {
++    const size_t dot = path.find_last_of('.');
++    const size_t slash = path.find_last_of("/\\");
++    g_any360_capture.pending_path =
++        (dot != std::string::npos && (slash == std::string::npos || dot > slash) ? path.substr(0, dot) : path) +
++        ".a360cap";
++    g_any360_capture.frames_left = uint32_t(std::max(1, REXCVAR_GET(gpu_draw_trace_frames)));
++    g_any360_capture.frames = 0;
++  }
+   trace.frame = 0;
+   trace.sequence = 0;
+   trace.frames_left = uint32_t(std::max(1, REXCVAR_GET(gpu_draw_trace_frames)));
+@@ -349,6 +375,58 @@ void CommandProcessor::DrawTraceSwap() {
+   REXGPU_INFO("Draw trace: recording {} frame(s) to {}", trace.frames_left, path);
+ }
+ 
++void CommandProcessor::Any360CaptureKick(uint32_t read_index, uint32_t write_index) {
++  Any360Capture& capture = g_any360_capture;
++  if (!capture.pending_path.empty()) {
++    const std::string path = std::move(capture.pending_path);
++    capture.pending_path.clear();
++    const std::string info = "ReXGlue command processor (" + path + "), " + std::to_string(capture.frames_left) +
++                             " frame(s)";
++    if (capture.writer.Open(path, memory_->TranslatePhysical(0), 0x20000000u, register_file_->values,
++                            uint32_t(RegisterFile::kRegisterCount), info)) {
++      auto ucode = [](const Shader* shader) {
++        return shader ? std::vector<uint32_t>(shader->ucode_dwords(), shader->ucode_dwords() + shader->ucode_dword_count())
++                      : std::vector<uint32_t>();
++      };
++      capture.writer.Shaders(ucode(active_vertex_shader_), ucode(active_pixel_shader_));
++      // The gamma ramp the title wrote long before (not in the register file).
++      capture.writer.GammaRamp(reinterpret_cast<const uint32_t*>(gamma_ramp_256_entry_table()),
++                               reinterpret_cast<const uint32_t*>(gamma_ramp_pwl_rgb()));
++      REXGPU_INFO("Any360 capture: recording {} frame(s) to {}", capture.frames_left, path);
++    } else {
++      REXGPU_ERROR("Any360 capture: cannot open {}", path);
++    }
++  }
++  if (capture.writer.is_open()) {
++    capture.writer.Kick(primary_buffer_ptr_ & 0x1FFFFFFF, primary_buffer_size_ / 4, read_index, write_index);
++  }
++}
++
++void CommandProcessor::Any360CaptureSwap() {
++  Any360Capture& capture = g_any360_capture;
++  if (!capture.writer.is_open()) return;
++  // The presented frame, as the presenter holds it (RGBX rows at a stride), packed to RGBA.
++  rex::ui::Presenter* presenter = graphics_system_ ? graphics_system_->presenter() : nullptr;
++  rex::ui::RawImage image;
++  if (presenter && presenter->CaptureGuestOutput(image) && image.width && image.height) {
++    std::vector<uint32_t> rgba(size_t(image.width) * image.height);
++    for (uint32_t y = 0; y < image.height; ++y) {
++      std::memcpy(rgba.data() + size_t(y) * image.width, image.data.data() + size_t(y) * image.stride,
++                  size_t(image.width) * 4);
++    }
++    for (uint32_t& pixel : rgba) pixel |= 0xFF000000u;
++    capture.writer.Frame(image.width, image.height, rgba.data());
++  } else {
++    REXGPU_WARN("Any360 capture: frame {} not read from the presenter", capture.frames);
++  }
++  ++capture.frames;
++  if (--capture.frames_left == 0) {
++    const uint64_t bytes = capture.writer.bytes_written();
++    capture.writer.Close();
++    REXGPU_INFO("Any360 capture: {} frame(s), {} MB written", capture.frames, bytes >> 20);
++  }
++}
++
+ bool CommandProcessor::DrawTraceResolveDataWanted() const {
+   return g_draw_trace.resolve_file != nullptr;
+ }
+@@ -1557,6 +1635,8 @@ void CommandProcessor::ReturnFromWait() {}
+ uint32_t CommandProcessor::ExecutePrimaryBuffer(uint32_t read_index, uint32_t write_index) {
+   SCOPE_profile_cpu_f("gpu");
+ 
++  Any360CaptureKick(read_index, write_index);
++
+   // Execute commands!
+   memory::RingBuffer reader(memory_->TranslatePhysical(primary_buffer_ptr_), primary_buffer_size_);
+   reader.set_read_offset(read_index * sizeof(uint32_t));
+@@ -1926,6 +2006,7 @@ bool CommandProcessor::ExecutePacketType3_XE_SWAP(memory::RingBuffer* reader, ui
+   reader->AdvanceRead((count - 4) * sizeof(uint32_t));
+ 
+   IssueSwap(frontbuffer_ptr, frontbuffer_width, frontbuffer_height);
++  Any360CaptureSwap();
+ 
+   ++counter_;
+   return true;
