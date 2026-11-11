@@ -12,9 +12,9 @@ Generated on 2026-11-11 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 281 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 93 | 6,377 | 1.5% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 95 | 6,377 | 1.5% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 31,975 | 2,667,844 | 1.2% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 32,051 | 2,667,844 | 1.2% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -322,7 +322,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | code 82Axxxxx | game | 1,258 | 65,283 | 7 | 0 | 1,251 | 0.6% |
 | Kynapse (AI) | middleware | 947 | 56,021 | 3 | 0 | 944 | 0.3% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
-| C runtime (CRT) | library | 595 | 41,901 | 19 | 0 | 576 | 3.2% |
+| C runtime (CRT) | library | 595 | 41,901 | 21 | 0 | 574 | 3.5% |
 | XDK D3D runtime | library | 553 | 34,977 | 21 | 262 | 270 | 3.8% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
@@ -334,7 +334,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 415 rewritten functions</summary>
+<details><summary>The 417 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -714,6 +714,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82AB61B8` | C runtime (CRT) | 9 | `CrtWcslen` | crt_native.cpp |
 | `82AB6918` | C runtime (CRT) | 23 | `CrtStrncpy` | crt_native.cpp |
 | `82AB9380` | C runtime (CRT) | 15 | `CrtStrchr` | crt_native.cpp |
+| `82AB93C0` | C runtime (CRT) | 51 | `CrtStrstr` | crt_native.cpp |
 | `82AB9440` | C runtime (CRT) | 19 | `CrtStrncmp` | crt_native.cpp |
 | `82AB97F8` | C runtime (CRT) | 19 | `CrtStrncat` | crt_native.cpp |
 | `82AB9D98` | C runtime (CRT) | 17 | `CrtWcscmp` | crt_native.cpp |
@@ -721,6 +722,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82ABA4F0` | C runtime (CRT) | 22 | `CrtStrrchr` | crt_native.cpp |
 | `82ABA9D8` | C runtime (CRT) | 5 | `CrtTolower` | crt_native.cpp |
 | `82ABBCE8` | C runtime (CRT) | 8 | `CrtWcscpy` | crt_native.cpp |
+| `82ABD120` | C runtime (CRT) | 25 | `CrtStricmp` | crt_native.cpp |
 | `82ABDE40` | C runtime (CRT) | 161 | `CrtMemset` | crt_native.cpp |
 | `82ABDF90` | C runtime (CRT) | 251 | `CrtMemcpy` | crt_native.cpp |
 | `82ABE3B0` | C runtime (CRT) | 79 | `CrtCopyForward` | crt_native.cpp |

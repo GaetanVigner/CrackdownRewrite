@@ -67,6 +67,12 @@ void crackdown::hooks::CrtWcsncpy(PPCContext& ctx, uint8_t* base, GuestFunction 
 void crackdown::hooks::CrtTolower(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtTolower(ctx, base, original);
 }
+void crackdown::hooks::CrtStricmp(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtStricmp(ctx, base, original);
+}
+void crackdown::hooks::CrtStrstr(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtStrstr(ctx, base, original);
+}
 void crackdown::hooks::CrtWcscmp(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtWcscmp(ctx, base, original);
 }
