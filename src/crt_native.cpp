@@ -73,6 +73,18 @@ void crackdown::hooks::CrtStricmp(PPCContext& ctx, uint8_t* base, GuestFunction 
 void crackdown::hooks::CrtStrstr(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtStrstr(ctx, base, original);
 }
+// The C runtime's helpers on a double's bits: _isnan, _get_exp, _set_exp. _finite (sub_82AB9C18) and _sptype
+// (sub_82AC44A8) have their replacements in Any360 too and are not bound: no run of the game has called them;
+// _add_exp (sub_82AC4470) neither, and keeps the copy written here before (decomp/leaf_batch4.cpp).
+void crackdown::hooks::CrtIsnan(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtIsnan(ctx, base, original);
+}
+void crackdown::hooks::CrtGetExp(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtGetExp(ctx, base, original);
+}
+void crackdown::hooks::CrtSetExp(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtSetExp(ctx, base, original);
+}
 void crackdown::hooks::CrtWcscmp(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtWcscmp(ctx, base, original);
 }
