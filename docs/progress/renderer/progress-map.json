@@ -999,9 +999,9 @@
  },
  "functions": {
   "D3D runtime": {
-   "native": 21,
+   "native": 22,
    "verified": 262,
-   "recompiled": 270
+   "recompiled": 269
   },
   "code 821xxxxx": {
    "native": 41,
@@ -1049,9 +1049,9 @@
    "recompiled": 3919
   },
   "code 82Axxxxx": {
-   "native": 50,
+   "native": 51,
    "verified": 0,
-   "recompiled": 4576
+   "recompiled": 4575
   },
   "code 82Bxxxxx": {
    "native": 25,

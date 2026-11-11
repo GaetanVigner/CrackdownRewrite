@@ -16,9 +16,9 @@
  },
  "functions": {
   "total": 41219,
-  "native": 420,
+  "native": 422,
   "verified": 291,
-  "library": 6017,
+  "library": 6015,
   "middleware": 5260,
   "recompiled": 29231
  },
@@ -29,9 +29,9 @@
  },
  "instructions": {
   "total": 2667844,
-  "native": 32084,
+  "native": 32238,
   "verified": 4546,
-  "library": 613053,
+  "library": 612899,
   "middleware": 352116,
   "recompiled": 1666045
  }

@@ -20394,7 +20394,7 @@ address,module,kind,instructions,state,handler,file
 826C5B00,XDK D3D runtime,library,48,library,,
 826C5BC0,XDK D3D runtime,library,95,library,,
 826C5D40,XDK D3D runtime,library,88,library,,
-826C5EA0,XDK D3D runtime,library,91,library,,
+826C5EA0,XDK D3D runtime,library,91,native,D3dDirtyConstants,crt_native.cpp
 826C6010,XDK D3D runtime,library,386,library,,
 826C6618,XDK D3D runtime,library,51,library,,
 826C66E8,XDK D3D runtime,library,46,library,,
@@ -31293,7 +31293,7 @@ address,module,kind,instructions,state,handler,file
 82A4B148,"XDK audio (XAudio, XMA)",library,150,library,,
 82A4B3A0,"XDK audio (XAudio, XMA)",library,75,library,,
 82A4B4D0,"XDK audio (XAudio, XMA)",library,115,library,,
-82A4B6A0,"XDK audio (XAudio, XMA)",library,63,library,,
+82A4B6A0,"XDK audio (XAudio, XMA)",library,63,native,XAudioMixRamp,crt_native.cpp
 82A4B7A0,"XDK audio (XAudio, XMA)",library,10,library,,
 82A4B7C8,"XDK audio (XAudio, XMA)",library,247,library,,
 82A4BBA8,"XDK audio (XAudio, XMA)",library,18,library,,

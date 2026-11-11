@@ -96,3 +96,15 @@ void crackdown::hooks::CrtMbtowc(PPCContext& ctx, uint8_t* base, GuestFunction o
 // XAPI's GetLastError (sub_82746048) and SetLastError (sub_82745FF8) have their replacements in Any360, checked here
 // with both sides compared (73,195 and 70,297 calls, none different), and are not bound: five instructions each,
 // they gain nothing as host routines (--any360_xdk_bench: 1.1x and 1.0x).
+
+// XAudio's mix with a volume ramp (r3 destination, r4 source, r5 and r6 the gains and their step, r7 samples):
+// the audio threads' hottest function, as a host routine with the fused multiply-add the recompiled code uses.
+void crackdown::hooks::XAudioMixRamp(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::XAudioMixRamp(ctx, base, original);
+}
+
+// The D3D runtime's upload of the shader constants a mask marks as changed into the command buffer (r3 device, r4
+// mask, r5 index, r6 constants); this runtime keeps the buffer's write pointer at device + 48.
+void crackdown::hooks::D3dDirtyConstants(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::D3dDirtyConstants(ctx, base, original, 48);
+}

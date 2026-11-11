@@ -12,9 +12,9 @@ Generated on 2026-11-11 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 281 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 98 | 6,377 | 1.5% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 100 | 6,377 | 1.6% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 32,084 | 2,667,844 | 1.2% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 32,238 | 2,667,844 | 1.2% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -323,10 +323,10 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | Kynapse (AI) | middleware | 947 | 56,021 | 3 | 0 | 944 | 0.3% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
 | C runtime (CRT) | library | 595 | 41,901 | 24 | 0 | 571 | 4.0% |
-| XDK D3D runtime | library | 553 | 34,977 | 21 | 262 | 270 | 3.8% |
+| XDK D3D runtime | library | 553 | 34,977 | 22 | 262 | 269 | 4.0% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
-| XDK audio (XAudio, XMA) | library | 484 | 28,795 | 7 | 0 | 477 | 1.4% |
+| XDK audio (XAudio, XMA) | library | 484 | 28,795 | 8 | 0 | 476 | 1.7% |
 | code 827xxxxx | game | 366 | 25,239 | 2 | 0 | 364 | 0.5% |
 | XDK Xbox Live and voice (XOnline, XHV) | library | 378 | 21,114 | 5 | 0 | 373 | 1.3% |
 | Massive (in-game advertising) | middleware | 368 | 16,437 | 0 | 0 | 368 | 0% |
@@ -334,7 +334,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 420 rewritten functions</summary>
+<details><summary>The 422 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -600,6 +600,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826C04A0` | XDK D3D runtime | 73 | `D3dClear` | hle_capture.cpp |
 | `826C3750` | XDK D3D runtime | 400 | `D3dRunCommandBuffer` | hle_capture.cpp |
 | `826C3D90` | XDK D3D runtime | 166 | `CommandBufferFixup` | single_tile_scene.cpp |
+| `826C5EA0` | XDK D3D runtime | 91 | `D3dDirtyConstants` | crt_native.cpp |
 | `826C6A50` | XDK D3D runtime | 44 | `D3dBindShaderLiterals` | single_tile_scene.cpp |
 | `826D5C28` | code 826xxxxx | 72 | `decomp::Sub_826D5C28` | decomp/leaf_batch7.cpp |
 | `8270D108` | code 827xxxxx | 22 | `decomp::Sub_8270D108` | decomp/leaf_batch13.cpp |
@@ -689,6 +690,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82A3F0A0` | code 82Axxxxx | 14 | `decomp::Sub_82A3F0A0` | decomp/leaf_batch5.cpp |
 | `82A45648` | code 82Axxxxx | 18 | `decomp::Sub_82A45648` | decomp/leaf_batch9.cpp |
 | `82A49908` | XDK audio (XAudio, XMA) | 21 | `AudioReleaseHandle` | title_compat.cpp |
+| `82A4B6A0` | XDK audio (XAudio, XMA) | 63 | `XAudioMixRamp` | crt_native.cpp |
 | `82A4BEF8` | XDK audio (XAudio, XMA) | 24 | `AudioMixerCallback` | audio_mixer_priority.cpp |
 | `82A4BF98` | XDK audio (XAudio, XMA) | 17 | `decomp::Sub_82A4BF98` | decomp/leaf_batch8.cpp |
 | `82A4F8A8` | XDK audio (XAudio, XMA) | 21 | `decomp::Sub_82A4F8A8` | decomp/leaf_batch11.cpp |

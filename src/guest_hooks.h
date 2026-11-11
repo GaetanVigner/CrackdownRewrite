@@ -47,6 +47,8 @@ void CrtSetExp(PPCContext&, uint8_t*, GuestFunction original);
 void CrtStricmp(PPCContext&, uint8_t*, GuestFunction original);
 void CrtStrstr(PPCContext&, uint8_t*, GuestFunction original);
 void CrtMbtowc(PPCContext&, uint8_t*, GuestFunction original);
+void XAudioMixRamp(PPCContext&, uint8_t*, GuestFunction original);
+void D3dDirtyConstants(PPCContext&, uint8_t*, GuestFunction original);
 
 void EntityDestroyed(PPCContext&, uint8_t*, GuestFunction original);
 
