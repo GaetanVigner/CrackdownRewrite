@@ -27320,7 +27320,7 @@ address,module,kind,instructions,state,handler,file
 8294DF38,code 829xxxxx,game,17,recompiled,,
 8294DF80,code 829xxxxx,game,18,recompiled,,
 8294DFC8,code 829xxxxx,game,11,recompiled,,
-8294DFF8,code 829xxxxx,game,9,native,CrtStrlen,crt_native.cpp
+8294DFF8,code 829xxxxx,game,9,recompiled,,
 8294E020,code 829xxxxx,game,1,recompiled,,
 8294E028,code 829xxxxx,game,1,recompiled,,
 8294E030,code 829xxxxx,game,1,recompiled,,

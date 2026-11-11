@@ -21,7 +21,7 @@
 <rect x="300" y="160" width="480" height="20" rx="4" fill="#30363d"/>
 <rect x="300.0" y="160" width="4.6" height="20" rx="4" fill="#2da44e"/>
 <rect x="304.6" y="160" width="2.0" height="20" rx="4" fill="#1f6feb"/>
-<text class="v" x="792" y="175">282 of 29,541 functions (1.0%), 29 verified</text>
+<text class="v" x="792" y="175">281 of 29,541 functions (1.0%), 29 verified</text>
 <text class="h" x="20" y="222">The game's 41,219 functions, by module</text>
 <rect x="20" y="232" width="640" height="400" fill="#0d1117"/>
 <rect x="20.0" y="232.0" width="14.5" height="13.0" fill="#2da44e"/>
@@ -1137,7 +1137,7 @@
 <rect x="520.0" y="499.2" width="14.9" height="10.8" fill="#30363d"/>
 <rect x="535.6" y="499.2" width="14.9" height="10.8" fill="#30363d"/>
 <rect x="488.9" y="510.6" width="14.9" height="10.8" fill="#30363d"/>
-<rect x="488.9" y="453.8" width="62.2" height="68.2" fill="none" stroke="#0d1117" stroke-width="2"><title>code 829xxxxx: 6 native, 676 recompiled</title></rect>
+<rect x="488.9" y="453.8" width="62.2" height="68.2" fill="none" stroke="#0d1117" stroke-width="2"><title>code 829xxxxx: 5 native, 677 recompiled</title></rect>
 <rect x="551.1" y="453.8" width="13.1" height="13.0" fill="#2da44e"/>
 <rect x="564.8" y="453.8" width="13.1" height="13.0" fill="#1b7c83"/>
 <rect x="578.4" y="453.8" width="13.1" height="13.0" fill="#1b7c83"/>

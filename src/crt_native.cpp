@@ -73,11 +73,8 @@ void crackdown::hooks::CrtWcscmp(PPCContext& ctx, uint8_t* base, GuestFunction o
 void crackdown::hooks::CrtMbtowc(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtMbtowc(ctx, base, original);
 }
-// strlen as a loop of bytes (a library's build, not the C runtime's own). The strcmp built the same way
-// (sub_8294DFC8) has its replacement in Any360 too and is not bound: no run of the game has called it.
-void crackdown::hooks::CrtStrlen(PPCContext& ctx, uint8_t* base, GuestFunction original) {
-  any360::host::rexglue::xdk::CrtStrlen(ctx, base, original);
-}
+// The strlen and strcmp built as loops of bytes (sub_8294DFF8, sub_8294DFC8) are Havok's own, at the head of its
+// code: middleware stays as it is, they are not bound.
 // XAPI's GetLastError (sub_82746048) and SetLastError (sub_82745FF8) have their replacements in Any360, checked here
 // with both sides compared (73,195 and 70,297 calls, none different), and are not bound: five instructions each,
 // they gain nothing as host routines (--any360_xdk_bench: 1.1x and 1.0x).

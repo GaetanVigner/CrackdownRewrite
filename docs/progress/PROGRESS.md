@@ -11,10 +11,10 @@ Generated on 2026-11-11 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | System calls on `any360::sys` | 248 | 248 | 100% | all eight groups, opt-in on `main`: `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`; no call reaches ReXGlue's kernel then |
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
-| Game functions rewritten in C++ | 282 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
+| Game functions rewritten in C++ | 281 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
 | Library functions (SDK, middleware) replaced | 93 | 6,377 | 1.5% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 31,984 | 2,667,844 | 1.2% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 31,975 | 2,667,844 | 1.2% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -324,7 +324,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
 | C runtime (CRT) | library | 595 | 41,901 | 19 | 0 | 576 | 3.2% |
 | XDK D3D runtime | library | 553 | 34,977 | 21 | 262 | 270 | 3.8% |
-| code 829xxxxx | game | 682 | 33,443 | 6 | 0 | 676 | 0.9% |
+| code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
 | XDK audio (XAudio, XMA) | library | 484 | 28,795 | 7 | 0 | 477 | 1.4% |
 | code 827xxxxx | game | 366 | 25,239 | 2 | 0 | 364 | 0.5% |
@@ -334,7 +334,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 416 rewritten functions</summary>
+<details><summary>The 415 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -660,7 +660,6 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82944E58` | code 829xxxxx | 44 | `decomp::Sub_82944E58` | decomp/leaf_batch2.cpp |
 | `8294AA18` | code 829xxxxx | 40 | `decomp::Sub_8294AA18` | decomp/leaf_batch1.cpp |
 | `8294DDD0` | code 829xxxxx | 18 | `decomp::Sub_8294DDD0` | decomp/leaf_batch8.cpp |
-| `8294DFF8` | code 829xxxxx | 9 | `CrtStrlen` | crt_native.cpp |
 | `829518F0` | Havok Physics | 13 | `decomp::Sub_829518F0` | decomp/leaf_batch4.cpp |
 | `82953330` | Havok Physics | 14 | `decomp::Sub_82953330` | decomp/leaf_batch5.cpp |
 | `82957EE8` | Havok Physics | 22 | `decomp::Sub_82957EE8` | decomp/leaf_batch11.cpp |
