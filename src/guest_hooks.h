@@ -40,6 +40,9 @@ void CrtStrncat(PPCContext&, uint8_t*, GuestFunction original);
 void CrtWcscpy(PPCContext&, uint8_t*, GuestFunction original);
 void CrtWcsncpy(PPCContext&, uint8_t*, GuestFunction original);
 void CrtTolower(PPCContext&, uint8_t*, GuestFunction original);
+void CrtWcscmp(PPCContext&, uint8_t*, GuestFunction original);
+void CrtMbtowc(PPCContext&, uint8_t*, GuestFunction original);
+void CrtStrlen(PPCContext&, uint8_t*, GuestFunction original);
 
 void EntityDestroyed(PPCContext&, uint8_t*, GuestFunction original);
 

@@ -285,8 +285,8 @@ The recompiled functions of `default.xex` by address area: natively replaced (ho
 | code 826xxxxx | 24 | 29 | 3313 | 3366 | 0.7% |
 | code 827xxxxx | 32 | 0 | 2471 | 2503 | 1.3% |
 | code 828xxxxx | 21 | 0 | 2205 | 2226 | 0.9% |
-| code 829xxxxx | 28 | 0 | 3919 | 3947 | 0.7% |
-| code 82Axxxxx | 43 | 0 | 4583 | 4626 | 0.9% |
+| code 829xxxxx | 29 | 0 | 3918 | 3947 | 0.7% |
+| code 82Axxxxx | 45 | 0 | 4581 | 4626 | 1.0% |
 | code 82Bxxxxx | 25 | 0 | 6623 | 6648 | 0.4% |
 
 ## Render passes

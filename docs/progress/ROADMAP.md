@@ -47,7 +47,7 @@ SDK code linked into the executable is not decompiled: Any360 provides the same 
 | Library range | Functions | Instructions | Replaced | Verified in the sandbox | Left |
 |---|---|---|---|---|---|
 | XDK D3DX and XGraphics (shader compiler) | 4,171 | 487,670 | 39 | 0 | 4,132 |
-| C runtime (CRT) | 595 | 41,901 | 17 | 0 | 578 |
+| C runtime (CRT) | 595 | 41,901 | 19 | 0 | 576 |
 | XDK D3D runtime | 553 | 34,977 | 21 | 262 | 532 |
 | XDK audio (XAudio, XMA) | 484 | 28,795 | 7 | 0 | 477 |
 | XDK Xbox Live and voice (XOnline, XHV) | 378 | 21,114 | 5 | 0 | 373 |
@@ -67,7 +67,7 @@ Third-party middleware the game links (physics, AI, scripting, video and the lik
 
 ## 5. Game code as portable C++
 
-29,260 of 29,541 game functions are still recompiled PowerPC (29 of them already have a sandbox test to check a rewrite against). The list, function by function, is [functions.csv](functions.csv) (state `recompiled` or `verified`). By module, largest first:
+29,259 of 29,541 game functions are still recompiled PowerPC (29 of them already have a sandbox test to check a rewrite against). The list, function by function, is [functions.csv](functions.csv) (state `recompiled` or `verified`). By module, largest first:
 
 | Module | Functions left | Instructions left | Rewritten | Verified |
 |---|---|---|---|---|
@@ -79,7 +79,7 @@ Third-party middleware the game links (physics, AI, scripting, video and the lik
 | code 824xxxxx | 3,306 | 253,049 | 47 | 0 |
 | code 822xxxxx | 2,407 | 254,870 | 28 | 0 |
 | code 82Axxxxx | 1,251 | 65,167 | 7 | 0 |
-| code 829xxxxx | 677 | 33,309 | 5 | 0 |
+| code 829xxxxx | 676 | 33,300 | 6 | 0 |
 | code 827xxxxx | 364 | 25,189 | 2 | 0 |
 
 Order of work: symbol recovery and library recognition first (they shrink this list), then leaf functions (no calls: each is checked alone), then their callers, module by module; every rewrite is bound over the recompiled function and proven equal in the guest sandbox before it replaces it (Any360's `pipeline/any360.py <title> select | decompile | bind | verify`).

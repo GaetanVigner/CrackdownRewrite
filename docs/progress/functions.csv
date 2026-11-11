@@ -27320,7 +27320,7 @@ address,module,kind,instructions,state,handler,file
 8294DF38,code 829xxxxx,game,17,recompiled,,
 8294DF80,code 829xxxxx,game,18,recompiled,,
 8294DFC8,code 829xxxxx,game,11,recompiled,,
-8294DFF8,code 829xxxxx,game,9,recompiled,,
+8294DFF8,code 829xxxxx,game,9,native,CrtStrlen,crt_native.cpp
 8294E020,code 829xxxxx,game,1,recompiled,,
 8294E028,code 829xxxxx,game,1,recompiled,,
 8294E030,code 829xxxxx,game,1,recompiled,,
@@ -33009,7 +33009,7 @@ address,module,kind,instructions,state,handler,file
 82AB5110,code 82Axxxxx,game,13,recompiled,,
 82AB5148,code 82Axxxxx,game,80,recompiled,,
 82AB5250,code 82Axxxxx,game,5,recompiled,,
-82AB5268,C runtime (CRT),library,18,library,,
+82AB5268,C runtime (CRT),library,18,native,CrtMbtowc,crt_native.cpp
 82AB52B0,C runtime (CRT),library,16,native,decomp::Sub_82AB52B0,decomp/leaf_batch7.cpp
 82AB52F0,C runtime (CRT),library,15,native,decomp::Sub_82AB52F0,decomp/leaf_batch6.cpp
 82AB5330,C runtime (CRT),library,10,library,,
@@ -33133,7 +33133,7 @@ address,module,kind,instructions,state,handler,file
 82AB9C38,C runtime (CRT),library,17,library,,
 82AB9C80,C runtime (CRT),library,145,library,,
 82AB9D58,C runtime (CRT),library,16,library,,
-82AB9D98,C runtime (CRT),library,17,library,,
+82AB9D98,C runtime (CRT),library,17,native,CrtWcscmp,crt_native.cpp
 82AB9DE0,C runtime (CRT),library,23,native,CrtWcsncpy,crt_native.cpp
 82AB9E40,C runtime (CRT),library,20,library,,
 82AB9E98,C runtime (CRT),library,187,library,,
