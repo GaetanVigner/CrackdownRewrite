@@ -31,6 +31,15 @@ void CrtCopyForward(PPCContext&, uint8_t*, GuestFunction original);
 void CrtMemmove(PPCContext&, uint8_t*, GuestFunction original);
 void CrtMemset(PPCContext&, uint8_t*, GuestFunction original);
 void XdkVectorCopy(PPCContext&, uint8_t*, GuestFunction original);
+void CrtWcslen(PPCContext&, uint8_t*, GuestFunction original);
+void CrtStrchr(PPCContext&, uint8_t*, GuestFunction original);
+void CrtStrrchr(PPCContext&, uint8_t*, GuestFunction original);
+void CrtStrncmp(PPCContext&, uint8_t*, GuestFunction original);
+void CrtStrncpy(PPCContext&, uint8_t*, GuestFunction original);
+void CrtStrncat(PPCContext&, uint8_t*, GuestFunction original);
+void CrtWcscpy(PPCContext&, uint8_t*, GuestFunction original);
+void CrtWcsncpy(PPCContext&, uint8_t*, GuestFunction original);
+void CrtTolower(PPCContext&, uint8_t*, GuestFunction original);
 
 void EntityDestroyed(PPCContext&, uint8_t*, GuestFunction original);
 

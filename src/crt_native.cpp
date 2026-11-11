@@ -36,3 +36,34 @@ void crackdown::hooks::CrtMemset(PPCContext& ctx, uint8_t* base, GuestFunction o
 void crackdown::hooks::XdkVectorCopy(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::XMemCpy(ctx, base, original, crackdown::Layout().vector_copy_byte_step);
 }
+
+// The C runtime's string functions (wcslen, strchr, strrchr, strncmp and tolower only read and leave their value in
+// r3; strncpy, strncat, wcscpy and wcsncpy write). toupper (sub_82AB6A08) has the same replacement in Any360 and is
+// not bound: no run of the game has called it with both sides compared.
+void crackdown::hooks::CrtWcslen(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtWcslen(ctx, base, original);
+}
+void crackdown::hooks::CrtStrchr(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtStrchr(ctx, base, original);
+}
+void crackdown::hooks::CrtStrrchr(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtStrrchr(ctx, base, original);
+}
+void crackdown::hooks::CrtStrncmp(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtStrncmp(ctx, base, original);
+}
+void crackdown::hooks::CrtStrncpy(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtStrncpy(ctx, base, original);
+}
+void crackdown::hooks::CrtStrncat(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtStrncat(ctx, base, original);
+}
+void crackdown::hooks::CrtWcscpy(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtWcscpy(ctx, base, original);
+}
+void crackdown::hooks::CrtWcsncpy(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtWcsncpy(ctx, base, original);
+}
+void crackdown::hooks::CrtTolower(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtTolower(ctx, base, original);
+}

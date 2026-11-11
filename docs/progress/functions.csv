@@ -33035,7 +33035,7 @@ address,module,kind,instructions,state,handler,file
 82AB5FD0,C runtime (CRT),library,15,native,decomp::Sub_82AB5FD0,decomp/leaf_batch6.cpp
 82AB6010,C runtime (CRT),library,52,library,,
 82AB60E0,C runtime (CRT),library,72,library,,
-82AB61B8,C runtime (CRT),library,9,library,,
+82AB61B8,C runtime (CRT),library,9,native,CrtWcslen,crt_native.cpp
 82AB61E0,C runtime (CRT),library,3,library,,
 82AB61F0,C runtime (CRT),library,54,library,,
 82AB62C8,C runtime (CRT),library,48,library,,
@@ -33048,7 +33048,7 @@ address,module,kind,instructions,state,handler,file
 82AB67B8,C runtime (CRT),library,10,library,,
 82AB67E0,C runtime (CRT),library,78,library,,
 82AB68D0,C runtime (CRT),library,18,library,,
-82AB6918,C runtime (CRT),library,23,library,,
+82AB6918,C runtime (CRT),library,23,native,CrtStrncpy,crt_native.cpp
 82AB6978,C runtime (CRT),library,36,library,,
 82AB6A08,C runtime (CRT),library,5,library,,
 82AB6A20,C runtime (CRT),library,242,library,,
@@ -33115,15 +33115,15 @@ address,module,kind,instructions,state,handler,file
 82AB9290,C runtime (CRT),library,53,library,,
 82AB9330,C runtime (CRT),library,15,library,,
 82AB9370,C runtime (CRT),library,3,library,,
-82AB9380,C runtime (CRT),library,15,library,,
+82AB9380,C runtime (CRT),library,15,native,CrtStrchr,crt_native.cpp
 82AB93C0,C runtime (CRT),library,51,library,,
-82AB9440,C runtime (CRT),library,19,library,,
+82AB9440,C runtime (CRT),library,19,native,CrtStrncmp,crt_native.cpp
 82AB9490,C runtime (CRT),library,189,library,,
 82AB95B0,C runtime (CRT),library,57,library,,
 82AB9678,C runtime (CRT),library,23,library,,
 82AB96D8,C runtime (CRT),library,47,library,,
 82AB9798,C runtime (CRT),library,23,library,,
-82AB97F8,C runtime (CRT),library,19,library,,
+82AB97F8,C runtime (CRT),library,19,native,CrtStrncat,crt_native.cpp
 82AB9850,C runtime (CRT),library,60,library,,
 82AB9940,C runtime (CRT),library,12,library,,
 82AB9970,C runtime (CRT),library,9,library,,
@@ -33134,7 +33134,7 @@ address,module,kind,instructions,state,handler,file
 82AB9C80,C runtime (CRT),library,145,library,,
 82AB9D58,C runtime (CRT),library,16,library,,
 82AB9D98,C runtime (CRT),library,17,library,,
-82AB9DE0,C runtime (CRT),library,23,library,,
+82AB9DE0,C runtime (CRT),library,23,native,CrtWcsncpy,crt_native.cpp
 82AB9E40,C runtime (CRT),library,20,library,,
 82AB9E98,C runtime (CRT),library,187,library,,
 82AB9FCC,C runtime (CRT),library,16,library,,
@@ -33143,7 +33143,7 @@ address,module,kind,instructions,state,handler,file
 82ABA030,C runtime (CRT),library,157,library,,
 82ABA2B0,C runtime (CRT),library,205,library,,
 82ABA4B8,C runtime (CRT),library,12,library,,
-82ABA4F0,C runtime (CRT),library,22,library,,
+82ABA4F0,C runtime (CRT),library,22,native,CrtStrrchr,crt_native.cpp
 82ABA548,C runtime (CRT),library,175,library,,
 82ABA668,C runtime (CRT),library,48,library,,
 82ABA728,C runtime (CRT),library,3,library,,
@@ -33158,7 +33158,7 @@ address,module,kind,instructions,state,handler,file
 82ABA958,C runtime (CRT),library,3,library,,
 82ABA968,C runtime (CRT),library,4,library,,
 82ABA978,C runtime (CRT),library,47,library,,
-82ABA9D8,C runtime (CRT),library,5,library,,
+82ABA9D8,C runtime (CRT),library,5,native,CrtTolower,crt_native.cpp
 82ABA9F0,C runtime (CRT),library,40,library,,
 82ABAA40,C runtime (CRT),library,131,library,,
 82ABAB20,C runtime (CRT),library,97,library,,
@@ -33195,7 +33195,7 @@ address,module,kind,instructions,state,handler,file
 82ABBC10,C runtime (CRT),library,46,library,,
 82ABBC98,C runtime (CRT),library,6,library,,
 82ABBCB0,C runtime (CRT),library,31,library,,
-82ABBCE8,C runtime (CRT),library,8,library,,
+82ABBCE8,C runtime (CRT),library,8,native,CrtWcscpy,crt_native.cpp
 82ABBD08,C runtime (CRT),library,36,library,,
 82ABBD98,C runtime (CRT),library,47,library,,
 82ABBE58,C runtime (CRT),library,2,library,,
