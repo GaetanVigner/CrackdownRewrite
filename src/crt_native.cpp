@@ -108,3 +108,8 @@ void crackdown::hooks::XAudioMixRamp(PPCContext& ctx, uint8_t* base, GuestFuncti
 void crackdown::hooks::D3dDirtyConstants(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::D3dDirtyConstants(ctx, base, original, 48);
 }
+
+// The same upload for the constants of 4 bytes a bit (r3 device, r4 mask, r5 index, r6 words).
+void crackdown::hooks::D3dDirtyWords(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::D3dDirtyWords(ctx, base, original, 48);
+}

@@ -20391,7 +20391,7 @@ address,module,kind,instructions,state,handler,file
 826C54C8,XDK D3D runtime,library,46,library,,
 826C5580,XDK D3D runtime,library,121,library,,
 826C5768,XDK D3D runtime,library,229,library,,
-826C5B00,XDK D3D runtime,library,48,library,,
+826C5B00,XDK D3D runtime,library,48,native,D3dDirtyWords,crt_native.cpp
 826C5BC0,XDK D3D runtime,library,95,library,,
 826C5D40,XDK D3D runtime,library,88,library,,
 826C5EA0,XDK D3D runtime,library,91,native,D3dDirtyConstants,crt_native.cpp
