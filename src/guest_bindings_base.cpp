@@ -65,6 +65,8 @@ CRACKDOWN_BIND_ANY360(826B31D8, D3dState<d3d_state::BoolConstants<true>>)
 CRACKDOWN_GUEST_CALL(826B3238)
 CRACKDOWN_GUEST_CALL(826B3290)
 CRACKDOWN_BIND_ANY360(826B3070, D3dState<d3d_state::PixelConstants>)
+CRACKDOWN_BIND_ANY360(826AF038, D3dState<d3d_state::SetTexture>)
+CRACKDOWN_BIND_ANY360(826B1D30, D3dState<d3d_state::SetStreamSource>)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -514,3 +516,6 @@ ANY360_D3D_CASE(pixel_ints, "pixel int constants", CRACKDOWN_GUEST_ORIGINAL(826B
                 State<xs::IntConstants<true>, cs::Constants<16, 16>>);
 ANY360_D3D_CASE(pixel_floats, "pixel float constants", CRACKDOWN_GUEST_ORIGINAL(826B3070),
                 State<xs::PixelConstants, cs::PixelFloats>);
+ANY360_D3D_CASE(set_texture, "SetTexture", CRACKDOWN_GUEST_ORIGINAL(826AF038), State<xs::SetTexture, cs::Texture>);
+ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),
+                State<xs::SetStreamSource, cs::Stream>);
