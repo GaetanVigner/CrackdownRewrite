@@ -67,6 +67,12 @@ CRACKDOWN_GUEST_CALL(826B3290)
 CRACKDOWN_BIND_ANY360(826B3070, D3dState<d3d_state::PixelConstants>)
 CRACKDOWN_BIND_ANY360(826AF038, D3dState<d3d_state::SetTexture>)
 CRACKDOWN_BIND_ANY360(826B1D30, D3dState<d3d_state::SetStreamSource>)
+CRACKDOWN_BIND_ANY360(826B1180, D3dState<d3d_state::SamplerFilter<false>>)
+CRACKDOWN_BIND_ANY360(826B1308, D3dState<d3d_state::SamplerFilter<true>>)
+CRACKDOWN_BIND_ANY360(826B1E50, D3dState<d3d_state::SetVertexDeclaration>)
+CRACKDOWN_BIND_ANY360(826B3458, D3dState<d3d_state::SetShader<false>>)
+CRACKDOWN_BIND_ANY360(826B3848, D3dState<d3d_state::SetShader<true>>)
+CRACKDOWN_BIND_ANY360(826C4C70, D3dState<d3d_state::FlushCpuRange>)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -519,3 +525,15 @@ ANY360_D3D_CASE(pixel_floats, "pixel float constants", CRACKDOWN_GUEST_ORIGINAL(
 ANY360_D3D_CASE(set_texture, "SetTexture", CRACKDOWN_GUEST_ORIGINAL(826AF038), State<xs::SetTexture, cs::Texture>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),
                 State<xs::SetStreamSource, cs::Stream>);
+ANY360_D3D_CASE(min_filter, "sampler min filter", CRACKDOWN_GUEST_ORIGINAL(826B1180),
+                State<xs::SamplerFilter<false>, cs::SamplerFilter>);
+ANY360_D3D_CASE(mag_filter, "sampler mag filter", CRACKDOWN_GUEST_ORIGINAL(826B1308),
+                State<xs::SamplerFilter<true>, cs::SamplerFilter>);
+ANY360_D3D_CASE(vertex_declaration, "SetVertexDeclaration", CRACKDOWN_GUEST_ORIGINAL(826B1E50),
+                State<xs::SetVertexDeclaration, cs::VertexDeclaration>);
+ANY360_D3D_CASE(pixel_shader, "SetPixelShader", CRACKDOWN_GUEST_ORIGINAL(826B3458),
+                State<xs::SetShader<false>, cs::Shader<false>>);
+ANY360_D3D_CASE(vertex_shader, "SetVertexShader", CRACKDOWN_GUEST_ORIGINAL(826B3848),
+                State<xs::SetShader<true>, cs::Shader<true>>);
+ANY360_D3D_CASE(flush_range, "CPU range flush", CRACKDOWN_GUEST_ORIGINAL(826C4C70),
+                State<xs::FlushCpuRange, cs::FlushRange>);
