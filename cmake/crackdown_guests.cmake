@@ -70,7 +70,8 @@ function(crackdown_add_guest id prefix generated_dir bindings_source)
     set(_host crackdown_guest_${id})
     add_library(${_host} OBJECT "${bindings_source}")
     target_include_directories(${_host} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src "${_symbols_dir}")
-    target_link_libraries(${_host} PRIVATE rex::runtime)
+    # any360_host_rexglue: the bindings register Any360's D3D self-test cases (d3d_cases.h) with the guest's names.
+    target_link_libraries(${_host} PRIVATE rex::runtime any360_host_rexglue)
     rexglue_apply_target_settings(${_host})
     set_property(SOURCE "${bindings_source}" APPEND PROPERTY COMPILE_OPTIONS
         "$<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:${CRACKDOWN_WARNINGS}>")

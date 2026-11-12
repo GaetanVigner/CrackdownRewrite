@@ -44,6 +44,27 @@ CRACKDOWN_BIND(82A4B6A0, XAudioMixRamp)
 CRACKDOWN_BIND(826C5EA0, D3dDirtyConstants)
 CRACKDOWN_BIND(826C5B00, D3dDirtyWords)
 CRACKDOWN_BIND(826B2F68, D3dSetShaderConstants)
+
+// D3D state setters (Any360's d3d_state.h, phase D1 of its docs/D3D.md), in the runtime's default layout.
+#include "any360/host/xdk_natives.h"
+namespace {
+using any360::xdk::D3dBlendField;
+namespace d3d_state = any360::host::rexglue::xdk::d3d_state;
+}  // namespace
+CRACKDOWN_BIND_ANY360(826AFA70, D3dState<d3d_state::BlendField<D3dBlendField::kColorSource>>)
+CRACKDOWN_BIND_ANY360(826AF9E0, D3dState<d3d_state::BlendField<D3dBlendField::kColorOperation>>)
+CRACKDOWN_BIND_ANY360(826AFB00, D3dState<d3d_state::BlendField<D3dBlendField::kColorDestination>>)
+CRACKDOWN_BIND_ANY360(826AFC00, D3dState<d3d_state::BlendField<D3dBlendField::kAlphaSource>>)
+CRACKDOWN_BIND_ANY360(826AFB90, D3dState<d3d_state::BlendField<D3dBlendField::kAlphaOperation>>)
+CRACKDOWN_BIND_ANY360(826AFC70, D3dState<d3d_state::BlendField<D3dBlendField::kAlphaDestination>>)
+CRACKDOWN_BIND_ANY360(826AF950, D3dState<d3d_state::BlendEnable>)
+CRACKDOWN_BIND_ANY360(826AFCE0, D3dState<d3d_state::SeparateAlphaBlend>)
+CRACKDOWN_BIND_ANY360(826B3178, D3dState<d3d_state::BoolConstants<false>>)
+CRACKDOWN_BIND_ANY360(826B31D8, D3dState<d3d_state::BoolConstants<true>>)
+// Not bound: no run has called them (SetVertexShaderConstantI / SetPixelShaderConstantI); the self-test runs them.
+CRACKDOWN_GUEST_CALL(826B3238)
+CRACKDOWN_GUEST_CALL(826B3290)
+CRACKDOWN_BIND_ANY360(826B3070, D3dState<d3d_state::PixelConstants>)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -457,3 +478,39 @@ CRACKDOWN_BIND_REPLACEMENT(82AB2FF0, decomp::Sub_82AB2FF0)
 CRACKDOWN_BIND_REPLACEMENT(82B12560, decomp::Sub_82B12560)
 CRACKDOWN_BIND_REPLACEMENT(82B12638, decomp::Sub_82B12638)
 CRACKDOWN_BIND_REPLACEMENT(82B12710, decomp::Sub_82B12710)
+
+// The D3D self-test (any360_d3d_selftest: Any360's docs/D3D.md): the D3D functions with a native replacement, run
+// both ways on generated inputs at the first frame. The device's command buffer pointer is at +48 in this runtime.
+#include "any360/host/d3d_cases.h"
+ANY360_D3D_CASE(set_shader_constants, "set shader constants", CRACKDOWN_GUEST_ORIGINAL(826B2F68), SetShaderConstants);
+ANY360_D3D_CASE(dirty_constants, "dirty constants", CRACKDOWN_GUEST_ORIGINAL(826C5EA0), DirtyUpload<48, false>);
+ANY360_D3D_CASE(dirty_words, "dirty words", CRACKDOWN_GUEST_ORIGINAL(826C5B00), DirtyUpload<48, true>);
+namespace {
+namespace xs = any360::host::rexglue::xdk::d3d_state;
+namespace cs = any360::host::rexglue::d3d::state;
+}  // namespace
+ANY360_D3D_CASE(blend_color_source, "blend color source", CRACKDOWN_GUEST_ORIGINAL(826AFA70),
+                State<xs::BlendField<D3dBlendField::kColorSource>, cs::Blend>);
+ANY360_D3D_CASE(blend_color_operation, "blend color operation", CRACKDOWN_GUEST_ORIGINAL(826AF9E0),
+                State<xs::BlendField<D3dBlendField::kColorOperation>, cs::Blend>);
+ANY360_D3D_CASE(blend_color_destination, "blend color destination", CRACKDOWN_GUEST_ORIGINAL(826AFB00),
+                State<xs::BlendField<D3dBlendField::kColorDestination>, cs::Blend>);
+ANY360_D3D_CASE(blend_alpha_source, "blend alpha source", CRACKDOWN_GUEST_ORIGINAL(826AFC00),
+                State<xs::BlendField<D3dBlendField::kAlphaSource>, cs::Blend>);
+ANY360_D3D_CASE(blend_alpha_operation, "blend alpha operation", CRACKDOWN_GUEST_ORIGINAL(826AFB90),
+                State<xs::BlendField<D3dBlendField::kAlphaOperation>, cs::Blend>);
+ANY360_D3D_CASE(blend_alpha_destination, "blend alpha destination", CRACKDOWN_GUEST_ORIGINAL(826AFC70),
+                State<xs::BlendField<D3dBlendField::kAlphaDestination>, cs::Blend>);
+ANY360_D3D_CASE(blend_enable, "blend enable", CRACKDOWN_GUEST_ORIGINAL(826AF950), State<xs::BlendEnable, cs::Blend>);
+ANY360_D3D_CASE(separate_alpha_blend, "separate alpha blend", CRACKDOWN_GUEST_ORIGINAL(826AFCE0),
+                State<xs::SeparateAlphaBlend, cs::Blend>);
+ANY360_D3D_CASE(vertex_bools, "vertex bool constants", CRACKDOWN_GUEST_ORIGINAL(826B3178),
+                State<xs::BoolConstants<false>, cs::Constants<128, 4>>);
+ANY360_D3D_CASE(pixel_bools, "pixel bool constants", CRACKDOWN_GUEST_ORIGINAL(826B31D8),
+                State<xs::BoolConstants<true>, cs::Constants<128, 4>>);
+ANY360_D3D_CASE(vertex_ints, "vertex int constants", CRACKDOWN_GUEST_ORIGINAL(826B3238),
+                State<xs::IntConstants<false>, cs::Constants<16, 16>>);
+ANY360_D3D_CASE(pixel_ints, "pixel int constants", CRACKDOWN_GUEST_ORIGINAL(826B3290),
+                State<xs::IntConstants<true>, cs::Constants<16, 16>>);
+ANY360_D3D_CASE(pixel_floats, "pixel float constants", CRACKDOWN_GUEST_ORIGINAL(826B3070),
+                State<xs::PixelConstants, cs::PixelFloats>);

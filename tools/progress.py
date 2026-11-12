@@ -20,7 +20,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'docs' / 'progress' / 'renderer'
-HOOK = re.compile(r'(?:CRACKDOWN_BIND(?:_REPLACEMENT)?\(|REX_HOOK(?:_RAW)?\(sub_)(826[A-C][0-9A-F]{4})\b')
+HOOK = re.compile(r'(?:CRACKDOWN_BIND(?:_REPLACEMENT|_ANY360)?\(|REX_HOOK(?:_RAW)?\(sub_)(826[A-C][0-9A-F]{4})\b')
 
 
 def git(*args):
