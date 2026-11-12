@@ -51,6 +51,11 @@ void XAudioMixRamp(PPCContext&, uint8_t*, GuestFunction original);
 void D3dDirtyConstants(PPCContext&, uint8_t*, GuestFunction original);
 void D3dDirtyWords(PPCContext&, uint8_t*, GuestFunction original);
 void D3dSetShaderConstants(PPCContext&, uint8_t*, GuestFunction original);
+void XAudioFill256(PPCContext&, uint8_t*, GuestFunction original);
+void XAudioFill512(PPCContext&, uint8_t*, GuestFunction original);
+void XAudioFill1024(PPCContext&, uint8_t*, GuestFunction original);
+void XAudioFill2048(PPCContext&, uint8_t*, GuestFunction original);
+void XAudioFill4096(PPCContext&, uint8_t*, GuestFunction original);
 
 void EntityDestroyed(PPCContext&, uint8_t*, GuestFunction original);
 

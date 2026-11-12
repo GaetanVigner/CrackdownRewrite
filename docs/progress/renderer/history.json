@@ -308,10 +308,11 @@
     },
     {
       "date": "2026-11-12",
-      "commit": "364d86b61",
-      "hooked": 16,
+      "commit": "ddef78b9c",
+      "hooked": 17,
       "functions": [
         "826AED90",
+        "826B2F68",
         "826B3C48",
         "826B91E0",
         "826B96D0",

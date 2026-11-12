@@ -119,3 +119,20 @@ void crackdown::hooks::D3dDirtyWords(PPCContext& ctx, uint8_t* base, GuestFuncti
 void crackdown::hooks::D3dSetShaderConstants(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::D3dSetShaderConstants(ctx, base, original);
 }
+
+// XAudio's fill of a block's buffer with its value, in its five sizes (floats).
+void crackdown::hooks::XAudioFill256(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::XAudioFill(ctx, base, original, 256);
+}
+void crackdown::hooks::XAudioFill512(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::XAudioFill(ctx, base, original, 512);
+}
+void crackdown::hooks::XAudioFill1024(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::XAudioFill(ctx, base, original, 1024);
+}
+void crackdown::hooks::XAudioFill2048(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::XAudioFill(ctx, base, original, 2048);
+}
+void crackdown::hooks::XAudioFill4096(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::XAudioFill(ctx, base, original, 4096);
+}
