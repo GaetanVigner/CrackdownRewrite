@@ -50,6 +50,7 @@ void CrtMbtowc(PPCContext&, uint8_t*, GuestFunction original);
 void XAudioMixRamp(PPCContext&, uint8_t*, GuestFunction original);
 void D3dDirtyConstants(PPCContext&, uint8_t*, GuestFunction original);
 void D3dDirtyWords(PPCContext&, uint8_t*, GuestFunction original);
+void D3dSetShaderConstants(PPCContext&, uint8_t*, GuestFunction original);
 
 void EntityDestroyed(PPCContext&, uint8_t*, GuestFunction original);
 

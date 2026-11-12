@@ -276,7 +276,7 @@ The recompiled functions of `default.xex` by address area: natively replaced (ho
 
 | Area | Native | Verified | Recompiled | Total | % native |
 |---|---|---|---|---|---|
-| D3D runtime | 23 | 262 | 268 | 553 | 4.2% |
+| D3D runtime | 24 | 262 | 267 | 553 | 4.3% |
 | code 821xxxxx | 41 | 0 | 3830 | 3871 | 1.1% |
 | code 822xxxxx | 28 | 0 | 2407 | 2435 | 1.1% |
 | code 823xxxxx | 52 | 0 | 3800 | 3852 | 1.3% |
@@ -325,4 +325,4 @@ The recompiled functions of `default.xex` by address area: natively replaced (ho
 
 ## D3D runtime entry points
 
-16 of 175 hooked.
+17 of 175 hooked.

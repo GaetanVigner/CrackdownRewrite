@@ -20196,7 +20196,7 @@ address,module,kind,instructions,state,handler,file
 826B26E8,XDK D3D runtime,library,112,library,,
 826B28A8,XDK D3D runtime,library,94,library,,
 826B2A20,XDK D3D runtime,library,338,library,,
-826B2F68,XDK D3D runtime,library,63,library,,
+826B2F68,XDK D3D runtime,library,63,native,D3dSetShaderConstants,crt_native.cpp
 826B3070,XDK D3D runtime,library,63,library,,
 826B3178,XDK D3D runtime,library,23,library,,
 826B31D8,XDK D3D runtime,library,23,library,,

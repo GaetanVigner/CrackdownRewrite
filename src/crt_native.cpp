@@ -113,3 +113,9 @@ void crackdown::hooks::D3dDirtyConstants(PPCContext& ctx, uint8_t* base, GuestFu
 void crackdown::hooks::D3dDirtyWords(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::D3dDirtyWords(ctx, base, original, 48);
 }
+
+// The D3D runtime's copy of the title's shader constants into the device (r3 device, r4 first register, r5
+// constants, r6 count, r7 dirty bits).
+void crackdown::hooks::D3dSetShaderConstants(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::D3dSetShaderConstants(ctx, base, original);
+}
