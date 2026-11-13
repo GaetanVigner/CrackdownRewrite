@@ -20390,7 +20390,7 @@ address,module,kind,instructions,state,handler,file
 826C53D8,XDK D3D runtime,library,60,library,,
 826C54C8,XDK D3D runtime,library,46,library,,
 826C5580,XDK D3D runtime,library,121,library,,
-826C5768,XDK D3D runtime,library,229,library,,
+826C5768,XDK D3D runtime,library,229,native,FlushStateOrOriginal,guest_bindings_base.cpp
 826C5B00,XDK D3D runtime,library,48,native,D3dDirtyWords,crt_native.cpp
 826C5BC0,XDK D3D runtime,library,95,native,FlushWaitGroupOrOriginal,guest_bindings_base.cpp
 826C5D40,XDK D3D runtime,library,88,native,FlushFetchConstantsOrOriginal,guest_bindings_base.cpp

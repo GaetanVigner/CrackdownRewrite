@@ -128,6 +128,8 @@ CRACKDOWN_BIND_D3D(826BFD88, ClearOrOriginal)
 // The draws' fetch-constant and wait-group uploads.
 CRACKDOWN_BIND_D3D(826C5D40, FlushFetchConstantsOrOriginal)
 CRACKDOWN_BIND_D3D(826C5BC0, FlushWaitGroupOrOriginal)
+// The draws' state group (register 0x2203 per tile, 0x2000, 0x2104).
+CRACKDOWN_BIND_D3D(826C5768, FlushStateOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -628,5 +630,8 @@ ANY360_D3D_CASE(wait_group, "Wait group upload (PM4)", CRACKDOWN_GUEST_ORIGINAL(
                 state::GroupHelper<false, true>);
 ANY360_D3D_CASE(wait_group_records, "Wait group upload (records)", CRACKDOWN_GUEST_ORIGINAL(826C5BC0),
                 state::GroupHelper<true, true>);
+ANY360_D3D_CASE(state_helper, "State helper (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C5768), state::StateHelper<false>);
+ANY360_D3D_CASE(state_helper_records, "State helper (records)", CRACKDOWN_GUEST_ORIGINAL(826C5768),
+                state::StateHelper<true>);
 ANY360_D3D_CASE(resolve, "Resolve (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase<false>);
 ANY360_D3D_CASE(resolve_records, "Resolve (records)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase<true>);
