@@ -1059,8 +1059,9 @@ void crackdown::hooks::D3dClear(PPCContext& ctx, uint8_t* base, GuestFunction or
 
 void crackdown::hooks::D3dResolve(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::RecordKind::kResolve,
-                         crackdown::Source::kResolve);
+  crackdown::CaptureDraw(ctx, base, false,
+                         [&] { any360::host::rexglue::d3d_draw::ResolveOrOriginal(ctx, base, original); },
+                         crackdown::RecordKind::kResolve, crackdown::Source::kResolve);
 }
 
 void crackdown::hooks::D3dSetShaderGprAllocation(PPCContext& ctx, uint8_t* base, GuestFunction original) {

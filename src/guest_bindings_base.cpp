@@ -88,6 +88,10 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BA938));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C05C8));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BF8C0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826AF370));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826ADD50));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BE4A0));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BDFC8));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C3440));
 namespace {
 [[maybe_unused]] const bool crackdown_d3d_runtime = [] {
   any360::host::rexglue::d3d_draw::Runtime& rt = any360::host::rexglue::d3d_draw::g_runtime;
@@ -105,6 +109,14 @@ namespace {
   rt.clear_vertex_shader = 0x8206BC58u;
   rt.clear_pixel_shader = 0x82066C1Cu;
   rt.clear_default_color = 0x820722DCu;
+  rt.surface_level = &CRACKDOWN_GUEST_FUNC(826ADD50);
+  rt.resolve_clear_color = &CRACKDOWN_GUEST_FUNC(826BE4A0);
+  rt.resolve_clear_depth = &CRACKDOWN_GUEST_FUNC(826BDFC8);
+  rt.release_block = &CRACKDOWN_GUEST_FUNC(826C3440);
+  rt.resolve_format_table = 0x820E9D88u;
+  rt.resolve_default_point = 0x82056C94u;
+  rt.resolve_pixel_shader = 0x8206735Cu;
+  rt.resolve_offset_float = 0x8207047Cu;
   rt.primitive_table = 0x82088398u;
   return true;
 }();
@@ -600,3 +612,4 @@ ANY360_D3D_CASE(predication_records, "SetPredication (records)", CRACKDOWN_GUEST
 ANY360_D3D_CASE(query_pm4, "Query Issue (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C0B38), state::Query<false>);
 ANY360_D3D_CASE(query_records, "Query Issue (records)", CRACKDOWN_GUEST_ORIGINAL(826C0B38), state::Query<true>);
 ANY360_D3D_CASE(clear, "Clear (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BFD88), state::ClearCase);
+ANY360_D3D_CASE(resolve, "Resolve (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase);
