@@ -103,9 +103,9 @@
   },
   "functions": {
    "total": 41219,
-   "native": 450,
+   "native": 452,
    "verified": 281,
-   "library": 5997,
+   "library": 5995,
    "middleware": 5260,
    "recompiled": 29231
   },

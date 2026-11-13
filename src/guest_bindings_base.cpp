@@ -125,6 +125,9 @@ namespace {
 CRACKDOWN_BIND_D3D(826C0B38, QueryIssueOrOriginal)
 // The clear under the rect wrapper sub_826C04A0 (D3dClear).
 CRACKDOWN_BIND_D3D(826BFD88, ClearOrOriginal)
+// The draws' fetch-constant and wait-group uploads.
+CRACKDOWN_BIND_D3D(826C5D40, FlushFetchConstantsOrOriginal)
+CRACKDOWN_BIND_D3D(826C5BC0, FlushWaitGroupOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -617,5 +620,13 @@ ANY360_D3D_CASE(query_pm4, "Query Issue (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C0B3
 ANY360_D3D_CASE(query_records, "Query Issue (records)", CRACKDOWN_GUEST_ORIGINAL(826C0B38), state::Query<true>);
 ANY360_D3D_CASE(clear, "Clear (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BFD88), state::ClearCase<false>);
 ANY360_D3D_CASE(clear_records, "Clear (records)", CRACKDOWN_GUEST_ORIGINAL(826BFD88), state::ClearCase<true>);
+ANY360_D3D_CASE(fetch_upload, "Fetch constants upload (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C5D40),
+                state::GroupHelper<false, false>);
+ANY360_D3D_CASE(fetch_upload_records, "Fetch constants upload (records)", CRACKDOWN_GUEST_ORIGINAL(826C5D40),
+                state::GroupHelper<true, false>);
+ANY360_D3D_CASE(wait_group, "Wait group upload (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C5BC0),
+                state::GroupHelper<false, true>);
+ANY360_D3D_CASE(wait_group_records, "Wait group upload (records)", CRACKDOWN_GUEST_ORIGINAL(826C5BC0),
+                state::GroupHelper<true, true>);
 ANY360_D3D_CASE(resolve, "Resolve (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase<false>);
 ANY360_D3D_CASE(resolve_records, "Resolve (records)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase<true>);
