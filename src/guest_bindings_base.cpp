@@ -84,6 +84,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6C48));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5BC0));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BA938));
 namespace {
 [[maybe_unused]] const bool crackdown_d3d_runtime = [] {
   any360::host::rexglue::d3d_draw::Runtime& rt = any360::host::rexglue::d3d_draw::g_runtime;
@@ -94,6 +95,7 @@ namespace {
   rt.flush_state = &CRACKDOWN_GUEST_FUNC(826C5768);
   rt.flush_misc = &CRACKDOWN_GUEST_FUNC(826C5D40);
   rt.flush_waits = &CRACKDOWN_GUEST_FUNC(826C5BC0);
+  rt.allocate = &CRACKDOWN_GUEST_FUNC(826BA938);
   rt.primitive_table = 0x82088398u;
   return true;
 }();
@@ -567,3 +569,15 @@ ANY360_D3D_CASE(draw_indexed_helpers, "DrawIndexedVertices (helpers)", CRACKDOWN
 ANY360_D3D_CASE(draw_indexed_pm4, "DrawIndexedVertices (PM4)", CRACKDOWN_GUEST_ORIGINAL(826B9FF8), state::DrawIndexed<false>);
 ANY360_D3D_CASE(draw_indexed_records, "DrawIndexedVertices (records)", CRACKDOWN_GUEST_ORIGINAL(826B9FF8),
                 state::DrawIndexed<true>);
+ANY360_D3D_CASE(draw_vertices_pm4, "DrawVertices (PM4)", CRACKDOWN_GUEST_ORIGINAL(826B9C08),
+                state::DrawIndexed<false, true, false>);
+ANY360_D3D_CASE(draw_vertices_records, "DrawVertices (records)", CRACKDOWN_GUEST_ORIGINAL(826B9C08),
+                state::DrawIndexed<true, true, false>);
+ANY360_D3D_CASE(begin_vertices_pm4, "DrawBeginVertices (PM4)", CRACKDOWN_GUEST_ORIGINAL(826B91E0),
+                state::Begin<false, false>);
+ANY360_D3D_CASE(begin_vertices_records, "DrawBeginVertices (records)", CRACKDOWN_GUEST_ORIGINAL(826B91E0),
+                state::Begin<true, false>);
+ANY360_D3D_CASE(begin_indexed_pm4, "DrawBeginIndexedVertices (PM4)", CRACKDOWN_GUEST_ORIGINAL(826B96D0),
+                state::Begin<false, true>);
+ANY360_D3D_CASE(begin_indexed_records, "DrawBeginIndexedVertices (records)", CRACKDOWN_GUEST_ORIGINAL(826B96D0),
+                state::Begin<true, true>);

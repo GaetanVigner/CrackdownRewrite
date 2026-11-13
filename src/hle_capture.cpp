@@ -1025,7 +1025,9 @@ void crackdown::hooks::D3dDrawIndexedVertices(PPCContext& ctx, uint8_t* base, Gu
 
 void crackdown::hooks::D3dDrawVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::RecordKind::kDraw);
+  crackdown::CaptureDraw(ctx, base, false,
+                         [&] { any360::host::rexglue::d3d_draw::DrawVerticesOrOriginal(ctx, base, original); },
+                         crackdown::RecordKind::kDraw);
 }
 
 void crackdown::hooks::D3dBeginVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
@@ -1034,12 +1036,16 @@ void crackdown::hooks::D3dBeginVertices(PPCContext& ctx, uint8_t* base, GuestFun
     ctx.r3.u64 = 0;
     return;
   }
-  crackdown::CaptureDraw(ctx, base, true, [&] { original(ctx, base); }, crackdown::RecordKind::kBeginVertices);
+  crackdown::CaptureDraw(ctx, base, true,
+                         [&] { any360::host::rexglue::d3d_draw::BeginVerticesOrOriginal(ctx, base, original); },
+                         crackdown::RecordKind::kBeginVertices);
 }
 
 void crackdown::hooks::D3dBeginIndexedVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, true, [&] { original(ctx, base); }, crackdown::RecordKind::kBeginIndexedVertices);
+  crackdown::CaptureDraw(ctx, base, true,
+                         [&] { any360::host::rexglue::d3d_draw::BeginIndexedVerticesOrOriginal(ctx, base, original); },
+                         crackdown::RecordKind::kBeginIndexedVertices);
 }
 
 // D3D calls that draw with their own state written straight into the ring (the walk applies it): the clear
