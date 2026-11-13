@@ -4,6 +4,7 @@
 // EndVertices; every dirty state group is flushed before the DRAW packet, so the shadow plus the call's own packets
 // (walked in order, INDIRECT_BUFFERs followed) is the register state of each draw.
 
+#include "any360/host/d3d_draw.h"
 #include "hle_capture.h"
 
 #include <algorithm>
@@ -1016,7 +1017,10 @@ void HleCaptureFrame() {
 // BeginIndexedVertices.
 void crackdown::hooks::D3dDrawIndexedVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   if (crackdown::SingleTileSuppressed()) return;
-  crackdown::CaptureDraw(ctx, base, false, [&] { original(ctx, base); }, crackdown::RecordKind::kDrawIndexed);
+  // The draw itself: Any360's native DrawIndexedVertices (docs/D3D.md, D2), or the runtime's own code.
+  crackdown::CaptureDraw(ctx, base, false,
+                         [&] { any360::host::rexglue::d3d_draw::DrawIndexedOrOriginal(ctx, base, original); },
+                         crackdown::RecordKind::kDrawIndexed);
 }
 
 void crackdown::hooks::D3dDrawVertices(PPCContext& ctx, uint8_t* base, GuestFunction original) {

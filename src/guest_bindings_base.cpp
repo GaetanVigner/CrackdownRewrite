@@ -73,6 +73,31 @@ CRACKDOWN_BIND_ANY360(826B1E50, D3dState<d3d_state::SetVertexDeclaration>)
 CRACKDOWN_BIND_ANY360(826B3458, D3dState<d3d_state::SetShader<false>>)
 CRACKDOWN_BIND_ANY360(826B3848, D3dState<d3d_state::SetShader<true>>)
 CRACKDOWN_BIND_ANY360(826C4C70, D3dState<d3d_state::FlushCpuRange>)
+
+// The runtime functions Any360's native draws call (d3d_draw.h), as the title's code calls them: the bound ones run
+// their hooks and natives.
+#include "any360/host/d3d_draw.h"
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BB408));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5EA0));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5B00));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6C48));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5BC0));
+namespace {
+[[maybe_unused]] const bool crackdown_d3d_runtime = [] {
+  any360::host::rexglue::d3d_draw::Runtime& rt = any360::host::rexglue::d3d_draw::g_runtime;
+  rt.make_room = &CRACKDOWN_GUEST_FUNC(826BB408);
+  rt.upload_constants = &CRACKDOWN_GUEST_FUNC(826C5EA0);
+  rt.upload_words = &CRACKDOWN_GUEST_FUNC(826C5B00);
+  rt.flush_shaders = &CRACKDOWN_GUEST_FUNC(826C6C48);
+  rt.flush_state = &CRACKDOWN_GUEST_FUNC(826C5768);
+  rt.flush_misc = &CRACKDOWN_GUEST_FUNC(826C5D40);
+  rt.flush_waits = &CRACKDOWN_GUEST_FUNC(826C5BC0);
+  rt.primitive_table = 0x82088398u;
+  return true;
+}();
+}  // namespace
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -537,3 +562,8 @@ ANY360_D3D_CASE(vertex_shader, "SetVertexShader", CRACKDOWN_GUEST_ORIGINAL(826B3
                 State<xs::SetShader<true>, cs::Shader<true>>);
 ANY360_D3D_CASE(flush_range, "CPU range flush", CRACKDOWN_GUEST_ORIGINAL(826C4C70),
                 State<xs::FlushCpuRange, cs::FlushRange>);
+ANY360_D3D_CASE(draw_indexed_helpers, "DrawIndexedVertices (helpers)", CRACKDOWN_GUEST_ORIGINAL(826B9FF8),
+                state::DrawIndexed<false, true>);
+ANY360_D3D_CASE(draw_indexed_pm4, "DrawIndexedVertices (PM4)", CRACKDOWN_GUEST_ORIGINAL(826B9FF8), state::DrawIndexed<false>);
+ANY360_D3D_CASE(draw_indexed_records, "DrawIndexedVertices (records)", CRACKDOWN_GUEST_ORIGINAL(826B9FF8),
+                state::DrawIndexed<true>);
