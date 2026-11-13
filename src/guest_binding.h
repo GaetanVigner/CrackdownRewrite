@@ -39,5 +39,13 @@ extern const rex::PPCImageInfo PPCImageConfig;
     ::any360::host::rexglue::xdk::__VA_ARGS__(ctx, base, CRACKDOWN_GUEST_ORIGINAL(address));   \
   }
 
+// The guest function at `address` runs Any360's native D3D flush `handler` (in any360::host::rexglue::d3d_draw, from
+// any360/host/d3d_draw.h), with its own code as the fallback.
+#define CRACKDOWN_BIND_D3D(address, handler)                                                  \
+  REX_EXTERN(CRACKDOWN_GUEST_ORIGINAL(address));                                              \
+  REX_HOOK_RAW(CRACKDOWN_GUEST_FUNC(address)) {                                               \
+    ::any360::host::rexglue::d3d_draw::handler(ctx, base, CRACKDOWN_GUEST_ORIGINAL(address));  \
+  }
+
 // A guest function the hooks call without replacing it.
 #define CRACKDOWN_GUEST_CALL(address) REX_EXTERN(CRACKDOWN_GUEST_ORIGINAL(address));

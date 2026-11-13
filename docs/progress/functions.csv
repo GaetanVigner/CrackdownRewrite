@@ -20360,7 +20360,7 @@ address,module,kind,instructions,state,handler,file
 826C0858,XDK D3D runtime,library,63,library,,
 826C0958,XDK D3D runtime,library,36,library,,
 826C09E8,XDK D3D runtime,library,84,library,,
-826C0B38,XDK D3D runtime,library,126,library,,
+826C0B38,XDK D3D runtime,library,126,native,QueryIssueOrOriginal,guest_bindings_base.cpp
 826C0D38,XDK D3D runtime,library,284,library,,
 826C11B0,XDK D3D runtime,library,28,library,,
 826C1220,XDK D3D runtime,library,58,library,,

@@ -103,10 +103,7 @@ namespace {
 }();
 }  // namespace
 // IDirect3DQuery9::Issue (D3, docs/D3D.md): Any360's native, the runtime's own code when it declines.
-REX_EXTERN(CRACKDOWN_GUEST_ORIGINAL(826C0B38));
-REX_HOOK_RAW(CRACKDOWN_GUEST_FUNC(826C0B38)) {
-  any360::host::rexglue::d3d_draw::QueryIssueOrOriginal(ctx, base, CRACKDOWN_GUEST_ORIGINAL(826C0B38));
-}
+CRACKDOWN_BIND_D3D(826C0B38, QueryIssueOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
