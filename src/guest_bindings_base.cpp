@@ -85,6 +85,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5BC0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BA938));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C05C8));
 namespace {
 [[maybe_unused]] const bool crackdown_d3d_runtime = [] {
   any360::host::rexglue::d3d_draw::Runtime& rt = any360::host::rexglue::d3d_draw::g_runtime;
@@ -96,10 +97,16 @@ namespace {
   rt.flush_misc = &CRACKDOWN_GUEST_FUNC(826C5D40);
   rt.flush_waits = &CRACKDOWN_GUEST_FUNC(826C5BC0);
   rt.allocate = &CRACKDOWN_GUEST_FUNC(826BA938);
+  rt.query_occlusion = &CRACKDOWN_GUEST_FUNC(826C05C8);
   rt.primitive_table = 0x82088398u;
   return true;
 }();
 }  // namespace
+// IDirect3DQuery9::Issue (D3, docs/D3D.md): Any360's native, the runtime's own code when it declines.
+REX_EXTERN(CRACKDOWN_GUEST_ORIGINAL(826C0B38));
+REX_HOOK_RAW(CRACKDOWN_GUEST_FUNC(826C0B38)) {
+  any360::host::rexglue::d3d_draw::QueryIssueOrOriginal(ctx, base, CRACKDOWN_GUEST_ORIGINAL(826C0B38));
+}
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -584,3 +591,5 @@ ANY360_D3D_CASE(begin_indexed_records, "DrawBeginIndexedVertices (records)", CRA
 ANY360_D3D_CASE(predication_pm4, "SetPredication (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BD300), state::Predication<false>);
 ANY360_D3D_CASE(predication_records, "SetPredication (records)", CRACKDOWN_GUEST_ORIGINAL(826BD300),
                 state::Predication<true>);
+ANY360_D3D_CASE(query_pm4, "Query Issue (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C0B38), state::Query<false>);
+ANY360_D3D_CASE(query_records, "Query Issue (records)", CRACKDOWN_GUEST_ORIGINAL(826C0B38), state::Query<true>);
