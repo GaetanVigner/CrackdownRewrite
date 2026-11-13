@@ -86,6 +86,8 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5BC0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BA938));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C05C8));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BF8C0));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826AF370));
 namespace {
 [[maybe_unused]] const bool crackdown_d3d_runtime = [] {
   any360::host::rexglue::d3d_draw::Runtime& rt = any360::host::rexglue::d3d_draw::g_runtime;
@@ -98,12 +100,19 @@ namespace {
   rt.flush_waits = &CRACKDOWN_GUEST_FUNC(826C5BC0);
   rt.allocate = &CRACKDOWN_GUEST_FUNC(826BA938);
   rt.query_occlusion = &CRACKDOWN_GUEST_FUNC(826C05C8);
+  rt.clear_target = &CRACKDOWN_GUEST_FUNC(826BF8C0);
+  rt.restore_viewport = &CRACKDOWN_GUEST_FUNC(826AF370);
+  rt.clear_vertex_shader = 0x8206BC58u;
+  rt.clear_pixel_shader = 0x82066C1Cu;
+  rt.clear_default_color = 0x820722DCu;
   rt.primitive_table = 0x82088398u;
   return true;
 }();
 }  // namespace
 // IDirect3DQuery9::Issue (D3, docs/D3D.md): Any360's native, the runtime's own code when it declines.
 CRACKDOWN_BIND_D3D(826C0B38, QueryIssueOrOriginal)
+// The clear under the rect wrapper sub_826C04A0 (D3dClear).
+CRACKDOWN_BIND_D3D(826BFD88, ClearOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -590,3 +599,4 @@ ANY360_D3D_CASE(predication_records, "SetPredication (records)", CRACKDOWN_GUEST
                 state::Predication<true>);
 ANY360_D3D_CASE(query_pm4, "Query Issue (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C0B38), state::Query<false>);
 ANY360_D3D_CASE(query_records, "Query Issue (records)", CRACKDOWN_GUEST_ORIGINAL(826C0B38), state::Query<true>);
+ANY360_D3D_CASE(clear, "Clear (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BFD88), state::ClearCase);

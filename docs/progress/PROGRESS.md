@@ -12,9 +12,9 @@ Generated on 2026-11-13 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 281 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 127 | 6,377 | 2.0% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 128 | 6,377 | 2.0% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 33,496 | 2,667,844 | 1.3% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 33,902 | 2,667,844 | 1.3% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -323,7 +323,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | Kynapse (AI) | middleware | 947 | 56,021 | 3 | 0 | 944 | 0.3% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
 | C runtime (CRT) | library | 595 | 41,901 | 24 | 0 | 571 | 4.0% |
-| XDK D3D runtime | library | 553 | 34,977 | 44 | 252 | 257 | 8.0% |
+| XDK D3D runtime | library | 553 | 34,977 | 45 | 252 | 256 | 8.1% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
 | XDK audio (XAudio, XMA) | library | 484 | 28,795 | 13 | 0 | 471 | 2.7% |
@@ -334,7 +334,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 449 rewritten functions</summary>
+<details><summary>The 450 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -616,6 +616,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826BD488` | XDK D3D runtime | 364 | `D3dBeginTiling` | single_tile_scene.cpp |
 | `826BDA38` | XDK D3D runtime | 313 | `D3dEndTiling` | single_tile_scene.cpp |
 | `826BE578` | XDK D3D runtime | 897 | `D3dResolve` | hle_capture.cpp |
+| `826BFD88` | XDK D3D runtime | 406 | `ClearOrOriginal` | guest_bindings_base.cpp |
 | `826C04A0` | XDK D3D runtime | 73 | `D3dClear` | hle_capture.cpp |
 | `826C0B38` | XDK D3D runtime | 126 | `QueryIssueOrOriginal` | guest_bindings_base.cpp |
 | `826C3750` | XDK D3D runtime | 400 | `D3dRunCommandBuffer` | hle_capture.cpp |
