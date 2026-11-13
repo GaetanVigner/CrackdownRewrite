@@ -355,7 +355,8 @@ void crackdown::hooks::D3dBindShaderLiterals(PPCContext& ctx, uint8_t* base, Gue
   const uint32_t device = ctx.r3.u32;
   const uint32_t pre = Load32(base, device + 48);
   const uint32_t segment_end = Load32(base, device + 56);
-  original(ctx, base);
+  // Any360's native (docs/D3D.md, D3); its records are not noted (HLE capture reads PM4 only).
+  any360::host::rexglue::d3d_draw::ConstantListOrOriginal(ctx, base, original);
   HleNoteLiteralPackets(base, device, pre, segment_end);
 }
 

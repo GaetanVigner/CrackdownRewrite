@@ -20402,7 +20402,7 @@ address,module,kind,instructions,state,handler,file
 826C68E0,XDK D3D runtime,library,90,library,,
 826C6A50,XDK D3D runtime,library,44,native,D3dBindShaderLiterals,single_tile_scene.cpp
 826C6B00,XDK D3D runtime,library,82,library,,
-826C6C48,XDK D3D runtime,library,418,library,,
+826C6C48,XDK D3D runtime,library,418,native,FlushShadersOrOriginal,guest_bindings_base.cpp
 826C72D0,XDK D3D runtime,library,79,library,,
 826C7410,XDK D3D runtime,library,27,library,,
 826C7480,XDK D3D runtime,library,424,library,,

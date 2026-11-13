@@ -81,6 +81,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BB408));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5EA0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5B00));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6C48));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6A50));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5BC0));
@@ -113,6 +114,7 @@ namespace {
   rt.resolve_clear_color = &CRACKDOWN_GUEST_FUNC(826BE4A0);
   rt.resolve_clear_depth = &CRACKDOWN_GUEST_FUNC(826BDFC8);
   rt.release_block = &CRACKDOWN_GUEST_FUNC(826C3440);
+  rt.constant_list = &CRACKDOWN_GUEST_FUNC(826C6A50);
   rt.resolve_format_table = 0x820E9D88u;
   rt.resolve_default_point = 0x82056C94u;
   rt.resolve_pixel_shader = 0x8206735Cu;
@@ -130,6 +132,8 @@ CRACKDOWN_BIND_D3D(826C5D40, FlushFetchConstantsOrOriginal)
 CRACKDOWN_BIND_D3D(826C5BC0, FlushWaitGroupOrOriginal)
 // The draws' state group (register 0x2203 per tile, 0x2000, 0x2104).
 CRACKDOWN_BIND_D3D(826C5768, FlushStateOrOriginal)
+// The draws' shader flush (constant lists, IM_LOAD, shader programs).
+CRACKDOWN_BIND_D3D(826C6C48, FlushShadersOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -633,5 +637,11 @@ ANY360_D3D_CASE(wait_group_records, "Wait group upload (records)", CRACKDOWN_GUE
 ANY360_D3D_CASE(state_helper, "State helper (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C5768), state::StateHelper<false>);
 ANY360_D3D_CASE(state_helper_records, "State helper (records)", CRACKDOWN_GUEST_ORIGINAL(826C5768),
                 state::StateHelper<true>);
+ANY360_D3D_CASE(constant_list, "Constant list (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C6A50), state::ConstantListCase<false>);
+ANY360_D3D_CASE(constant_list_records, "Constant list (records)", CRACKDOWN_GUEST_ORIGINAL(826C6A50),
+                state::ConstantListCase<true>);
+ANY360_D3D_CASE(shader_helper, "Shader helper (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C6C48), state::ShaderHelper<false>);
+ANY360_D3D_CASE(shader_helper_records, "Shader helper (records)", CRACKDOWN_GUEST_ORIGINAL(826C6C48),
+                state::ShaderHelper<true>);
 ANY360_D3D_CASE(resolve, "Resolve (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase<false>);
 ANY360_D3D_CASE(resolve_records, "Resolve (records)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase<true>);
