@@ -581,3 +581,6 @@ ANY360_D3D_CASE(begin_indexed_pm4, "DrawBeginIndexedVertices (PM4)", CRACKDOWN_G
                 state::Begin<false, true>);
 ANY360_D3D_CASE(begin_indexed_records, "DrawBeginIndexedVertices (records)", CRACKDOWN_GUEST_ORIGINAL(826B96D0),
                 state::Begin<true, true>);
+ANY360_D3D_CASE(predication_pm4, "SetPredication (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BD300), state::Predication<false>);
+ANY360_D3D_CASE(predication_records, "SetPredication (records)", CRACKDOWN_GUEST_ORIGINAL(826BD300),
+                state::Predication<true>);

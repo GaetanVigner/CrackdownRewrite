@@ -27,6 +27,7 @@
 //   hooks before the three `fdivs` of (h - overlap) / h make the dividend 480 when it is 720, so K = 1.
 // The shadow atlas (4 tiles, sub_825C5790) is left as it is.
 
+#include "any360/host/d3d_draw.h"
 #include "single_tile_scene.h"
 
 #include <algorithm>
@@ -320,7 +321,7 @@ void crackdown::hooks::D3dEndTiling(PPCContext& ctx, uint8_t* base, GuestFunctio
 void crackdown::hooks::D3dSetPredication(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   using namespace crackdown;
   if (g_in_bracket) g_suppressed = ctx.r4.u32 != 0 && (ctx.r4.u32 & kTileZeroBits) == 0;
-  original(ctx, base);
+  any360::host::rexglue::d3d_draw::SetPredicationOrOriginal(ctx, base, original);  // Any360's native (docs/D3D.md, D3)
 }
 
 // Render-target fixup of a command buffer at load (from sub_823BD140).
