@@ -82,6 +82,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5EA0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5B00));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6C48));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6A50));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6010));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5BC0));
@@ -115,6 +116,8 @@ namespace {
   rt.resolve_clear_depth = &CRACKDOWN_GUEST_FUNC(826BDFC8);
   rt.release_block = &CRACKDOWN_GUEST_FUNC(826C3440);
   rt.constant_list = &CRACKDOWN_GUEST_FUNC(826C6A50);
+  rt.fetch_swizzles = 0x8206BC24u;
+  rt.fetch_sizes = 0x820EA160u;
   rt.resolve_format_table = 0x820E9D88u;
   rt.resolve_default_point = 0x82056C94u;
   rt.resolve_pixel_shader = 0x8206735Cu;
@@ -640,6 +643,8 @@ ANY360_D3D_CASE(state_helper_records, "State helper (records)", CRACKDOWN_GUEST_
 ANY360_D3D_CASE(constant_list, "Constant list (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C6A50), state::ConstantListCase<false>);
 ANY360_D3D_CASE(constant_list_records, "Constant list (records)", CRACKDOWN_GUEST_ORIGINAL(826C6A50),
                 state::ConstantListCase<true>);
+// Not bound (the shader flush reaches it natively): the generated function is the original.
+ANY360_D3D_CASE(fetch_patch, "Vertex fetch patch", CRACKDOWN_GUEST_FUNC(826C6010), state::FetchPatch);
 ANY360_D3D_CASE(shader_helper, "Shader helper (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C6C48), state::ShaderHelper<false>);
 ANY360_D3D_CASE(shader_helper_records, "Shader helper (records)", CRACKDOWN_GUEST_ORIGINAL(826C6C48),
                 state::ShaderHelper<true>);
