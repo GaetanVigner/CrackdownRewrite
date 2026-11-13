@@ -611,5 +611,7 @@ ANY360_D3D_CASE(predication_records, "SetPredication (records)", CRACKDOWN_GUEST
                 state::Predication<true>);
 ANY360_D3D_CASE(query_pm4, "Query Issue (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C0B38), state::Query<false>);
 ANY360_D3D_CASE(query_records, "Query Issue (records)", CRACKDOWN_GUEST_ORIGINAL(826C0B38), state::Query<true>);
-ANY360_D3D_CASE(clear, "Clear (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BFD88), state::ClearCase);
-ANY360_D3D_CASE(resolve, "Resolve (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase);
+ANY360_D3D_CASE(clear, "Clear (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BFD88), state::ClearCase<false>);
+ANY360_D3D_CASE(clear_records, "Clear (records)", CRACKDOWN_GUEST_ORIGINAL(826BFD88), state::ClearCase<true>);
+ANY360_D3D_CASE(resolve, "Resolve (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase<false>);
+ANY360_D3D_CASE(resolve_records, "Resolve (records)", CRACKDOWN_GUEST_ORIGINAL(826BE578), state::ResolveCase<true>);
