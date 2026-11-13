@@ -545,6 +545,10 @@ CRACKDOWN_BIND_REPLACEMENT(82B12710, decomp::Sub_82B12710)
 ANY360_D3D_CASE(set_shader_constants, "set shader constants", CRACKDOWN_GUEST_ORIGINAL(826B2F68), SetShaderConstants);
 ANY360_D3D_CASE(dirty_constants, "dirty constants", CRACKDOWN_GUEST_ORIGINAL(826C5EA0), DirtyUpload<48, false>);
 ANY360_D3D_CASE(dirty_words, "dirty words", CRACKDOWN_GUEST_ORIGINAL(826C5B00), DirtyUpload<48, true>);
+ANY360_D3D_CASE(dirty_constants_records, "dirty constants (records)", CRACKDOWN_GUEST_ORIGINAL(826C5EA0),
+                DirtyUpload<48, false, true>);
+ANY360_D3D_CASE(dirty_words_records, "dirty words (records)", CRACKDOWN_GUEST_ORIGINAL(826C5B00),
+                DirtyUpload<48, true, true>);
 namespace {
 namespace xs = any360::host::rexglue::xdk::d3d_state;
 namespace cs = any360::host::rexglue::d3d::state;
