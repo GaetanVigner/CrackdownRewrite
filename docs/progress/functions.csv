@@ -20457,7 +20457,7 @@ address,module,kind,instructions,state,handler,file
 826CCD78,XDK D3D runtime,library,546,library,,
 826CD600,XDK D3D runtime,library,59,library,,
 826CD6F0,XDK D3D runtime,library,58,library,,
-826CD7D8,XDK D3D runtime,library,93,library,,
+826CD7D8,XDK D3D runtime,library,93,native,TileSelectOrOriginal,guest_bindings_base.cpp
 826CD950,XDK D3D runtime,library,41,library,,
 826CD9F8,XDK D3D runtime,library,63,library,,
 826CDAF8,XDK D3D runtime,library,193,library,,
@@ -20465,8 +20465,8 @@ address,module,kind,instructions,state,handler,file
 826CDED8,XDK D3D runtime,library,123,library,,
 826CE0C8,XDK D3D runtime,library,52,library,,
 826CE198,XDK D3D runtime,library,11,library,,
-826CE1C8,XDK D3D runtime,library,101,library,,
-826CE360,XDK D3D runtime,library,143,library,,
+826CE1C8,XDK D3D runtime,library,101,native,BeginTiledRecordingOrOriginal,guest_bindings_base.cpp
+826CE360,XDK D3D runtime,library,143,native,EndTiledRecordingOrOriginal,guest_bindings_base.cpp
 826CE5A0,XDK D3D runtime,library,106,library,,
 826CE748,XDK D3D runtime,library,116,library,,
 826CE918,XDK D3D runtime,library,26,library,,
