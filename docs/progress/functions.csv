@@ -20301,7 +20301,7 @@ address,module,kind,instructions,state,handler,file
 826B9FF8,XDK D3D runtime,library,279,native,D3dDrawIndexedVertices,hle_capture.cpp
 826BA458,XDK D3D runtime,library,26,library,,
 826BA4C0,XDK D3D runtime,library,66,library,,
-826BA5C8,XDK D3D runtime,library,42,library,,
+826BA5C8,XDK D3D runtime,library,42,native,ChainSegmentOrOriginal,guest_bindings_base.cpp
 826BA678,XDK D3D runtime,library,45,library,,
 826BA730,XDK D3D runtime,library,129,library,,
 826BA938,XDK D3D runtime,library,102,library,,
@@ -20309,9 +20309,9 @@ address,module,kind,instructions,state,handler,file
 826BAC90,XDK D3D runtime,library,50,library,,
 826BAD58,XDK D3D runtime,library,101,native,RingSubmitOrOriginal,guest_bindings_base.cpp
 826BAEF8,XDK D3D runtime,library,113,library,,
-826BB0C0,XDK D3D runtime,library,56,library,,
-826BB1A0,XDK D3D runtime,library,105,library,,
-826BB348,XDK D3D runtime,library,47,library,,
+826BB0C0,XDK D3D runtime,library,56,native,SegmentEndOrOriginal,guest_bindings_base.cpp
+826BB1A0,XDK D3D runtime,library,105,native,SegmentCloseOrOriginal,guest_bindings_base.cpp
+826BB348,XDK D3D runtime,library,47,native,SegmentSubmitOrOriginal,guest_bindings_base.cpp
 826BB408,XDK D3D runtime,library,58,native,D3dRingSegmentSwitch,hle_capture.cpp
 826BB4F0,XDK D3D runtime,library,53,native,GpuFence,gpu_fence_wait.cpp
 826BB5C8,XDK D3D runtime,library,86,native,FenceOrOriginal,guest_bindings_base.cpp

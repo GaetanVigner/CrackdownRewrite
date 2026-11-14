@@ -87,6 +87,9 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C67A0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BA4C0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BB4F0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BAC90));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BAD58));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BB348));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BAAD0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BE110));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
@@ -129,6 +132,9 @@ namespace {
   rt.device_slot = 0x82000798u;
   rt.block_on_fence = &CRACKDOWN_GUEST_FUNC(826BB4F0);
   rt.ring_space = &CRACKDOWN_GUEST_FUNC(826BAC90);
+  rt.ring_submit = &CRACKDOWN_GUEST_FUNC(826BAD58);
+  rt.segment_submit = &CRACKDOWN_GUEST_FUNC(826BB348);
+  rt.segment_room = &CRACKDOWN_GUEST_FUNC(826BAAD0);
   rt.clear_depth_offset = 0x820EE230u;
   rt.clear_depth_scale = 0x820EE228u;
   rt.resolve_format_table = 0x820E9D88u;
@@ -160,6 +166,11 @@ CRACKDOWN_BIND_D3D(826BB5C8, FenceOrOriginal)
 CRACKDOWN_BIND_D3D(826AC8F0, ResourceLockOrOriginal)
 // The kick's submit: the segment to the command processor directly, not through the ring (D6).
 CRACKDOWN_BIND_D3D(826BAD58, RingSubmitOrOriginal)
+// The kick's segments: closed (its end packets, its submit or chaining), the next one opened (D6).
+CRACKDOWN_BIND_D3D(826BB1A0, SegmentCloseOrOriginal)
+CRACKDOWN_BIND_D3D(826BB0C0, SegmentEndOrOriginal)
+CRACKDOWN_BIND_D3D(826BB348, SegmentSubmitOrOriginal)
+CRACKDOWN_BIND_D3D(826BA5C8, ChainSegmentOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -682,6 +693,10 @@ ANY360_D3D_CASE(swap_packet_records, "Swap packet (records)", CRACKDOWN_GUEST_OR
                 state::SwapPacketCase<true>);
 ANY360_D3D_CASE(fence, "Fence (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BB5C8), state::FenceCase<false>);
 ANY360_D3D_CASE(fence_records, "Fence (records)", CRACKDOWN_GUEST_ORIGINAL(826BB5C8), state::FenceCase<true>);
+ANY360_D3D_CASE(segment_end, "Segment end (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BB0C0), state::SegmentEndCase<false>);
+ANY360_D3D_CASE(segment_end_records, "Segment end (records)", CRACKDOWN_GUEST_ORIGINAL(826BB0C0),
+                state::SegmentEndCase<true>);
+ANY360_D3D_CASE(chain_segment, "Chain segment", CRACKDOWN_GUEST_ORIGINAL(826BA5C8), state::ChainSegmentCase);
 ANY360_D3D_CASE(replay, "Replay command buffer (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C3750), state::ReplayCase<false>);
 ANY360_D3D_CASE(replay_records, "Replay command buffer (records)", CRACKDOWN_GUEST_ORIGINAL(826C3750),
                 state::ReplayCase<true>);
