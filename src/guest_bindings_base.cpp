@@ -83,6 +83,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5B00));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6C48));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6A50));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6010));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C67A0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BE110));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
@@ -653,6 +654,7 @@ ANY360_D3D_CASE(constant_list_records, "Constant list (records)", CRACKDOWN_GUES
                 state::ConstantListCase<true>);
 // Not bound (the shader flush reaches it natively): the generated function is the original.
 ANY360_D3D_CASE(fetch_patch, "Vertex fetch patch", CRACKDOWN_GUEST_FUNC(826C6010), state::FetchPatch);
+ANY360_D3D_CASE(shader_link, "Shader link", CRACKDOWN_GUEST_FUNC(826C67A0), state::ShaderLink);
 ANY360_D3D_CASE(occlusion_helper, "Occlusion helper (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C05C8),
                 state::OcclusionHelper<false>);
 ANY360_D3D_CASE(occlusion_helper_records, "Occlusion helper (records)", CRACKDOWN_GUEST_ORIGINAL(826C05C8),
