@@ -1211,7 +1211,7 @@
 <rect x="488.9" y="618.3" width="15.1" height="13.1" fill="#8957e5"/>
 <rect x="504.6" y="618.3" width="15.1" height="13.1" fill="#8957e5"/>
 <rect x="520.3" y="618.3" width="15.1" height="13.1" fill="#8957e5"/>
-<rect x="488.9" y="577.3" width="62.8" height="54.7" fill="none" stroke="#0d1117" stroke-width="2"><title>XDK D3D runtime: 49 native, 252 verified, 252 library</title></rect>
+<rect x="488.9" y="577.3" width="62.8" height="54.7" fill="none" stroke="#0d1117" stroke-width="2"><title>XDK D3D runtime: 50 native, 252 verified, 251 library</title></rect>
 <rect x="551.7" y="521.9" width="14.6" height="11.8" fill="#2da44e"/>
 <rect x="566.9" y="521.9" width="14.6" height="11.8" fill="#8957e5"/>
 <rect x="582.1" y="521.9" width="14.6" height="11.8" fill="#8957e5"/>

@@ -137,6 +137,8 @@ CRACKDOWN_BIND_D3D(826C5BC0, FlushWaitGroupOrOriginal)
 CRACKDOWN_BIND_D3D(826C5768, FlushStateOrOriginal)
 // The draws' shader flush (constant lists, IM_LOAD, shader programs).
 CRACKDOWN_BIND_D3D(826C6C48, FlushShadersOrOriginal)
+// The occlusion query's begin and end (its result address per tile, EVENT_WRITE_ZPD).
+CRACKDOWN_BIND_D3D(826C05C8, QueryOcclusionOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -645,6 +647,10 @@ ANY360_D3D_CASE(constant_list_records, "Constant list (records)", CRACKDOWN_GUES
                 state::ConstantListCase<true>);
 // Not bound (the shader flush reaches it natively): the generated function is the original.
 ANY360_D3D_CASE(fetch_patch, "Vertex fetch patch", CRACKDOWN_GUEST_FUNC(826C6010), state::FetchPatch);
+ANY360_D3D_CASE(occlusion_helper, "Occlusion helper (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C05C8),
+                state::OcclusionHelper<false>);
+ANY360_D3D_CASE(occlusion_helper_records, "Occlusion helper (records)", CRACKDOWN_GUEST_ORIGINAL(826C05C8),
+                state::OcclusionHelper<true>);
 ANY360_D3D_CASE(shader_helper, "Shader helper (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C6C48), state::ShaderHelper<false>);
 ANY360_D3D_CASE(shader_helper_records, "Shader helper (records)", CRACKDOWN_GUEST_ORIGINAL(826C6C48),
                 state::ShaderHelper<true>);

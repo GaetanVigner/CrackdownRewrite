@@ -20354,7 +20354,7 @@ address,module,kind,instructions,state,handler,file
 826BFD88,XDK D3D runtime,library,406,native,ClearOrOriginal,guest_bindings_base.cpp
 826C03E0,XDK D3D runtime,library,47,library,,
 826C04A0,XDK D3D runtime,library,73,native,D3dClear,hle_capture.cpp
-826C05C8,XDK D3D runtime,library,114,library,,
+826C05C8,XDK D3D runtime,library,114,native,QueryOcclusionOrOriginal,guest_bindings_base.cpp
 826C0790,XDK D3D runtime,library,5,library,,
 826C07A8,XDK D3D runtime,library,43,library,,
 826C0858,XDK D3D runtime,library,63,library,,
