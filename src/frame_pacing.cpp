@@ -28,6 +28,7 @@
 #include "frame_timing.h"
 #include "glyph_overlay.h"
 #include "guest_hooks.h"
+#include "any360/host/d3d_draw.h"
 #include "guest_layout.h"
 #include "hang_watchdog.h"
 #include "hle_capture.h"
@@ -294,7 +295,7 @@ void crackdown::hooks::SwapPacket(PPCContext& ctx, uint8_t* base, GuestFunction 
   if (const uint32_t wanted = TitlePresentInterval(interval); wanted != interval) {
     StoreBE32(base, field, wanted);
   }
-  original(ctx, base);
+  any360::host::rexglue::d3d_draw::SwapPacketOrOriginal(ctx, base, original);  // Any360's native (docs/D3D.md, D4)
 }
 
 // The XDK swap callback: r3 = the swap word. The title passes threshold 0, so a frame finished just after its vblank

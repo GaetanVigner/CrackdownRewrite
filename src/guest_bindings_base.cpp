@@ -123,6 +123,7 @@ namespace {
   rt.fetch_sizes = 0x820EA160u;
   rt.clear_color_pack = &CRACKDOWN_GUEST_FUNC(826BE110);
   rt.list_block = &CRACKDOWN_GUEST_FUNC(826BA4C0);
+  rt.swap_word = 0x826BC3D0u;
   rt.clear_depth_offset = 0x820EE230u;
   rt.clear_depth_scale = 0x820EE228u;
   rt.resolve_format_table = 0x820E9D88u;
@@ -666,6 +667,9 @@ ANY360_D3D_CASE(occlusion_helper_records, "Occlusion helper (records)", CRACKDOW
 ANY360_D3D_CASE(clear_target, "Clear target (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BF8C0), state::ClearTargetCase<false>);
 ANY360_D3D_CASE(clear_target_records, "Clear target (records)", CRACKDOWN_GUEST_ORIGINAL(826BF8C0),
                 state::ClearTargetCase<true>);
+ANY360_D3D_CASE(swap_packet, "Swap packet (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BC568), state::SwapPacketCase<false>);
+ANY360_D3D_CASE(swap_packet_records, "Swap packet (records)", CRACKDOWN_GUEST_ORIGINAL(826BC568),
+                state::SwapPacketCase<true>);
 ANY360_D3D_CASE(fence, "Fence (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BB5C8), state::FenceCase<false>);
 ANY360_D3D_CASE(fence_records, "Fence (records)", CRACKDOWN_GUEST_ORIGINAL(826BB5C8), state::FenceCase<true>);
 ANY360_D3D_CASE(replay, "Replay command buffer (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C3750), state::ReplayCase<false>);
