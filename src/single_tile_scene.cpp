@@ -210,6 +210,14 @@ void ScanPm4(uint32_t physical, uint32_t dwords, uint32_t depth) {
         g_scanned_segments.insert(target);
         ScanPm4(target, ReadPhysical(at + 8) & 0xFFFFF, depth + 1);
       }
+    } else if (opcode == any360::xdk::record::kOpcode && depth < kMaxIndirectDepth && i + 3 < dwords &&
+               (std::byteswap(ReadPhysical(at + 4)) & 0xFF) == any360::xdk::record::kIndirect) {
+      // Any360's indirect record (its words in the host's order): the same buffer.
+      const uint32_t target = std::byteswap(ReadPhysical(at + 8)) & 0x1FFFFFFF;
+      if (!g_scanned_segments.contains(target)) {
+        g_scanned_segments.insert(target);
+        ScanPm4(target, std::byteswap(ReadPhysical(at + 12)) & 0xFFFFF, depth + 1);
+      }
     }
     i += 1 + count;
   }

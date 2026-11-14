@@ -84,6 +84,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6C48));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6A50));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6010));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C67A0));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BA4C0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BE110));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
@@ -121,6 +122,7 @@ namespace {
   rt.fetch_swizzles = 0x8206BC24u;
   rt.fetch_sizes = 0x820EA160u;
   rt.clear_color_pack = &CRACKDOWN_GUEST_FUNC(826BE110);
+  rt.list_block = &CRACKDOWN_GUEST_FUNC(826BA4C0);
   rt.clear_depth_offset = 0x820EE230u;
   rt.clear_depth_scale = 0x820EE228u;
   rt.resolve_format_table = 0x820E9D88u;
@@ -662,6 +664,9 @@ ANY360_D3D_CASE(occlusion_helper_records, "Occlusion helper (records)", CRACKDOW
 ANY360_D3D_CASE(clear_target, "Clear target (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BF8C0), state::ClearTargetCase<false>);
 ANY360_D3D_CASE(clear_target_records, "Clear target (records)", CRACKDOWN_GUEST_ORIGINAL(826BF8C0),
                 state::ClearTargetCase<true>);
+ANY360_D3D_CASE(replay, "Replay command buffer (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C3750), state::ReplayCase<false>);
+ANY360_D3D_CASE(replay_records, "Replay command buffer (records)", CRACKDOWN_GUEST_ORIGINAL(826C3750),
+                state::ReplayCase<true>);
 ANY360_D3D_CASE(shader_helper, "Shader helper (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C6C48), state::ShaderHelper<false>);
 ANY360_D3D_CASE(shader_helper_records, "Shader helper (records)", CRACKDOWN_GUEST_ORIGINAL(826C6C48),
                 state::ShaderHelper<true>);

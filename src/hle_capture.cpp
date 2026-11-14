@@ -1133,8 +1133,10 @@ void crackdown::hooks::D3dRunCommandBuffer(PPCContext& ctx, uint8_t* base, Guest
   const uint32_t device = ctx.r3.u32;
   const uint32_t pre = crackdown::guest::Load32(base, device + crackdown::kWritePointer);
   const uint32_t segment_end = crackdown::guest::Load32(base, device + crackdown::kSegmentEnd);
+  // Any360's native (docs/D3D.md, D4); its INDIRECT_BUFFERs may be records (the capture reads PM4 only).
+  const auto replay = [&] { any360::host::rexglue::d3d_draw::ReplayCommandBufferOrOriginal(ctx, base, original); };
   if (!crackdown::g_recording.load(std::memory_order_relaxed)) {
-    crackdown::CallWithRecord(ctx, base, crackdown::RecordKind::kCommandBuffer, [&] { original(ctx, base); });
+    crackdown::CallWithRecord(ctx, base, crackdown::RecordKind::kCommandBuffer, replay);
     crackdown::SingleTileCommandBuffer(base, device, pre, segment_end);
     return;
   }
@@ -1143,8 +1145,7 @@ void crackdown::hooks::D3dRunCommandBuffer(PPCContext& ctx, uint8_t* base, Guest
     std::lock_guard lock(crackdown::g_capture.mutex);
     if (crackdown::g_capture.file) crackdown::WalkGap(base, device, pre, segment_end);
   }
-  const crackdown::DrawRecord* record =
-      crackdown::CallWithRecord(ctx, base, crackdown::RecordKind::kCommandBuffer, [&] { original(ctx, base); });
+  const crackdown::DrawRecord* record = crackdown::CallWithRecord(ctx, base, crackdown::RecordKind::kCommandBuffer, replay);
   crackdown::SingleTileCommandBuffer(base, device, pre, segment_end);
   std::lock_guard lock(crackdown::g_capture.mutex);
   if (crackdown::g_capture.file) {
