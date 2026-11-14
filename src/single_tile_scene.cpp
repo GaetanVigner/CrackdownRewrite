@@ -313,7 +313,7 @@ void crackdown::hooks::D3dBeginTiling(PPCContext& ctx, uint8_t* base, GuestFunct
     g_in_bracket = true;
     g_suppressed = false;
   }
-  original(ctx, base);
+  any360::host::rexglue::d3d_draw::BeginTilingOrOriginal(ctx, base, original);  // Any360's native (docs/D3D.md, D6)
 }
 
 // EndTiling(r3 device, r4 flags, r5 resolve rects, ...).
@@ -321,7 +321,7 @@ void crackdown::hooks::D3dEndTiling(PPCContext& ctx, uint8_t* base, GuestFunctio
   using namespace crackdown;
   const bool scene = g_in_bracket;
   g_suppressed = false;
-  original(ctx, base);
+  any360::host::rexglue::d3d_draw::EndTilingOrOriginal(ctx, base, original);  // Any360's native (docs/D3D.md, D6)
   if (scene) g_in_bracket = false;
 }
 
