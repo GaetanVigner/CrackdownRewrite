@@ -148,6 +148,8 @@ CRACKDOWN_BIND_D3D(826C6C48, FlushShadersOrOriginal)
 CRACKDOWN_BIND_D3D(826C05C8, QueryOcclusionOrOriginal)
 // A clear's draw of one target (its rect draws through the allocator, the fast clear's packed color).
 CRACKDOWN_BIND_D3D(826BF8C0, ClearTargetOrOriginal)
+// A fence (the scratch value, a wait for the GPU's counter, an interrupt).
+CRACKDOWN_BIND_D3D(826BB5C8, FenceOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -664,6 +666,8 @@ ANY360_D3D_CASE(occlusion_helper_records, "Occlusion helper (records)", CRACKDOW
 ANY360_D3D_CASE(clear_target, "Clear target (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BF8C0), state::ClearTargetCase<false>);
 ANY360_D3D_CASE(clear_target_records, "Clear target (records)", CRACKDOWN_GUEST_ORIGINAL(826BF8C0),
                 state::ClearTargetCase<true>);
+ANY360_D3D_CASE(fence, "Fence (PM4)", CRACKDOWN_GUEST_ORIGINAL(826BB5C8), state::FenceCase<false>);
+ANY360_D3D_CASE(fence_records, "Fence (records)", CRACKDOWN_GUEST_ORIGINAL(826BB5C8), state::FenceCase<true>);
 ANY360_D3D_CASE(replay, "Replay command buffer (PM4)", CRACKDOWN_GUEST_ORIGINAL(826C3750), state::ReplayCase<false>);
 ANY360_D3D_CASE(replay_records, "Replay command buffer (records)", CRACKDOWN_GUEST_ORIGINAL(826C3750),
                 state::ReplayCase<true>);

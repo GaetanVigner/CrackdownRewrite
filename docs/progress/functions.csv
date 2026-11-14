@@ -20314,7 +20314,7 @@ address,module,kind,instructions,state,handler,file
 826BB348,XDK D3D runtime,library,47,library,,
 826BB408,XDK D3D runtime,library,58,native,D3dRingSegmentSwitch,hle_capture.cpp
 826BB4F0,XDK D3D runtime,library,53,native,GpuFence,gpu_fence_wait.cpp
-826BB5C8,XDK D3D runtime,library,86,library,,
+826BB5C8,XDK D3D runtime,library,86,native,FenceOrOriginal,guest_bindings_base.cpp
 826BB720,XDK D3D runtime,library,46,library,,
 826BB7D8,XDK D3D runtime,library,30,library,,
 826BB850,XDK D3D runtime,library,13,library,,
