@@ -85,6 +85,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6A50));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6010));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C67A0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BA4C0));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BB4F0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BE110));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
@@ -124,6 +125,8 @@ namespace {
   rt.clear_color_pack = &CRACKDOWN_GUEST_FUNC(826BE110);
   rt.list_block = &CRACKDOWN_GUEST_FUNC(826BA4C0);
   rt.swap_word = 0x826BC3D0u;
+  rt.device_slot = 0x82000798u;
+  rt.block_on_fence = &CRACKDOWN_GUEST_FUNC(826BB4F0);
   rt.clear_depth_offset = 0x820EE230u;
   rt.clear_depth_scale = 0x820EE228u;
   rt.resolve_format_table = 0x820E9D88u;
@@ -151,6 +154,8 @@ CRACKDOWN_BIND_D3D(826C05C8, QueryOcclusionOrOriginal)
 CRACKDOWN_BIND_D3D(826BF8C0, ClearTargetOrOriginal)
 // A fence (the scratch value, a wait for the GPU's counter, an interrupt).
 CRACKDOWN_BIND_D3D(826BB5C8, FenceOrOriginal)
+// The CPU lock of a resource (its fence, the cache flush of its pages or the device's pending range, its lines).
+CRACKDOWN_BIND_D3D(826AC8F0, ResourceLockOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
@@ -204,6 +209,7 @@ CRACKDOWN_BIND(82326728, SceneTargetsCreate)
 CRACKDOWN_BIND(825A76E0, PostProcessConstructed)
 CRACKDOWN_BIND(826AED90, D3dCreateRenderTarget)
 CRACKDOWN_BIND(826BD488, D3dBeginTiling)
+
 CRACKDOWN_BIND(826BDA38, D3dEndTiling)
 CRACKDOWN_BIND(826BD300, D3dSetPredication)
 CRACKDOWN_BIND(826C3D90, CommandBufferFixup)

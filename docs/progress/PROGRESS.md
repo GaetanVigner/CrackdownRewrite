@@ -11,10 +11,10 @@ Generated on 2026-11-14 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | System calls on `any360::sys` | 248 | 248 | 100% | all eight groups, opt-in on `main`: `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`; no call reaches ReXGlue's kernel then |
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
-| Game functions rewritten in C++ | 281 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
+| Game functions rewritten in C++ | 282 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
 | Library functions (SDK, middleware) replaced | 135 | 6,377 | 2.1% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 35,237 | 2,667,844 | 1.3% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 35,401 | 2,667,844 | 1.3% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -315,7 +315,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | code 823xxxxx | game | 3,852 | 257,976 | 52 | 0 | 3,800 | 1.3% |
 | code 824xxxxx | game | 3,353 | 257,848 | 47 | 0 | 3,306 | 1.4% |
 | code 822xxxxx | game | 2,435 | 256,713 | 28 | 0 | 2,407 | 1.1% |
-| code 826xxxxx | game | 3,366 | 223,024 | 24 | 29 | 3,313 | 0.7% |
+| code 826xxxxx | game | 3,366 | 223,024 | 25 | 29 | 3,312 | 0.7% |
 | code 821xxxxx | game | 3,871 | 210,799 | 41 | 0 | 3,830 | 1.1% |
 | Havok Physics | middleware | 2,699 | 191,551 | 25 | 0 | 2,674 | 0.9% |
 | code 82Bxxxxx | game | 6,519 | 101,666 | 24 | 0 | 6,495 | 0.4% |
@@ -334,7 +334,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 457 rewritten functions</summary>
+<details><summary>The 458 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -580,6 +580,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826A6B50` | code 826xxxxx | 70 | `SimulationUpdate` | frame_pacing.cpp |
 | `826A7698` | code 826xxxxx | 172 | `FrameLoop` | frame_pacing.cpp |
 | `826A8940` | code 826xxxxx | 71 | `EngineMovie` | skip_intro.cpp |
+| `826AC8F0` | code 826xxxxx | 164 | `ResourceLockOrOriginal` | guest_bindings_base.cpp |
 | `826AED90` | XDK D3D runtime | 92 | `D3dCreateRenderTarget` | single_tile_scene.cpp |
 | `826AF038` | XDK D3D runtime | 94 | `D3dState` | guest_bindings_base.cpp |
 | `826AF950` | XDK D3D runtime | 32 | `D3dState` | guest_bindings_base.cpp |
