@@ -20307,7 +20307,7 @@ address,module,kind,instructions,state,handler,file
 826BA938,XDK D3D runtime,library,102,library,,
 826BAAD0,XDK D3D runtime,library,112,library,,
 826BAC90,XDK D3D runtime,library,50,library,,
-826BAD58,XDK D3D runtime,library,101,library,,
+826BAD58,XDK D3D runtime,library,101,native,RingSubmitOrOriginal,guest_bindings_base.cpp
 826BAEF8,XDK D3D runtime,library,113,library,,
 826BB0C0,XDK D3D runtime,library,56,library,,
 826BB1A0,XDK D3D runtime,library,105,library,,

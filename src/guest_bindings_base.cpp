@@ -86,6 +86,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C6010));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C67A0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BA4C0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BB4F0));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BAC90));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BE110));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5768));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C5D40));
@@ -127,6 +128,7 @@ namespace {
   rt.swap_word = 0x826BC3D0u;
   rt.device_slot = 0x82000798u;
   rt.block_on_fence = &CRACKDOWN_GUEST_FUNC(826BB4F0);
+  rt.ring_space = &CRACKDOWN_GUEST_FUNC(826BAC90);
   rt.clear_depth_offset = 0x820EE230u;
   rt.clear_depth_scale = 0x820EE228u;
   rt.resolve_format_table = 0x820E9D88u;
@@ -156,6 +158,8 @@ CRACKDOWN_BIND_D3D(826BF8C0, ClearTargetOrOriginal)
 CRACKDOWN_BIND_D3D(826BB5C8, FenceOrOriginal)
 // The CPU lock of a resource (its fence, the cache flush of its pages or the device's pending range, its lines).
 CRACKDOWN_BIND_D3D(826AC8F0, ResourceLockOrOriginal)
+// The kick's submit: the segment to the command processor directly, not through the ring (D6).
+CRACKDOWN_BIND_D3D(826BAD58, RingSubmitOrOriginal)
 CRACKDOWN_BIND(82A59450, XAudioFill256)
 CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
