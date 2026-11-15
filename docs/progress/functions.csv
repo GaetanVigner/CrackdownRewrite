@@ -20460,7 +20460,7 @@ address,module,kind,instructions,state,handler,file
 826CD7D8,XDK D3D runtime,library,93,native,TileSelectOrOriginal,guest_bindings_base.cpp
 826CD950,XDK D3D runtime,library,41,library,,
 826CD9F8,XDK D3D runtime,library,63,library,,
-826CDAF8,XDK D3D runtime,library,193,library,,
+826CDAF8,XDK D3D runtime,library,193,native,TileOpsOrOriginal,guest_bindings_base.cpp
 826CDE00,XDK D3D runtime,library,53,library,,
 826CDED8,XDK D3D runtime,library,123,library,,
 826CE0C8,XDK D3D runtime,library,52,library,,
