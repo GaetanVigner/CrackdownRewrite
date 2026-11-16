@@ -190,10 +190,10 @@
   },
   "functions": {
    "total": 41219,
-   "native": 467,
+   "native": 469,
    "verified": 281,
-   "library": 5981,
-   "middleware": 5451,
+   "library": 6170,
+   "middleware": 5260,
    "recompiled": 29039
   },
   "game_functions": {

@@ -12,9 +12,9 @@ Generated on 2026-11-16 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 144 | 6,377 | 2.3% | replaced as units, not decompiled |
-| Middleware functions (third-party physics, AI, scripting, video) | - | 5,495 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 36,282 | 2,667,844 | 1.4% | PowerPC instructions of the original |
+| Library functions (SDK, middleware) replaced | 149 | 6,571 | 2.3% | replaced as units, not decompiled |
+| Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
+| Instructions of rewritten functions | 36,772 | 2,667,844 | 1.4% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -310,7 +310,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 
 | Module | Kind | Functions | Instructions | Native | Verified | Still recompiled | Native share |
 |---|---|---|---|---|---|---|---|
-| XDK D3DX and XGraphics (shader compiler) | library | 4,171 | 487,670 | 39 | 0 | 4,132 | 0.9% |
+| XDK D3DX and XGraphics (shader compiler) | library | 4,171 | 487,670 | 40 | 0 | 4,131 | 1.0% |
 | code 825xxxxx | game | 3,839 | 259,174 | 51 | 0 | 3,788 | 1.3% |
 | code 823xxxxx | game | 3,852 | 257,976 | 52 | 0 | 3,800 | 1.3% |
 | code 824xxxxx | game | 3,353 | 257,848 | 47 | 0 | 3,306 | 1.4% |
@@ -331,11 +331,11 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XDK Xbox Live and voice (XOnline, XHV) | library | 378 | 21,114 | 5 | 0 | 373 | 1.3% |
 | Massive (in-game advertising) | middleware | 368 | 16,437 | 0 | 0 | 368 | 0% |
 | Bink video | middleware | 127 | 16,392 | 1 | 0 | 126 | 0.8% |
-| libpng 1.0.5 and zlib 1.1.4 | middleware | 194 | 14,367 | 3 | 0 | 191 | 1.5% |
+| libpng 1.0.5 and zlib 1.1.4 | library | 194 | 14,367 | 4 | 0 | 190 | 2.1% |
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 467 rewritten functions</summary>
+<details><summary>The 469 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -679,6 +679,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82807698` | XDK D3DX and XGraphics (shader compiler) | 16 | `decomp::Sub_82807698` | decomp/leaf_batch6.cpp |
 | `8281B120` | XDK D3DX and XGraphics (shader compiler) | 15 | `decomp::Sub_8281B120` | decomp/leaf_batch5.cpp |
 | `8281BDD0` | XDK D3DX and XGraphics (shader compiler) | 11 | `decomp::Sub_8281BDD0` | decomp/leaf_batch3.cpp |
+| `8281BE00` | XDK D3DX and XGraphics (shader compiler) | 245 | `ZlibInflateFast` | crt_native.cpp |
 | `82832BF8` | XDK D3DX and XGraphics (shader compiler) | 21 | `decomp::Sub_82832BF8` | decomp/leaf_batch8.cpp |
 | `82832F88` | XDK D3DX and XGraphics (shader compiler) | 14 | `decomp::Sub_82832F88` | decomp/leaf_batch4.cpp |
 | `828397B8` | XDK D3DX and XGraphics (shader compiler) | 26 | `decomp::Sub_828397B8` | decomp/leaf_batch10.cpp |
@@ -747,6 +748,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82A85C38` | libpng 1.0.5 and zlib 1.1.4 | 10 | `decomp::Sub_82A85C38` | decomp/leaf_batch3.cpp |
 | `82A85E18` | libpng 1.0.5 and zlib 1.1.4 | 20 | `decomp::Sub_82A85E18` | decomp/leaf_batch11.cpp |
 | `82A85FD0` | libpng 1.0.5 and zlib 1.1.4 | 18 | `decomp::Sub_82A85FD0` | decomp/leaf_batch9.cpp |
+| `82A88378` | libpng 1.0.5 and zlib 1.1.4 | 245 | `ZlibInflateFast` | crt_native.cpp |
 | `82A89BE0` | XDK Xbox Live and voice (XOnline, XHV) | 10 | `decomp::Sub_82A89BE0` | decomp/leaf_batch3.cpp |
 | `82A94078` | XDK Xbox Live and voice (XOnline, XHV) | 33 | `decomp::Sub_82A94078` | decomp/leaf_batch1.cpp |
 | `82A95278` | XDK Xbox Live and voice (XOnline, XHV) | 24 | `decomp::Sub_82A95278` | decomp/leaf_batch12.cpp |

@@ -46,11 +46,12 @@ SDK code linked into the executable is not decompiled: Any360 provides the same 
 
 | Library range | Functions | Instructions | Replaced | Verified in the sandbox | Left |
 |---|---|---|---|---|---|
-| XDK D3DX and XGraphics (shader compiler) | 4,171 | 487,670 | 39 | 0 | 4,132 |
+| XDK D3DX and XGraphics (shader compiler) | 4,171 | 487,670 | 40 | 0 | 4,131 |
 | C runtime (CRT) | 595 | 41,901 | 24 | 0 | 571 |
 | XDK D3D runtime | 553 | 34,977 | 61 | 252 | 492 |
 | XDK audio (XAudio, XMA) | 484 | 28,795 | 13 | 0 | 471 |
 | XDK Xbox Live and voice (XOnline, XHV) | 378 | 21,114 | 5 | 0 | 373 |
+| libpng 1.0.5 and zlib 1.1.4 | 194 | 14,367 | 4 | 0 | 190 |
 | XAPI (Win32 layer over the kernel and XAM) | 194 | 9,291 | 2 | 0 | 192 |
 | kernel import thunks | 2 | 6 | 0 | 0 | 2 |
 
@@ -64,7 +65,6 @@ Third-party middleware the game links (physics, AI, scripting, video and the lik
 | Lua | 600 | 30,433 |
 | Massive (in-game advertising) | 368 | 16,437 |
 | Bink video | 127 | 16,392 |
-| libpng 1.0.5 and zlib 1.1.4 | 194 | 14,367 |
 
 ## 5. Game code as portable C++
 
