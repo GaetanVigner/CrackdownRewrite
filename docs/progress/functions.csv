@@ -24020,7 +24020,7 @@ address,module,kind,instructions,state,handler,file
 8281B7A0,XDK D3DX and XGraphics (shader compiler),library,284,library,,
 8281BC10,XDK D3DX and XGraphics (shader compiler),library,112,library,,
 8281BDD0,XDK D3DX and XGraphics (shader compiler),library,11,native,decomp::Sub_8281BDD0,decomp/leaf_batch3.cpp
-8281BE00,XDK D3DX and XGraphics (shader compiler),library,245,native,ZlibInflateFast,crt_native.cpp
+8281BE00,XDK D3DX and XGraphics (shader compiler),library,245,library,,
 8281C1D8,XDK D3DX and XGraphics (shader compiler),library,37,library,,
 8281C270,XDK D3DX and XGraphics (shader compiler),library,36,library,,
 8281C300,XDK D3DX and XGraphics (shader compiler),library,18,library,,

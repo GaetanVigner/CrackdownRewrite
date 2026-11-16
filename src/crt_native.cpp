@@ -137,7 +137,7 @@ void crackdown::hooks::XAudioFill4096(PPCContext& ctx, uint8_t* base, GuestFunct
   any360::host::rexglue::xdk::XAudioFill(ctx, base, original, 4096);
 }
 
-// zlib 1.1.4's inflate_fast, both copies the title links (the PNG loader's and D3DX's).
+// zlib 1.1.4's inflate_fast (the PNG loader's copy; D3DX's is not bound: no run has called it).
 void crackdown::hooks::ZlibInflateFast(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::ZlibInflateFast(ctx, base, original);
 }

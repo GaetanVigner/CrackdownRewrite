@@ -221,9 +221,9 @@ CRACKDOWN_BIND(82A59318, XAudioFill512)
 CRACKDOWN_BIND(82A594B8, XAudioFill1024)
 CRACKDOWN_BIND(82A593E8, XAudioFill2048)
 CRACKDOWN_BIND(82A59520, XAudioFill4096)
-// zlib 1.1.4's inflate_fast: the PNG loader's copy (libpng 1.0.5) and D3DX's.
+// zlib 1.1.4's inflate_fast: the PNG loader's copy (libpng 1.0.5). D3DX's copy (0x8281BE00, the same instructions)
+// is not bound: no run has called it.
 CRACKDOWN_BIND(82A88378, ZlibInflateFast)
-CRACKDOWN_BIND(8281BE00, ZlibInflateFast)
 CRACKDOWN_BIND(824EC668, EntityDestroyed)
 CRACKDOWN_BIND(826A7698, FrameLoop)
 CRACKDOWN_BIND(826A6B50, SimulationUpdate)

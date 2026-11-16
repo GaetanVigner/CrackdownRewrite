@@ -341,7 +341,7 @@
 <rect x="170.9" y="606.0" width="14.5" height="12.4" fill="#8957e5"/>
 <rect x="20.0" y="619.0" width="14.5" height="12.4" fill="#8957e5"/>
 <rect x="35.1" y="619.0" width="14.5" height="12.4" fill="#8957e5"/>
-<rect x="20.0" y="475.9" width="166.0" height="156.1" fill="none" stroke="#0d1117" stroke-width="2"><title>XDK D3DX and XGraphics (shader compiler): 40 native, 4,131 library</title></rect>
+<rect x="20.0" y="475.9" width="166.0" height="156.1" fill="none" stroke="#0d1117" stroke-width="2"><title>XDK D3DX and XGraphics (shader compiler): 39 native, 4,132 library</title></rect>
 <rect x="186.0" y="232.0" width="14.4" height="12.8" fill="#2da44e"/>
 <rect x="200.9" y="232.0" width="14.4" height="12.8" fill="#30363d"/>
 <rect x="215.9" y="232.0" width="14.4" height="12.8" fill="#30363d"/>
