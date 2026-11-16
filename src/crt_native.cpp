@@ -141,3 +141,8 @@ void crackdown::hooks::XAudioFill4096(PPCContext& ctx, uint8_t* base, GuestFunct
 void crackdown::hooks::ZlibInflateFast(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::ZlibInflateFast(ctx, base, original);
 }
+
+// libpng 1.0.5's png_read_filter_row (the PNG loader's copy; D3DX's, 0x8280F5C8, is not bound).
+void crackdown::hooks::PngReadFilterRow(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::PngReadFilterRow(ctx, base, original);
+}

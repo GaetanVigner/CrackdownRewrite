@@ -57,6 +57,7 @@ void XAudioFill1024(PPCContext&, uint8_t*, GuestFunction original);
 void XAudioFill2048(PPCContext&, uint8_t*, GuestFunction original);
 void XAudioFill4096(PPCContext&, uint8_t*, GuestFunction original);
 void ZlibInflateFast(PPCContext&, uint8_t*, GuestFunction original);
+void PngReadFilterRow(PPCContext&, uint8_t*, GuestFunction original);
 
 void EntityDestroyed(PPCContext&, uint8_t*, GuestFunction original);
 

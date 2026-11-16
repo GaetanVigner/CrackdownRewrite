@@ -12,9 +12,9 @@ Generated on 2026-11-16 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 148 | 6,571 | 2.3% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 149 | 6,571 | 2.3% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 36,527 | 2,667,844 | 1.4% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 36,664 | 2,667,844 | 1.4% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -331,11 +331,11 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XDK Xbox Live and voice (XOnline, XHV) | library | 378 | 21,114 | 5 | 0 | 373 | 1.3% |
 | Massive (in-game advertising) | middleware | 368 | 16,437 | 0 | 0 | 368 | 0% |
 | Bink video | middleware | 127 | 16,392 | 1 | 0 | 126 | 0.8% |
-| libpng 1.0.5 and zlib 1.1.4 | library | 194 | 14,367 | 4 | 0 | 190 | 2.1% |
+| libpng 1.0.5 and zlib 1.1.4 | library | 194 | 14,367 | 5 | 0 | 189 | 2.6% |
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 468 rewritten functions</summary>
+<details><summary>The 469 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -744,6 +744,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82A594B8` | XDK audio (XAudio, XMA) | 25 | `XAudioFill1024` | crt_native.cpp |
 | `82A59520` | XDK audio (XAudio, XMA) | 25 | `XAudioFill4096` | crt_native.cpp |
 | `82A792E0` | code 82Axxxxx | 14 | `decomp::Sub_82A792E0` | decomp/leaf_batch5.cpp |
+| `82A7F5D0` | libpng 1.0.5 and zlib 1.1.4 | 137 | `PngReadFilterRow` | crt_native.cpp |
 | `82A85C38` | libpng 1.0.5 and zlib 1.1.4 | 10 | `decomp::Sub_82A85C38` | decomp/leaf_batch3.cpp |
 | `82A85E18` | libpng 1.0.5 and zlib 1.1.4 | 20 | `decomp::Sub_82A85E18` | decomp/leaf_batch11.cpp |
 | `82A85FD0` | libpng 1.0.5 and zlib 1.1.4 | 18 | `decomp::Sub_82A85FD0` | decomp/leaf_batch9.cpp |

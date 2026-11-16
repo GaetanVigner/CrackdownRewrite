@@ -51,7 +51,7 @@ SDK code linked into the executable is not decompiled: Any360 provides the same 
 | XDK D3D runtime | 553 | 34,977 | 61 | 252 | 492 |
 | XDK audio (XAudio, XMA) | 484 | 28,795 | 13 | 0 | 471 |
 | XDK Xbox Live and voice (XOnline, XHV) | 378 | 21,114 | 5 | 0 | 373 |
-| libpng 1.0.5 and zlib 1.1.4 | 194 | 14,367 | 4 | 0 | 190 |
+| libpng 1.0.5 and zlib 1.1.4 | 194 | 14,367 | 5 | 0 | 189 |
 | XAPI (Win32 layer over the kernel and XAM) | 194 | 9,291 | 2 | 0 | 192 |
 | kernel import thunks | 2 | 6 | 0 | 0 | 2 |
 
