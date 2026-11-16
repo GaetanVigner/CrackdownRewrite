@@ -11,9 +11,9 @@ Generated on 2026-11-16 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | System calls on `any360::sys` | 248 | 248 | 100% | all eight groups, opt-in on `main`: `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`; no call reaches ReXGlue's kernel then |
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
-| Game functions rewritten in C++ | 282 | 29,541 | 1.0% | 29 more verified against the original in the sandbox |
+| Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
 | Library functions (SDK, middleware) replaced | 144 | 6,377 | 2.3% | replaced as units, not decompiled |
-| Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
+| Middleware functions (third-party physics, AI, scripting, video) | - | 5,495 | - | kept recompiled or relinked from the vendor's library, not rewritten |
 | Instructions of rewritten functions | 36,282 | 2,667,844 | 1.4% | PowerPC instructions of the original |
 
 ## System calls
@@ -319,8 +319,8 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | code 821xxxxx | game | 3,871 | 210,799 | 41 | 0 | 3,830 | 1.1% |
 | Havok Physics | middleware | 2,699 | 191,551 | 25 | 0 | 2,674 | 0.9% |
 | code 82Bxxxxx | game | 6,519 | 101,666 | 24 | 0 | 6,495 | 0.4% |
-| code 82Axxxxx | game | 1,258 | 65,283 | 7 | 0 | 1,251 | 0.6% |
 | Kynapse (AI) | middleware | 947 | 56,021 | 3 | 0 | 944 | 0.3% |
+| code 82Axxxxx | game | 1,064 | 50,916 | 4 | 0 | 1,060 | 0.4% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
 | C runtime (CRT) | library | 595 | 41,901 | 24 | 0 | 571 | 4.0% |
 | XDK D3D runtime | library | 553 | 34,977 | 61 | 252 | 240 | 11% |
@@ -331,6 +331,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XDK Xbox Live and voice (XOnline, XHV) | library | 378 | 21,114 | 5 | 0 | 373 | 1.3% |
 | Massive (in-game advertising) | middleware | 368 | 16,437 | 0 | 0 | 368 | 0% |
 | Bink video | middleware | 127 | 16,392 | 1 | 0 | 126 | 0.8% |
+| libpng 1.0.5 and zlib 1.1.4 | middleware | 194 | 14,367 | 3 | 0 | 191 | 1.5% |
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
@@ -743,9 +744,9 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82A594B8` | XDK audio (XAudio, XMA) | 25 | `XAudioFill1024` | crt_native.cpp |
 | `82A59520` | XDK audio (XAudio, XMA) | 25 | `XAudioFill4096` | crt_native.cpp |
 | `82A792E0` | code 82Axxxxx | 14 | `decomp::Sub_82A792E0` | decomp/leaf_batch5.cpp |
-| `82A85C38` | code 82Axxxxx | 10 | `decomp::Sub_82A85C38` | decomp/leaf_batch3.cpp |
-| `82A85E18` | code 82Axxxxx | 20 | `decomp::Sub_82A85E18` | decomp/leaf_batch11.cpp |
-| `82A85FD0` | code 82Axxxxx | 18 | `decomp::Sub_82A85FD0` | decomp/leaf_batch9.cpp |
+| `82A85C38` | libpng 1.0.5 and zlib 1.1.4 | 10 | `decomp::Sub_82A85C38` | decomp/leaf_batch3.cpp |
+| `82A85E18` | libpng 1.0.5 and zlib 1.1.4 | 20 | `decomp::Sub_82A85E18` | decomp/leaf_batch11.cpp |
+| `82A85FD0` | libpng 1.0.5 and zlib 1.1.4 | 18 | `decomp::Sub_82A85FD0` | decomp/leaf_batch9.cpp |
 | `82A89BE0` | XDK Xbox Live and voice (XOnline, XHV) | 10 | `decomp::Sub_82A89BE0` | decomp/leaf_batch3.cpp |
 | `82A94078` | XDK Xbox Live and voice (XOnline, XHV) | 33 | `decomp::Sub_82A94078` | decomp/leaf_batch1.cpp |
 | `82A95278` | XDK Xbox Live and voice (XOnline, XHV) | 24 | `decomp::Sub_82A95278` | decomp/leaf_batch12.cpp |

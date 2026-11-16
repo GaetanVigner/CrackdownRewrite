@@ -193,12 +193,12 @@
    "native": 467,
    "verified": 281,
    "library": 5981,
-   "middleware": 5260,
-   "recompiled": 29230
+   "middleware": 5451,
+   "recompiled": 29039
   },
   "game_functions": {
-   "total": 29541,
-   "native": 282,
+   "total": 29347,
+   "native": 279,
    "verified": 29
   }
  }

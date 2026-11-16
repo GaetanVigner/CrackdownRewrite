@@ -64,10 +64,11 @@ Third-party middleware the game links (physics, AI, scripting, video and the lik
 | Lua | 600 | 30,433 |
 | Massive (in-game advertising) | 368 | 16,437 |
 | Bink video | 127 | 16,392 |
+| libpng 1.0.5 and zlib 1.1.4 | 194 | 14,367 |
 
 ## 5. Game code as portable C++
 
-29,259 of 29,541 game functions are still recompiled PowerPC (29 of them already have a sandbox test to check a rewrite against). The list, function by function, is [functions.csv](functions.csv) (state `recompiled` or `verified`). By module, largest first:
+29,068 of 29,347 game functions are still recompiled PowerPC (29 of them already have a sandbox test to check a rewrite against). The list, function by function, is [functions.csv](functions.csv) (state `recompiled` or `verified`). By module, largest first:
 
 | Module | Functions left | Instructions left | Rewritten | Verified |
 |---|---|---|---|---|
@@ -78,7 +79,7 @@ Third-party middleware the game links (physics, AI, scripting, video and the lik
 | code 826xxxxx | 3,341 | 221,054 | 25 | 29 |
 | code 824xxxxx | 3,306 | 253,049 | 47 | 0 |
 | code 822xxxxx | 2,407 | 254,870 | 28 | 0 |
-| code 82Axxxxx | 1,251 | 65,167 | 7 | 0 |
+| code 82Axxxxx | 1,060 | 50,848 | 4 | 0 |
 | code 829xxxxx | 677 | 33,309 | 5 | 0 |
 | code 827xxxxx | 364 | 25,189 | 2 | 0 |
 
