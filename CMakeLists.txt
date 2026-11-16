@@ -330,10 +330,13 @@ target_link_libraries(crackdown PRIVATE any360_host_rexglue)
 # Line tables for Any360's code (not the recompiled title's) and a PDB, for profiles symbolized with llvm-symbolizer.
 foreach(_any360_target any360_gfx any360_gfx_vulkan any360_host_rexglue any360_sys any360_xenos_shader)
   if(TARGET ${_any360_target})
-    target_compile_options(${_any360_target} PRIVATE -gline-tables-only -gcodeview)
+    # CodeView and the PDB are the Windows (COFF) link's; line tables everywhere.
+    target_compile_options(${_any360_target} PRIVATE -gline-tables-only $<$<PLATFORM_ID:Windows>:-gcodeview>)
   endif()
 endforeach()
-target_link_options(crackdown PRIVATE "-Wl,/DEBUG")
+if(WIN32)
+  target_link_options(crackdown PRIVATE "-Wl,/DEBUG")
+endif()
 target_compile_definitions(crackdown PRIVATE
     CRACKDOWN_PORT_VERSION="${PROJECT_VERSION}"
     CRACKDOWN_TRG_VERSION="${CRACKDOWN_TRG_VERSION}"

@@ -1,0 +1,36 @@
+Shared gpu_skip_unchanged_constant_writes: the cvar 0099 defined in the D3D12 command processor is read by the shared
+command processor and the Vulkan backend (0109, 0110, 0120), so a build without D3D12 (Linux) left it undefined and
+librexgpu-xenos.so failed to load (undefined symbol FLAGS_gpu_skip_unchanged_constant_writes). Defined in the shared
+command processor instead, declared in D3D12's. Same flag, same default. Applied on Linux only (.linux): on Windows
+D3D12 is built and defines it, and the Windows runtime's fingerprint stays as it is.
+diff --git a/src/graphics/d3d12/command_processor.cpp b/src/graphics/d3d12/command_processor.cpp
+--- a/src/graphics/d3d12/command_processor.cpp
++++ b/src/graphics/d3d12/command_processor.cpp
+@@ -68,10 +68,7 @@
+                       "(0 = only where it already ends)")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
+-REXCVAR_DEFINE_BOOL(gpu_skip_unchanged_constant_writes, true, "GPU",
+-                    "Keep the uploaded constant buffers, texture bindings and sampler state when the "
+-                    "game rewrites float, bool, loop or fetch constants with the values they have")
+-    .lifecycle(rex::cvar::Lifecycle::kHotReload);
++REXCVAR_DECLARE(bool, gpu_skip_unchanged_constant_writes);
+ REXCVAR_DEFINE_BOOL(gpu_draw_identity_memo, false, "GPU",
+                     "With gpu_cached_indirect_buffers: a draw of a cached indirect buffer reuses the "
+                     "shader variants, pipeline, viewport and texture bindings its previous execution "
+diff --git a/src/graphics/command_processor.cpp b/src/graphics/command_processor.cpp
+--- a/src/graphics/command_processor.cpp
++++ b/src/graphics/command_processor.cpp
+@@ -125,7 +125,11 @@
+                     "its register writes, constant loads, shader loads and draws without parsing "
+                     "its packets")
+     .lifecycle(rex::cvar::Lifecycle::kHotReload);
+-REXCVAR_DECLARE(bool, gpu_skip_unchanged_constant_writes);
++// Defined here, not in a backend: every backend reads it (Vulkan too, on systems without D3D12).
++REXCVAR_DEFINE_BOOL(gpu_skip_unchanged_constant_writes, true, "GPU",
++                    "Keep the uploaded constant buffers, texture bindings and sampler state when the "
++                    "game rewrites float, bool, loop or fetch constants with the values they have")
++    .lifecycle(rex::cvar::Lifecycle::kHotReload);
+ 
+ namespace rex::graphics {
+ 
