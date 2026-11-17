@@ -43,6 +43,22 @@ void crackdown::hooks::XdkVectorFill(PPCContext& ctx, uint8_t* base, GuestFuncti
   any360::host::rexglue::xdk::XMemSet(ctx, base, original, crackdown::Layout().vector_fill_step);
 }
 
+// The C runtime's sin, cos and asin (base guest): where its build keeps their coefficients (the lis / addi and lis /
+// lfd pairs of the functions).
+namespace {
+constexpr any360::xdk::CrtTrigBuild kTrigBuild{0x82BA3AF0, 0x820ED510, 0x82BA4308};
+constexpr any360::xdk::CrtAsinBuild kAsinBuild{0x82BA3C20};
+}  // namespace
+void crackdown::hooks::MathSin(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtSin(ctx, base, original, kTrigBuild);
+}
+void crackdown::hooks::MathCos(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtCos(ctx, base, original, kTrigBuild);
+}
+void crackdown::hooks::MathAsin(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtAsin(ctx, base, original, kAsinBuild);
+}
+
 // The C runtime's string functions (wcslen, strchr, strrchr, strncmp and tolower only read and leave their value in
 // r3; strncpy, strncat, wcscpy and wcsncpy write). toupper (sub_82AB6A08) has the same replacement in Any360 and is
 // not bound: no run of the game has called it with both sides compared.

@@ -530,9 +530,11 @@
     },
     {
       "date": "2026-11-17",
-      "commit": "e1b24e00f",
-      "hooked": 38,
+      "commit": "dace61f44",
+      "hooked": 40,
       "functions": [
+        "826ACC90",
+        "826ACD08",
         "826AED90",
         "826AF038",
         "826AF950",

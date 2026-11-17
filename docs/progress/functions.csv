@@ -33033,8 +33033,8 @@ address,module,kind,instructions,state,handler,file
 82AB5EC8,C runtime (CRT),library,15,library,,
 82AB5F10,C runtime (CRT),library,66,native,CrtMemmove,crt_native.cpp
 82AB5FD0,C runtime (CRT),library,15,native,decomp::Sub_82AB5FD0,decomp/leaf_batch6.cpp
-82AB6010,C runtime (CRT),library,52,library,,
-82AB60E0,C runtime (CRT),library,72,library,,
+82AB6010,C runtime (CRT),library,52,native,MathSin,crt_native.cpp
+82AB60E0,C runtime (CRT),library,72,native,MathCos,crt_native.cpp
 82AB61B8,C runtime (CRT),library,9,native,CrtWcslen,crt_native.cpp
 82AB61E0,C runtime (CRT),library,3,library,,
 82AB61F0,C runtime (CRT),library,54,library,,
@@ -33043,7 +33043,7 @@ address,module,kind,instructions,state,handler,file
 82AB63D8,C runtime (CRT),library,65,library,,
 82AB64C0,C runtime (CRT),library,214,library,,
 82AB65F0,C runtime (CRT),library,61,library,,
-82AB66E8,C runtime (CRT),library,63,library,,
+82AB66E8,C runtime (CRT),library,63,native,MathAsin,crt_native.cpp
 82AB67B0,C runtime (CRT),library,2,library,,
 82AB67B8,C runtime (CRT),library,10,library,,
 82AB67E0,C runtime (CRT),library,78,library,,
