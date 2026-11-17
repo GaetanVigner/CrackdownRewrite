@@ -69,6 +69,11 @@ void crackdown::hooks::MathPow(PPCContext& ctx, uint8_t* base, GuestFunction ori
   any360::host::rexglue::xdk::CrtPow(ctx, base, original, kPowBuild);
 }
 
+// XAudio's I3DL2 reverb: one frame of the effect (Any360's leaf is made from this build's code).
+void crackdown::hooks::XAudioReverb(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::XAudioReverb(ctx, base, original);
+}
+
 // The C runtime's string functions (wcslen, strchr, strrchr, strncmp and tolower only read and leave their value in
 // r3; strncpy, strncat, wcscpy and wcsncpy write). toupper (sub_82AB6A08) has the same replacement in Any360 and is
 // not bound: no run of the game has called it with both sides compared.

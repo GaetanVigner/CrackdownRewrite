@@ -34,7 +34,7 @@ Shared by every title (Any360's own roadmap); the title follows once they land.
 | Any360 step | What | State |
 |---|---|---|
 | 11 | third and fourth titles (Test Drive Unlimited, Sonic 06) | partial: Test Drive Unlimited boots to its title screen with all eight groups on `any360::sys` and no call reaching the runtime; gameplay, saves and sound not checked yet; Sonic 06 not started |
-| 12 | paths no title took yet: `XMA*` decoding, STFS packages, several users, guide UIs, Live offline, xbdm | partial: 602 of 2,914 exports native with scenario tests, none of the 2,294 reference stubs sorted |
+| 12 | paths no title took yet: `XMA*` decoding, STFS packages, several users, guide UIs, Live offline, xbdm | partial: 633 of 2,914 exports native with scenario tests; the reference stubs sorted ([docs/SYS_STUBS.md](https://github.com/GaetanVigner/Any360/blob/main/docs/SYS_STUBS.md)): 95 left to implement (13 cryptography calls and 14 Win32 forms done), 114 answered as stubs, 255 debug only, 1,799 never seen |
 | 13 | Any360's own host: XEX loader, address space, threads, guest dispatch, MMIO, devices | not started |
 | 14 | the platform layer: window, input, audio, presenter on Windows and Linux (Steam Deck) | partial: SDL3 audio output only |
 | 15 | graphics through `any360::gfx` only, no `rexgpu-xenos` | partial: three titles draw through `any360::gfx`, the GPU session's plan in [docs/GFX.md](https://github.com/GaetanVigner/Any360/blob/main/docs/GFX.md) |
@@ -49,7 +49,7 @@ SDK code linked into the executable is not decompiled: Any360 provides the same 
 | XDK D3DX and XGraphics (shader compiler) | 4,171 | 487,670 | 39 | 0 | 4,132 |
 | C runtime (CRT) | 595 | 41,901 | 29 | 0 | 566 |
 | XDK D3D runtime | 553 | 34,977 | 90 | 229 | 463 |
-| XDK audio (XAudio, XMA) | 484 | 28,795 | 13 | 0 | 471 |
+| XDK audio (XAudio, XMA) | 484 | 28,795 | 14 | 0 | 470 |
 | XDK Xbox Live and voice (XOnline, XHV) | 378 | 21,114 | 5 | 0 | 373 |
 | libpng 1.0.5 and zlib 1.1.4 | 194 | 14,367 | 5 | 0 | 189 |
 | XAPI (Win32 layer over the kernel and XAM) | 194 | 9,291 | 3 | 0 | 191 |
