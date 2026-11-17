@@ -71,6 +71,8 @@ CRACKDOWN_GUEST_CALL(826B3238)
 CRACKDOWN_GUEST_CALL(826B3290)
 CRACKDOWN_BIND_ANY360(826B3070, D3dState<d3d_state::PixelConstants>)
 CRACKDOWN_BIND_ANY360(826AF038, D3dState<d3d_state::SetTexture>)
+CRACKDOWN_BIND_ANY360(826B0AA0, D3dState<d3d_state::ViewportEnable>)
+CRACKDOWN_BIND_ANY360(826B0488, D3dState<d3d_state::DepthBias>)
 CRACKDOWN_BIND_ANY360(826B1D30, D3dState<d3d_state::SetStreamSource>)
 CRACKDOWN_BIND_ANY360(826B1180, D3dState<d3d_state::SamplerFilter<false>>)
 CRACKDOWN_BIND_ANY360(826B1308, D3dState<d3d_state::SamplerFilter<true>>)
@@ -686,6 +688,8 @@ ANY360_D3D_CASE(pixel_ints, "pixel int constants", CRACKDOWN_GUEST_ORIGINAL(826B
 ANY360_D3D_CASE(pixel_floats, "pixel float constants", CRACKDOWN_GUEST_ORIGINAL(826B3070),
                 State<xs::PixelConstants, cs::PixelFloats>);
 ANY360_D3D_CASE(set_texture, "SetTexture", CRACKDOWN_GUEST_ORIGINAL(826AF038), State<xs::SetTexture, cs::Texture>);
+ANY360_D3D_CASE(viewport_enable, "ViewportEnable", CRACKDOWN_GUEST_ORIGINAL(826B0AA0), State<xs::ViewportEnable, cs::ViewportEnable>);
+ANY360_D3D_CASE(depth_bias, "DepthBias", CRACKDOWN_GUEST_ORIGINAL(826B0488), State<xs::DepthBias, cs::DepthBias>);
 ANY360_D3D_CASE(resource_addref, "Resource AddRef", CRACKDOWN_GUEST_ORIGINAL(826ACC90), state::ResourceRefCountCase<false>);
 ANY360_D3D_CASE(resource_release, "Resource Release", CRACKDOWN_GUEST_ORIGINAL(826ACD08), state::ResourceRefCountCase<true>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),

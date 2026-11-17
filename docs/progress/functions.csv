@@ -20045,7 +20045,7 @@ address,module,kind,instructions,state,handler,file
 826B03B8,XDK D3D runtime,library,2,verified,,
 826B03C0,XDK D3D runtime,library,41,verified,,
 826B0468,XDK D3D runtime,library,7,verified,,
-826B0488,XDK D3D runtime,library,38,verified,,
+826B0488,XDK D3D runtime,library,38,native,D3dState,guest_bindings_base.cpp
 826B0520,XDK D3D runtime,library,4,verified,,
 826B0530,XDK D3D runtime,library,7,verified,,
 826B0550,XDK D3D runtime,library,3,verified,,
@@ -20093,7 +20093,7 @@ address,module,kind,instructions,state,handler,file
 826B0A70,XDK D3D runtime,library,3,verified,,
 826B0A80,XDK D3D runtime,library,3,verified,,
 826B0A90,XDK D3D runtime,library,3,verified,,
-826B0AA0,XDK D3D runtime,library,16,verified,,
+826B0AA0,XDK D3D runtime,library,16,native,D3dState,guest_bindings_base.cpp
 826B0AE0,XDK D3D runtime,library,3,verified,,
 826B0AF0,XDK D3D runtime,library,41,verified,,
 826B0B98,XDK D3D runtime,library,2,verified,,
