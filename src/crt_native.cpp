@@ -48,6 +48,10 @@ void crackdown::hooks::XdkVectorFill(PPCContext& ctx, uint8_t* base, GuestFuncti
 namespace {
 constexpr any360::xdk::CrtTrigBuild kTrigBuild{0x82BA3AF0, 0x820ED510, 0x82BA4308};
 constexpr any360::xdk::CrtAsinBuild kAsinBuild{0x82BA3C20};
+// atan2's table; pow's (the 2^(-i/16) table at 0x82063B38) and the constants it loads from the runtime's pool.
+constexpr any360::xdk::CrtAtan2Build kAtan2Build{0x82BA3B68};
+constexpr any360::xdk::CrtPowBuild kPowBuild{0x82063B38, 0x820ED4C0, 0x820ED510, 0x820EDA50, 0x820ED868, 0x820EE230,
+                                             0x820ED708, 0x820ED4F0, 0x82BA3AE8, 0x82BA4300, 0x82BA4308};
 }  // namespace
 void crackdown::hooks::MathSin(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtSin(ctx, base, original, kTrigBuild);
@@ -57,6 +61,12 @@ void crackdown::hooks::MathCos(PPCContext& ctx, uint8_t* base, GuestFunction ori
 }
 void crackdown::hooks::MathAsin(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtAsin(ctx, base, original, kAsinBuild);
+}
+void crackdown::hooks::MathAtan2(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtAtan2(ctx, base, original, kAtan2Build);
+}
+void crackdown::hooks::MathPow(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtPow(ctx, base, original, kPowBuild);
 }
 
 // The C runtime's string functions (wcslen, strchr, strrchr, strncmp and tolower only read and leave their value in

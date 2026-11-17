@@ -35,6 +35,8 @@ void XdkVectorFill(PPCContext&, uint8_t*, GuestFunction original);
 void MathSin(PPCContext&, uint8_t*, GuestFunction original);
 void MathCos(PPCContext&, uint8_t*, GuestFunction original);
 void MathAsin(PPCContext&, uint8_t*, GuestFunction original);
+void MathAtan2(PPCContext&, uint8_t*, GuestFunction original);
+void MathPow(PPCContext&, uint8_t*, GuestFunction original);
 void CrtWcslen(PPCContext&, uint8_t*, GuestFunction original);
 void CrtStrchr(PPCContext&, uint8_t*, GuestFunction original);
 void CrtStrrchr(PPCContext&, uint8_t*, GuestFunction original);

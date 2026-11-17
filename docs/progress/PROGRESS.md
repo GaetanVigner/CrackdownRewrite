@@ -12,9 +12,9 @@ Generated on 2026-11-17 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 157 | 6,571 | 2.4% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 159 | 6,571 | 2.4% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 37,073 | 2,667,844 | 1.4% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 37,607 | 2,667,844 | 1.4% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -322,7 +322,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | Kynapse (AI) | middleware | 947 | 56,021 | 3 | 0 | 944 | 0.3% |
 | code 82Axxxxx | game | 1,064 | 50,916 | 4 | 0 | 1,060 | 0.4% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
-| C runtime (CRT) | library | 595 | 41,901 | 27 | 0 | 568 | 4.5% |
+| C runtime (CRT) | library | 595 | 41,901 | 29 | 0 | 566 | 4.9% |
 | XDK D3D runtime | library | 553 | 34,977 | 65 | 250 | 238 | 12% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
@@ -335,7 +335,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 3 | 0 | 191 | 1.5% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 477 rewritten functions</summary>
+<details><summary>The 479 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -764,11 +764,13 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82AB5268` | C runtime (CRT) | 18 | `CrtMbtowc` | crt_native.cpp |
 | `82AB52B0` | C runtime (CRT) | 16 | `decomp::Sub_82AB52B0` | decomp/leaf_batch7.cpp |
 | `82AB52F0` | C runtime (CRT) | 15 | `decomp::Sub_82AB52F0` | decomp/leaf_batch6.cpp |
+| `82AB57F8` | C runtime (CRT) | 320 | `MathPow` | crt_native.cpp |
 | `82AB5F10` | C runtime (CRT) | 66 | `CrtMemmove` | crt_native.cpp |
 | `82AB5FD0` | C runtime (CRT) | 15 | `decomp::Sub_82AB5FD0` | decomp/leaf_batch6.cpp |
 | `82AB6010` | C runtime (CRT) | 52 | `MathSin` | crt_native.cpp |
 | `82AB60E0` | C runtime (CRT) | 72 | `MathCos` | crt_native.cpp |
 | `82AB61B8` | C runtime (CRT) | 9 | `CrtWcslen` | crt_native.cpp |
+| `82AB64C0` | C runtime (CRT) | 214 | `MathAtan2` | crt_native.cpp |
 | `82AB66E8` | C runtime (CRT) | 63 | `MathAsin` | crt_native.cpp |
 | `82AB6918` | C runtime (CRT) | 23 | `CrtStrncpy` | crt_native.cpp |
 | `82AB9380` | C runtime (CRT) | 15 | `CrtStrchr` | crt_native.cpp |

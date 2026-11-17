@@ -33025,7 +33025,7 @@ address,module,kind,instructions,state,handler,file
 82AB55D8,C runtime (CRT),library,11,library,,
 82AB5608,C runtime (CRT),library,27,library,,
 82AB5678,C runtime (CRT),library,177,library,,
-82AB57F8,C runtime (CRT),library,320,library,,
+82AB57F8,C runtime (CRT),library,320,native,MathPow,crt_native.cpp
 82AB5CF8,C runtime (CRT),library,174,library,,
 82AB5E78,C runtime (CRT),library,11,library,,
 82AB5EA8,C runtime (CRT),library,3,library,,
@@ -33041,7 +33041,7 @@ address,module,kind,instructions,state,handler,file
 82AB62C8,C runtime (CRT),library,48,library,,
 82AB6388,C runtime (CRT),library,19,library,,
 82AB63D8,C runtime (CRT),library,65,library,,
-82AB64C0,C runtime (CRT),library,214,library,,
+82AB64C0,C runtime (CRT),library,214,native,MathAtan2,crt_native.cpp
 82AB65F0,C runtime (CRT),library,61,library,,
 82AB66E8,C runtime (CRT),library,63,native,MathAsin,crt_native.cpp
 82AB67B0,C runtime (CRT),library,2,library,,
