@@ -22201,7 +22201,7 @@ address,module,kind,instructions,state,handler,file
 82742B28,XAPI (Win32 layer over the kernel and XAM),library,121,library,,
 82742D10,XAPI (Win32 layer over the kernel and XAM),library,1,library,,
 82742D18,XAPI (Win32 layer over the kernel and XAM),library,89,library,,
-82742E80,XAPI (Win32 layer over the kernel and XAM),library,107,library,,
+82742E80,XAPI (Win32 layer over the kernel and XAM),library,107,native,XdkVectorFill,crt_native.cpp
 82743030,XAPI (Win32 layer over the kernel and XAM),library,3,library,,
 82743040,XAPI (Win32 layer over the kernel and XAM),library,32,library,,
 827430C0,XAPI (Win32 layer over the kernel and XAM),library,15,library,,

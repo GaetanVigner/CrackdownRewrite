@@ -14,40 +14,42 @@
 <line class="g" x1="70" x2="930" y1="90.0" y2="90.0"/>
 <text class="t" x="62" y="94.0" text-anchor="end">193</text>
 <line class="d" x1="70" x2="930" y1="109.1" y2="109.1"/>
-<polyline class="a" points="70.0,300.0 143.7,300.0 168.3,298.9 192.9,298.9 217.4,297.8 242.0,297.8 266.6,297.8 291.1,297.8 315.7,292.4 340.3,283.6 364.9,283.6 389.4,283.6 463.1,282.5 487.7,282.5 512.3,282.5 536.9,282.5 659.7,282.5 782.6,282.5 807.1,282.5 831.7,260.7 856.3,259.6 880.9,258.5 905.4,258.5 930.0,258.5"/>
+<polyline class="a" points="70.0,300.0 141.7,300.0 165.6,298.9 189.4,298.9 213.3,297.8 237.2,297.8 261.1,297.8 285.0,297.8 308.9,292.4 332.8,283.6 356.7,283.6 380.6,283.6 452.2,282.5 476.1,282.5 500.0,282.5 523.9,282.5 643.3,282.5 762.8,282.5 786.7,282.5 810.6,260.7 834.4,259.6 858.3,258.5 882.2,258.5 906.1,258.5 930.0,258.5"/>
 <circle cx="70.0" cy="300.0" r="3.5" fill="#40a6f2"><title>2026-10-12: 0</title></circle>
-<circle cx="143.7" cy="300.0" r="3.5" fill="#40a6f2"><title>2026-10-15: 0</title></circle>
-<circle cx="168.3" cy="298.9" r="3.5" fill="#40a6f2"><title>2026-10-16: 1</title></circle>
-<circle cx="192.9" cy="298.9" r="3.5" fill="#40a6f2"><title>2026-10-17: 1</title></circle>
-<circle cx="217.4" cy="297.8" r="3.5" fill="#40a6f2"><title>2026-10-18: 2</title></circle>
-<circle cx="242.0" cy="297.8" r="3.5" fill="#40a6f2"><title>2026-10-19: 2</title></circle>
-<circle cx="266.6" cy="297.8" r="3.5" fill="#40a6f2"><title>2026-10-20: 2</title></circle>
-<circle cx="291.1" cy="297.8" r="3.5" fill="#40a6f2"><title>2026-10-21: 2</title></circle>
-<circle cx="315.7" cy="292.4" r="3.5" fill="#40a6f2"><title>2026-10-22: 7</title></circle>
-<circle cx="340.3" cy="283.6" r="3.5" fill="#40a6f2"><title>2026-10-23: 15</title></circle>
-<circle cx="364.9" cy="283.6" r="3.5" fill="#40a6f2"><title>2026-10-24: 15</title></circle>
-<circle cx="389.4" cy="283.6" r="3.5" fill="#40a6f2"><title>2026-10-25: 15</title></circle>
-<circle cx="463.1" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-10-28: 16</title></circle>
-<circle cx="487.7" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-10-29: 16</title></circle>
-<circle cx="512.3" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-10-30: 16</title></circle>
-<circle cx="536.9" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-10-31: 16</title></circle>
-<circle cx="659.7" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-11-05: 16</title></circle>
-<circle cx="782.6" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-11-10: 16</title></circle>
-<circle cx="807.1" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-11-11: 16</title></circle>
-<circle cx="831.7" cy="260.7" r="3.5" fill="#40a6f2"><title>2026-11-12: 36</title></circle>
-<circle cx="856.3" cy="259.6" r="3.5" fill="#40a6f2"><title>2026-11-13: 37</title></circle>
-<circle cx="880.9" cy="258.5" r="3.5" fill="#40a6f2"><title>2026-11-14: 38</title></circle>
-<circle cx="905.4" cy="258.5" r="3.5" fill="#40a6f2"><title>2026-11-15: 38</title></circle>
-<circle cx="930.0" cy="258.5" r="3.5" fill="#40a6f2"><title>2026-11-16: 38</title></circle>
+<circle cx="141.7" cy="300.0" r="3.5" fill="#40a6f2"><title>2026-10-15: 0</title></circle>
+<circle cx="165.6" cy="298.9" r="3.5" fill="#40a6f2"><title>2026-10-16: 1</title></circle>
+<circle cx="189.4" cy="298.9" r="3.5" fill="#40a6f2"><title>2026-10-17: 1</title></circle>
+<circle cx="213.3" cy="297.8" r="3.5" fill="#40a6f2"><title>2026-10-18: 2</title></circle>
+<circle cx="237.2" cy="297.8" r="3.5" fill="#40a6f2"><title>2026-10-19: 2</title></circle>
+<circle cx="261.1" cy="297.8" r="3.5" fill="#40a6f2"><title>2026-10-20: 2</title></circle>
+<circle cx="285.0" cy="297.8" r="3.5" fill="#40a6f2"><title>2026-10-21: 2</title></circle>
+<circle cx="308.9" cy="292.4" r="3.5" fill="#40a6f2"><title>2026-10-22: 7</title></circle>
+<circle cx="332.8" cy="283.6" r="3.5" fill="#40a6f2"><title>2026-10-23: 15</title></circle>
+<circle cx="356.7" cy="283.6" r="3.5" fill="#40a6f2"><title>2026-10-24: 15</title></circle>
+<circle cx="380.6" cy="283.6" r="3.5" fill="#40a6f2"><title>2026-10-25: 15</title></circle>
+<circle cx="452.2" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-10-28: 16</title></circle>
+<circle cx="476.1" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-10-29: 16</title></circle>
+<circle cx="500.0" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-10-30: 16</title></circle>
+<circle cx="523.9" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-10-31: 16</title></circle>
+<circle cx="643.3" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-11-05: 16</title></circle>
+<circle cx="762.8" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-11-10: 16</title></circle>
+<circle cx="786.7" cy="282.5" r="3.5" fill="#40a6f2"><title>2026-11-11: 16</title></circle>
+<circle cx="810.6" cy="260.7" r="3.5" fill="#40a6f2"><title>2026-11-12: 36</title></circle>
+<circle cx="834.4" cy="259.6" r="3.5" fill="#40a6f2"><title>2026-11-13: 37</title></circle>
+<circle cx="858.3" cy="258.5" r="3.5" fill="#40a6f2"><title>2026-11-14: 38</title></circle>
+<circle cx="882.2" cy="258.5" r="3.5" fill="#40a6f2"><title>2026-11-15: 38</title></circle>
+<circle cx="906.1" cy="258.5" r="3.5" fill="#40a6f2"><title>2026-11-16: 38</title></circle>
+<circle cx="930.0" cy="258.5" r="3.5" fill="#40a6f2"><title>2026-11-17: 38</title></circle>
 <text class="t" x="70.0" y="318" text-anchor="middle">10-12</text>
-<text class="t" x="192.9" y="318" text-anchor="middle">10-17</text>
-<text class="t" x="266.6" y="318" text-anchor="middle">10-20</text>
-<text class="t" x="340.3" y="318" text-anchor="middle">10-23</text>
-<text class="t" x="463.1" y="318" text-anchor="middle">10-28</text>
-<text class="t" x="536.9" y="318" text-anchor="middle">10-31</text>
-<text class="t" x="807.1" y="318" text-anchor="middle">11-11</text>
-<text class="t" x="880.9" y="318" text-anchor="middle">11-14</text>
-<text class="t" x="930.0" y="318" text-anchor="middle">11-16</text>
+<text class="t" x="189.4" y="318" text-anchor="middle">10-17</text>
+<text class="t" x="261.1" y="318" text-anchor="middle">10-20</text>
+<text class="t" x="332.8" y="318" text-anchor="middle">10-23</text>
+<text class="t" x="452.2" y="318" text-anchor="middle">10-28</text>
+<text class="t" x="523.9" y="318" text-anchor="middle">10-31</text>
+<text class="t" x="786.7" y="318" text-anchor="middle">11-11</text>
+<text class="t" x="858.3" y="318" text-anchor="middle">11-14</text>
+<text class="t" x="930.0" y="318" text-anchor="middle">11-17</text>
+<text class="t" x="930.0" y="318" text-anchor="middle">11-17</text>
 <text class="h" x="70" y="358">GPU draws whose state the HLE draw records reproduce exactly: 86.2%  |  render passes exact: 12 of 29, native: 0</text>
 <line class="g" x1="70" x2="930" y1="580.0" y2="580.0"/>
 <text class="t" x="62" y="584.0" text-anchor="end">0%</text>
@@ -59,18 +61,19 @@
 <text class="t" x="62" y="426.5" text-anchor="end">75%</text>
 <line class="g" x1="70" x2="930" y1="370.0" y2="370.0"/>
 <text class="t" x="62" y="374.0" text-anchor="end">100%</text>
-<polyline class="m" points="389.4,393.3 463.1,399.0"/>
-<circle cx="389.4" cy="393.3" r="3.5" fill="#26a269"><title>2026-10-25: 88.9%</title></circle>
-<circle cx="463.1" cy="399.0" r="3.5" fill="#26a269"><title>2026-10-28: 86.2%</title></circle>
+<polyline class="m" points="380.6,393.3 452.2,399.0"/>
+<circle cx="380.6" cy="393.3" r="3.5" fill="#26a269"><title>2026-10-25: 88.9%</title></circle>
+<circle cx="452.2" cy="399.0" r="3.5" fill="#26a269"><title>2026-10-28: 86.2%</title></circle>
 <text class="t" x="70.0" y="598" text-anchor="middle">10-12</text>
-<text class="t" x="192.9" y="598" text-anchor="middle">10-17</text>
-<text class="t" x="266.6" y="598" text-anchor="middle">10-20</text>
-<text class="t" x="340.3" y="598" text-anchor="middle">10-23</text>
-<text class="t" x="463.1" y="598" text-anchor="middle">10-28</text>
-<text class="t" x="536.9" y="598" text-anchor="middle">10-31</text>
-<text class="t" x="807.1" y="598" text-anchor="middle">11-11</text>
-<text class="t" x="880.9" y="598" text-anchor="middle">11-14</text>
-<text class="t" x="930.0" y="598" text-anchor="middle">11-16</text>
+<text class="t" x="189.4" y="598" text-anchor="middle">10-17</text>
+<text class="t" x="261.1" y="598" text-anchor="middle">10-20</text>
+<text class="t" x="332.8" y="598" text-anchor="middle">10-23</text>
+<text class="t" x="452.2" y="598" text-anchor="middle">10-28</text>
+<text class="t" x="523.9" y="598" text-anchor="middle">10-31</text>
+<text class="t" x="786.7" y="598" text-anchor="middle">11-11</text>
+<text class="t" x="858.3" y="598" text-anchor="middle">11-14</text>
+<text class="t" x="930.0" y="598" text-anchor="middle">11-17</text>
+<text class="t" x="930.0" y="598" text-anchor="middle">11-17</text>
 <text class="h" x="70" y="635">Roadmap (HLE_RENDERER_PLAN.md)</text>
 <rect x="72.0" y="649" width="82.0" height="30" rx="5" fill="#26a269" fill-opacity="1"><title>M1: draw capture (done)</title></rect>
 <text x="113.0" y="669" text-anchor="middle" fill="#ffffff" font-weight="600">M1</text>

@@ -31,6 +31,7 @@ void CrtCopyForward(PPCContext&, uint8_t*, GuestFunction original);
 void CrtMemmove(PPCContext&, uint8_t*, GuestFunction original);
 void CrtMemset(PPCContext&, uint8_t*, GuestFunction original);
 void XdkVectorCopy(PPCContext&, uint8_t*, GuestFunction original);
+void XdkVectorFill(PPCContext&, uint8_t*, GuestFunction original);
 void CrtWcslen(PPCContext&, uint8_t*, GuestFunction original);
 void CrtStrchr(PPCContext&, uint8_t*, GuestFunction original);
 void CrtStrrchr(PPCContext&, uint8_t*, GuestFunction original);

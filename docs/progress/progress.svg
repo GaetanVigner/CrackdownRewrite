@@ -1268,7 +1268,7 @@
 <rect x="613.7" y="575.7" width="11.0" height="12.4" fill="#8957e5"/>
 <rect x="625.3" y="575.7" width="11.0" height="12.4" fill="#8957e5"/>
 <rect x="636.8" y="575.7" width="11.0" height="12.4" fill="#8957e5"/>
-<rect x="613.7" y="562.7" width="46.3" height="26.0" fill="none" stroke="#0d1117" stroke-width="2"><title>XAPI (Win32 layer over the kernel and XAM): 2 native, 192 library</title></rect>
+<rect x="613.7" y="562.7" width="46.3" height="26.0" fill="none" stroke="#0d1117" stroke-width="2"><title>XAPI (Win32 layer over the kernel and XAM): 3 native, 191 library</title></rect>
 <rect x="613.7" y="588.7" width="13.3" height="10.2" fill="#2da44e"/>
 <rect x="627.6" y="588.7" width="13.3" height="10.2" fill="#8957e5"/>
 <rect x="613.7" y="599.5" width="13.3" height="10.2" fill="#8957e5"/>

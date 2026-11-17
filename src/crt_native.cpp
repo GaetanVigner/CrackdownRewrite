@@ -37,6 +37,12 @@ void crackdown::hooks::XdkVectorCopy(PPCContext& ctx, uint8_t* base, GuestFuncti
   any360::host::rexglue::xdk::XMemCpy(ctx, base, original, crackdown::Layout().vector_copy_byte_step);
 }
 
+// The XDK's vector fill (XMemSet): r3 destination, r4 the byte, r5 size; returns the destination. Its vectors outside
+// the cache lines step by a global, 16 in this guest: the layout says where it is.
+void crackdown::hooks::XdkVectorFill(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::XMemSet(ctx, base, original, crackdown::Layout().vector_fill_step);
+}
+
 // The C runtime's string functions (wcslen, strchr, strrchr, strncmp and tolower only read and leave their value in
 // r3; strncpy, strncat, wcscpy and wcsncpy write). toupper (sub_82AB6A08) has the same replacement in Any360 and is
 // not bound: no run of the game has called it with both sides compared.

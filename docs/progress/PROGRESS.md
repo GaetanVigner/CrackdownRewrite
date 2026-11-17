@@ -12,9 +12,9 @@ Generated on 2026-11-17 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 149 | 6,571 | 2.3% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 150 | 6,571 | 2.3% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 36,664 | 2,667,844 | 1.4% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 36,771 | 2,667,844 | 1.4% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -332,10 +332,10 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | Massive (in-game advertising) | middleware | 368 | 16,437 | 0 | 0 | 368 | 0% |
 | Bink video | middleware | 127 | 16,392 | 1 | 0 | 126 | 0.8% |
 | libpng 1.0.5 and zlib 1.1.4 | library | 194 | 14,367 | 5 | 0 | 189 | 2.6% |
-| XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 2 | 0 | 192 | 1.0% |
+| XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 3 | 0 | 191 | 1.5% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 469 rewritten functions</summary>
+<details><summary>The 470 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -657,6 +657,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `8273CC98` | SpeedTree | 18 | `decomp::Sub_8273CC98` | decomp/leaf_batch9.cpp |
 | `82740710` | SpeedTree | 17 | `decomp::Sub_82740710` | decomp/leaf_batch8.cpp |
 | `827427F0` | XAPI (Win32 layer over the kernel and XAM) | 204 | `XdkVectorCopy` | crt_native.cpp |
+| `82742E80` | XAPI (Win32 layer over the kernel and XAM) | 107 | `XdkVectorFill` | crt_native.cpp |
 | `82743798` | XAPI (Win32 layer over the kernel and XAM) | 3 | `FilterPadState` | achievements_input.cpp |
 | `8278EA38` | XDK D3DX and XGraphics (shader compiler) | 28 | `decomp::Sub_8278EA38` | decomp/leaf_batch13.cpp |
 | `82793BB8` | XDK D3DX and XGraphics (shader compiler) | 10 | `decomp::Sub_82793BB8` | decomp/leaf_batch3.cpp |

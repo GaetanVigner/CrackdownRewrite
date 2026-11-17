@@ -283,7 +283,7 @@ The recompiled functions of `default.xex` by address area: natively replaced (ho
 | code 824xxxxx | 47 | 0 | 3306 | 3353 | 1.4% |
 | code 825xxxxx | 51 | 0 | 3788 | 3839 | 1.3% |
 | code 826xxxxx | 24 | 29 | 3313 | 3366 | 0.7% |
-| code 827xxxxx | 32 | 0 | 2471 | 2503 | 1.3% |
+| code 827xxxxx | 33 | 0 | 2470 | 2503 | 1.3% |
 | code 828xxxxx | 21 | 0 | 2205 | 2226 | 0.9% |
 | code 829xxxxx | 28 | 0 | 3919 | 3947 | 0.7% |
 | code 82Axxxxx | 58 | 0 | 4568 | 4626 | 1.3% |
