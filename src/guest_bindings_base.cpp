@@ -76,6 +76,8 @@ CRACKDOWN_BIND_ANY360(826B3070, D3dState<d3d_state::PixelConstants>)
 CRACKDOWN_BIND_ANY360(826AF038, D3dState<d3d_state::SetTexture>)
 CRACKDOWN_BIND_ANY360(826B0AA0, D3dState<d3d_state::ViewportEnable>)
 CRACKDOWN_BIND_ANY360(826B0488, D3dState<d3d_state::DepthBias>)
+CRACKDOWN_BIND_ANY360(826B1EE0, D3dState<d3d_state::SetRenderTarget>)
+CRACKDOWN_BIND_ANY360(826B2218, D3dState<d3d_state::SetDepthStencilSurface>)
 CRACKDOWN_BIND_ANY360(826B1D30, D3dState<d3d_state::SetStreamSource>)
 CRACKDOWN_BIND_ANY360(826B1180, D3dState<d3d_state::SamplerFilter<false>>)
 CRACKDOWN_BIND_ANY360(826B1308, D3dState<d3d_state::SamplerFilter<true>>)
@@ -130,6 +132,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BE4A0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BDFC8));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C3440));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826AC6C8));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826AF2D8));
 namespace {
 [[maybe_unused]] const bool crackdown_d3d_runtime = [] {
   any360::host::rexglue::d3d_draw::Runtime& rt = any360::host::rexglue::d3d_draw::g_runtime;
@@ -171,6 +174,7 @@ namespace {
   rt.tile_samples = &CRACKDOWN_GUEST_FUNC(826B1038);
   rt.resolve = &CRACKDOWN_GUEST_FUNC(826BE578);
   rt.viewport_of = &CRACKDOWN_GUEST_FUNC(826B1C60);
+  any360::host::rexglue::xdk::d3d_state::g_surface_viewport = &CRACKDOWN_GUEST_FUNC(826AF2D8);
   rt.scissor_of = &CRACKDOWN_GUEST_FUNC(826B1B60);
   rt.set_viewport = &CRACKDOWN_GUEST_FUNC(826AF650);
   rt.clear = &CRACKDOWN_GUEST_FUNC(826C04A0);
@@ -693,6 +697,8 @@ ANY360_D3D_CASE(pixel_floats, "pixel float constants", CRACKDOWN_GUEST_ORIGINAL(
 ANY360_D3D_CASE(set_texture, "SetTexture", CRACKDOWN_GUEST_ORIGINAL(826AF038), State<xs::SetTexture, cs::Texture>);
 ANY360_D3D_CASE(viewport_enable, "ViewportEnable", CRACKDOWN_GUEST_ORIGINAL(826B0AA0), State<xs::ViewportEnable, cs::ViewportEnable>);
 ANY360_D3D_CASE(depth_bias, "DepthBias", CRACKDOWN_GUEST_ORIGINAL(826B0488), State<xs::DepthBias, cs::DepthBias>);
+ANY360_D3D_CASE(set_render_target, "SetRenderTarget", CRACKDOWN_GUEST_ORIGINAL(826B1EE0), State<xs::SetRenderTarget, cs::Surfaces<false>>);
+ANY360_D3D_CASE(set_depth_stencil, "SetDepthStencilSurface", CRACKDOWN_GUEST_ORIGINAL(826B2218), State<xs::SetDepthStencilSurface, cs::Surfaces<true>>);
 ANY360_D3D_CASE(resource_addref, "Resource AddRef", CRACKDOWN_GUEST_ORIGINAL(826ACC90), state::ResourceRefCountCase<false>);
 ANY360_D3D_CASE(resource_release, "Resource Release", CRACKDOWN_GUEST_ORIGINAL(826ACD08), state::ResourceRefCountCase<true>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),

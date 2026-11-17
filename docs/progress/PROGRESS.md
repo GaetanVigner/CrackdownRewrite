@@ -12,9 +12,9 @@ Generated on 2026-11-17 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 159 | 6,571 | 2.4% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 160 | 6,571 | 2.4% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 37,607 | 2,667,844 | 1.4% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 39,059 | 2,667,844 | 1.5% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -326,7 +326,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XDK D3D runtime | library | 553 | 34,977 | 65 | 250 | 238 | 12% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
-| XDK audio (XAudio, XMA) | library | 484 | 28,795 | 13 | 0 | 471 | 2.7% |
+| XDK audio (XAudio, XMA) | library | 484 | 28,795 | 14 | 0 | 470 | 2.9% |
 | code 827xxxxx | game | 366 | 25,239 | 2 | 0 | 364 | 0.5% |
 | XDK Xbox Live and voice (XOnline, XHV) | library | 378 | 21,114 | 5 | 0 | 373 | 1.3% |
 | Massive (in-game advertising) | middleware | 368 | 16,437 | 0 | 0 | 368 | 0% |
@@ -335,7 +335,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 3 | 0 | 191 | 1.5% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 479 rewritten functions</summary>
+<details><summary>The 480 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -739,6 +739,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82A4B6A0` | XDK audio (XAudio, XMA) | 63 | `XAudioMixRamp` | crt_native.cpp |
 | `82A4BEF8` | XDK audio (XAudio, XMA) | 24 | `AudioMixerCallback` | audio_mixer_priority.cpp |
 | `82A4BF98` | XDK audio (XAudio, XMA) | 17 | `decomp::Sub_82A4BF98` | decomp/leaf_batch8.cpp |
+| `82A4DCF0` | XDK audio (XAudio, XMA) | 1452 | `XAudioReverb` | crt_native.cpp |
 | `82A4F8A8` | XDK audio (XAudio, XMA) | 21 | `decomp::Sub_82A4F8A8` | decomp/leaf_batch11.cpp |
 | `82A4FA70` | XDK audio (XAudio, XMA) | 3 | `AudioResetEvent` | audio_guest_sync.cpp |
 | `82A50000` | XDK audio (XAudio, XMA) | 64 | `AudioBarrier` | audio_guest_sync.cpp |

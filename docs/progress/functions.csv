@@ -31324,7 +31324,7 @@ address,module,kind,instructions,state,handler,file
 82A4D700,"XDK audio (XAudio, XMA)",library,42,library,,
 82A4D7A8,"XDK audio (XAudio, XMA)",library,331,library,,
 82A4DCD8,"XDK audio (XAudio, XMA)",library,5,library,,
-82A4DCF0,"XDK audio (XAudio, XMA)",library,1452,library,,
+82A4DCF0,"XDK audio (XAudio, XMA)",library,1452,native,XAudioReverb,crt_native.cpp
 82A4F3B8,"XDK audio (XAudio, XMA)",library,22,library,,
 82A4F410,"XDK audio (XAudio, XMA)",library,80,library,,
 82A4F550,"XDK audio (XAudio, XMA)",library,29,library,,
