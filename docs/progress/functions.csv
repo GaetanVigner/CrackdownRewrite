@@ -19926,8 +19926,8 @@ address,module,kind,instructions,state,handler,file
 826AC6C8,code 826xxxxx,game,137,recompiled,,
 826AC8F0,code 826xxxxx,game,164,native,ResourceLockOrOriginal,guest_bindings_base.cpp
 826ACB80,code 826xxxxx,game,67,recompiled,,
-826ACC90,XDK D3D runtime,library,29,library,,
-826ACD08,XDK D3D runtime,library,32,library,,
+826ACC90,XDK D3D runtime,library,29,native,ResourceAddRefOrOriginal,guest_bindings_base.cpp
+826ACD08,XDK D3D runtime,library,32,native,ResourceReleaseOrOriginal,guest_bindings_base.cpp
 826ACD88,XDK D3D runtime,library,10,verified,,
 826ACDB0,XDK D3D runtime,library,35,verified,,
 826ACE40,XDK D3D runtime,library,20,library,,

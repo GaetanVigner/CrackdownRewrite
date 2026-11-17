@@ -120,6 +120,7 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826ADD50));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BE4A0));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BDFC8));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C3440));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826AC6C8));
 namespace {
 [[maybe_unused]] const bool crackdown_d3d_runtime = [] {
   any360::host::rexglue::d3d_draw::Runtime& rt = any360::host::rexglue::d3d_draw::g_runtime;
@@ -141,6 +142,7 @@ namespace {
   rt.resolve_clear_color = &CRACKDOWN_GUEST_FUNC(826BE4A0);
   rt.resolve_clear_depth = &CRACKDOWN_GUEST_FUNC(826BDFC8);
   rt.release_block = &CRACKDOWN_GUEST_FUNC(826C3440);
+  rt.destroy_resource = &CRACKDOWN_GUEST_FUNC(826AC6C8);
   rt.constant_list = &CRACKDOWN_GUEST_FUNC(826C6A50);
   rt.fetch_swizzles = 0x8206BC24u;
   rt.fetch_sizes = 0x820EA160u;
@@ -187,6 +189,9 @@ namespace {
 }  // namespace
 // IDirect3DQuery9::Issue (D3, docs/D3D.md): Any360's native, the runtime's own code when it declines.
 CRACKDOWN_BIND_D3D(826C0B38, QueryIssueOrOriginal)
+// D3DResource_AddRef / D3DResource_Release (any360_d3d_native_refcounts).
+CRACKDOWN_BIND_D3D(826ACC90, ResourceAddRefOrOriginal)
+CRACKDOWN_BIND_D3D(826ACD08, ResourceReleaseOrOriginal)
 // The clear under the rect wrapper sub_826C04A0 (D3dClear).
 CRACKDOWN_BIND_D3D(826BFD88, ClearOrOriginal)
 // The draws' fetch-constant and wait-group uploads.
@@ -677,6 +682,8 @@ ANY360_D3D_CASE(pixel_ints, "pixel int constants", CRACKDOWN_GUEST_ORIGINAL(826B
 ANY360_D3D_CASE(pixel_floats, "pixel float constants", CRACKDOWN_GUEST_ORIGINAL(826B3070),
                 State<xs::PixelConstants, cs::PixelFloats>);
 ANY360_D3D_CASE(set_texture, "SetTexture", CRACKDOWN_GUEST_ORIGINAL(826AF038), State<xs::SetTexture, cs::Texture>);
+ANY360_D3D_CASE(resource_addref, "Resource AddRef", CRACKDOWN_GUEST_ORIGINAL(826ACC90), state::ResourceRefCountCase<false>);
+ANY360_D3D_CASE(resource_release, "Resource Release", CRACKDOWN_GUEST_ORIGINAL(826ACD08), state::ResourceRefCountCase<true>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),
                 State<xs::SetStreamSource, cs::Stream>);
 ANY360_D3D_CASE(min_filter, "sampler min filter", CRACKDOWN_GUEST_ORIGINAL(826B1180),
