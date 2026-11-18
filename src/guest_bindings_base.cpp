@@ -69,15 +69,35 @@ CRACKDOWN_BIND_ANY360(826AF950, D3dState<d3d_state::BlendEnable>)
 CRACKDOWN_BIND_ANY360(826AFCE0, D3dState<d3d_state::SeparateAlphaBlend>)
 CRACKDOWN_BIND_ANY360(826B3178, D3dState<d3d_state::BoolConstants<false>>)
 CRACKDOWN_BIND_ANY360(826B31D8, D3dState<d3d_state::BoolConstants<true>>)
-// Not bound: no run has called them (SetVertexShaderConstantI / SetPixelShaderConstantI); the self-test runs them.
-CRACKDOWN_GUEST_CALL(826B3238)
-CRACKDOWN_GUEST_CALL(826B3290)
+CRACKDOWN_BIND_ANY360(826B3238, D3dState<d3d_state::IntConstants<false>>)
+CRACKDOWN_BIND_ANY360(826B3290, D3dState<d3d_state::IntConstants<true>>)
 CRACKDOWN_BIND_ANY360(826B3070, D3dState<d3d_state::PixelConstants>)
 CRACKDOWN_BIND_ANY360(826AF038, D3dState<d3d_state::SetTexture>)
 CRACKDOWN_BIND_ANY360(826B0AA0, D3dState<d3d_state::ViewportEnable>)
 CRACKDOWN_BIND_ANY360(826B0488, D3dState<d3d_state::DepthBias>)
 CRACKDOWN_BIND_ANY360(826B1EE0, D3dState<d3d_state::SetRenderTarget>)
 CRACKDOWN_BIND_ANY360(826B2218, D3dState<d3d_state::SetDepthStencilSurface>)
+CRACKDOWN_BIND_ANY360(826AF8B8, D3dState<d3d_state::CullMode>)
+CRACKDOWN_BIND_ANY360(826AF918, D3dState<d3d_state::AlphaTestEnable>)
+CRACKDOWN_BIND_ANY360(826AFDE0, D3dState<d3d_state::AlphaFunc>)
+CRACKDOWN_BIND_ANY360(826AFE10, D3dState<d3d_state::BlendFactor>)
+CRACKDOWN_BIND_ANY360(826AFFD8, D3dState<d3d_state::ZEnable>)
+CRACKDOWN_BIND_ANY360(826B0018, D3dState<d3d_state::ZWriteEnable>)
+CRACKDOWN_BIND_ANY360(826B0358, D3dState<d3d_state::ClipPlaneEnable>)
+CRACKDOWN_BIND_ANY360(826B03C0, D3dState<d3d_state::SlopeScaleDepthBias>)
+CRACKDOWN_BIND_ANY360(826B3A98, D3dState<d3d_state::SetIndices>)
+CRACKDOWN_BIND_ANY360(826B2698, D3dState<d3d_state::SetClipPlane>)
+CRACKDOWN_BIND_ANY360(826AF8D8, D3dState<d3d_state::GetRenderState<any360::xdk::D3dRenderStateRead::kCullMode>>)
+CRACKDOWN_BIND_ANY360(826AF940, D3dState<d3d_state::GetRenderState<any360::xdk::D3dRenderStateRead::kAlphaTestEnable>>)
+CRACKDOWN_BIND_ANY360(826AF9D0, D3dState<d3d_state::GetRenderState<any360::xdk::D3dRenderStateRead::kBlendEnable>>)
+CRACKDOWN_BIND_ANY360(826AFAF0, D3dState<d3d_state::GetRenderState<any360::xdk::D3dRenderStateRead::kSrcBlend>>)
+CRACKDOWN_BIND_ANY360(826AFB80, D3dState<d3d_state::GetRenderState<any360::xdk::D3dRenderStateRead::kDestBlend>>)
+CRACKDOWN_BIND_ANY360(826AFE00, D3dState<d3d_state::GetRenderState<any360::xdk::D3dRenderStateRead::kAlphaFunc>>)
+CRACKDOWN_BIND_ANY360(826B0038, D3dState<d3d_state::GetRenderState<any360::xdk::D3dRenderStateRead::kZWriteEnable>>)
+CRACKDOWN_BIND_ANY360(826AFEB0, D3dState<d3d_state::GetBlendFactor>)
+CRACKDOWN_BIND_ANY360(826B1580, D3dState<d3d_state::SamplerAnisotropy>)
+CRACKDOWN_BIND_ANY360(826B1270, D3dState<d3d_state::SamplerLodFlag<1>>)
+CRACKDOWN_BIND_ANY360(826B13F8, D3dState<d3d_state::SamplerLodFlag<0>>)
 CRACKDOWN_BIND_ANY360(826B1D30, D3dState<d3d_state::SetStreamSource>)
 CRACKDOWN_BIND_ANY360(826B1180, D3dState<d3d_state::SamplerFilter<false>>)
 CRACKDOWN_BIND_ANY360(826B1308, D3dState<d3d_state::SamplerFilter<true>>)
@@ -699,6 +719,27 @@ ANY360_D3D_CASE(viewport_enable, "ViewportEnable", CRACKDOWN_GUEST_ORIGINAL(826B
 ANY360_D3D_CASE(depth_bias, "DepthBias", CRACKDOWN_GUEST_ORIGINAL(826B0488), State<xs::DepthBias, cs::DepthBias>);
 ANY360_D3D_CASE(set_render_target, "SetRenderTarget", CRACKDOWN_GUEST_ORIGINAL(826B1EE0), State<xs::SetRenderTarget, cs::Surfaces<false>>);
 ANY360_D3D_CASE(set_depth_stencil, "SetDepthStencilSurface", CRACKDOWN_GUEST_ORIGINAL(826B2218), State<xs::SetDepthStencilSurface, cs::Surfaces<true>>);
+ANY360_D3D_CASE(cull_mode, "SetRenderState_CullMode", CRACKDOWN_GUEST_ORIGINAL(826AF8B8), State<xs::CullMode, cs::RenderStateFields>);
+ANY360_D3D_CASE(alpha_test, "SetRenderState_AlphaTestEnable", CRACKDOWN_GUEST_ORIGINAL(826AF918), State<xs::AlphaTestEnable, cs::RenderStateFields>);
+ANY360_D3D_CASE(alpha_func, "SetRenderState_AlphaFunc", CRACKDOWN_GUEST_ORIGINAL(826AFDE0), State<xs::AlphaFunc, cs::RenderStateFields>);
+ANY360_D3D_CASE(blend_factor, "SetRenderState_BlendFactor", CRACKDOWN_GUEST_ORIGINAL(826AFE10), State<xs::BlendFactor, cs::RenderStateFields>);
+ANY360_D3D_CASE(z_enable, "SetRenderState_ZEnable", CRACKDOWN_GUEST_ORIGINAL(826AFFD8), State<xs::ZEnable, cs::RenderStateFields>);
+ANY360_D3D_CASE(z_write, "SetRenderState_ZWriteEnable", CRACKDOWN_GUEST_ORIGINAL(826B0018), State<xs::ZWriteEnable, cs::RenderStateFields>);
+ANY360_D3D_CASE(clip_enable, "SetRenderState_ClipPlaneEnable", CRACKDOWN_GUEST_ORIGINAL(826B0358), State<xs::ClipPlaneEnable, cs::RenderStateFields>);
+ANY360_D3D_CASE(slope_bias, "SetRenderState_SlopeScaleDepthBias", CRACKDOWN_GUEST_ORIGINAL(826B03C0), State<xs::SlopeScaleDepthBias, cs::RenderStateFields>);
+ANY360_D3D_CASE(set_indices, "SetIndices", CRACKDOWN_GUEST_ORIGINAL(826B3A98), State<xs::SetIndices, cs::RenderStateFields>);
+ANY360_D3D_CASE(clip_plane, "SetClipPlane", CRACKDOWN_GUEST_ORIGINAL(826B2698), State<xs::SetClipPlane, cs::ClipPlane>);
+ANY360_D3D_CASE(get_cull, "GetRenderState_CullMode", CRACKDOWN_GUEST_ORIGINAL(826AF8D8), State<xs::GetRenderState<any360::xdk::D3dRenderStateRead::kCullMode>, cs::RenderStateFields>);
+ANY360_D3D_CASE(get_alpha_test, "GetRenderState_AlphaTestEnable", CRACKDOWN_GUEST_ORIGINAL(826AF940), State<xs::GetRenderState<any360::xdk::D3dRenderStateRead::kAlphaTestEnable>, cs::RenderStateFields>);
+ANY360_D3D_CASE(get_blend, "GetRenderState_BlendEnable", CRACKDOWN_GUEST_ORIGINAL(826AF9D0), State<xs::GetRenderState<any360::xdk::D3dRenderStateRead::kBlendEnable>, cs::RenderStateFields>);
+ANY360_D3D_CASE(get_src_blend, "GetRenderState_SrcBlend", CRACKDOWN_GUEST_ORIGINAL(826AFAF0), State<xs::GetRenderState<any360::xdk::D3dRenderStateRead::kSrcBlend>, cs::RenderStateFields>);
+ANY360_D3D_CASE(get_dest_blend, "GetRenderState_DestBlend", CRACKDOWN_GUEST_ORIGINAL(826AFB80), State<xs::GetRenderState<any360::xdk::D3dRenderStateRead::kDestBlend>, cs::RenderStateFields>);
+ANY360_D3D_CASE(get_alpha_func, "GetRenderState_AlphaFunc", CRACKDOWN_GUEST_ORIGINAL(826AFE00), State<xs::GetRenderState<any360::xdk::D3dRenderStateRead::kAlphaFunc>, cs::RenderStateFields>);
+ANY360_D3D_CASE(get_z_write, "GetRenderState_ZWriteEnable", CRACKDOWN_GUEST_ORIGINAL(826B0038), State<xs::GetRenderState<any360::xdk::D3dRenderStateRead::kZWriteEnable>, cs::RenderStateFields>);
+ANY360_D3D_CASE(get_blend_factor, "GetRenderState_BlendFactor", CRACKDOWN_GUEST_ORIGINAL(826AFEB0), State<xs::GetBlendFactor, cs::RenderStateFields>);
+ANY360_D3D_CASE(sampler_aniso, "SetSamplerState anisotropy", CRACKDOWN_GUEST_ORIGINAL(826B1580), State<xs::SamplerAnisotropy, cs::SamplerStates>);
+ANY360_D3D_CASE(sampler_lod1, "SetSamplerState LOD flag 1", CRACKDOWN_GUEST_ORIGINAL(826B1270), State<xs::SamplerLodFlag<1>, cs::SamplerStates>);
+ANY360_D3D_CASE(sampler_lod0, "SetSamplerState LOD flag 0", CRACKDOWN_GUEST_ORIGINAL(826B13F8), State<xs::SamplerLodFlag<0>, cs::SamplerStates>);
 ANY360_D3D_CASE(resource_addref, "Resource AddRef", CRACKDOWN_GUEST_ORIGINAL(826ACC90), state::ResourceRefCountCase<false>);
 ANY360_D3D_CASE(resource_release, "Resource Release", CRACKDOWN_GUEST_ORIGINAL(826ACD08), state::ResourceRefCountCase<true>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),

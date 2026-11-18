@@ -1,6 +1,6 @@
 # Crackdown: roadmap
 
-Generated on 2026-11-17 with [PROGRESS.md](PROGRESS.md). The rewrite is done when nothing of the Xbox 360 or of ReXGlue's runtime is left under the game: every system call on `any360::sys`, graphics on `any360::gfx`, Any360 as the host, and the game's code as portable C++. Steps are in working order; each lists what it still needs.
+Generated on 2026-11-18 with [PROGRESS.md](PROGRESS.md). The rewrite is done when nothing of the Xbox 360 or of ReXGlue's runtime is left under the game: every system call on `any360::sys`, graphics on `any360::gfx`, Any360 as the host, and the game's code as portable C++. Steps are in working order; each lists what it still needs.
 
 ## 1. System calls on any360::sys
 
@@ -48,7 +48,7 @@ SDK code linked into the executable is not decompiled: Any360 provides the same 
 |---|---|---|---|---|---|
 | XDK D3DX and XGraphics (shader compiler) | 4,171 | 487,670 | 39 | 0 | 4,132 |
 | C runtime (CRT) | 595 | 41,901 | 29 | 0 | 566 |
-| XDK D3D runtime | 553 | 34,977 | 67 | 250 | 486 |
+| XDK D3D runtime | 553 | 34,977 | 90 | 229 | 463 |
 | XDK audio (XAudio, XMA) | 484 | 28,795 | 13 | 0 | 471 |
 | XDK Xbox Live and voice (XOnline, XHV) | 378 | 21,114 | 5 | 0 | 373 |
 | libpng 1.0.5 and zlib 1.1.4 | 194 | 14,367 | 5 | 0 | 189 |

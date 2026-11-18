@@ -230,5 +230,34 @@
    "native": 279,
    "verified": 29
   }
+ },
+ {
+  "date": "2026-11-18",
+  "system_calls": {
+   "total": 248,
+   "any360": 248,
+   "ready": 0,
+   "runtime": 0,
+   "stub": 0,
+   "missing": 0
+  },
+  "gpu_units": {
+   "total": 323,
+   "native": 283,
+   "bound": true
+  },
+  "functions": {
+   "total": 41219,
+   "native": 504,
+   "verified": 258,
+   "library": 6158,
+   "middleware": 5260,
+   "recompiled": 29039
+  },
+  "game_functions": {
+   "total": 29347,
+   "native": 279,
+   "verified": 29
+  }
  }
 ]

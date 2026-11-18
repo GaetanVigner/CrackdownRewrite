@@ -1,6 +1,6 @@
 # Crackdown: rewrite progress
 
-Generated on 2026-11-17 by [Any360](https://github.com/GaetanVigner/Any360)'s `tools/title_progress.py`. What is still missing, step by step: [ROADMAP.md](ROADMAP.md). Every function: [functions.csv](functions.csv). Counts: [progress.json](progress.json).
+Generated on 2026-11-18 by [Any360](https://github.com/GaetanVigner/Any360)'s `tools/title_progress.py`. What is still missing, step by step: [ROADMAP.md](ROADMAP.md). Every function: [functions.csv](functions.csv). Counts: [progress.json](progress.json).
 
 ![Progress](progress.svg)
 
@@ -12,9 +12,9 @@ Generated on 2026-11-17 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 161 | 6,571 | 2.5% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 184 | 6,571 | 2.8% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 37,999 | 2,667,844 | 1.4% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 38,352 | 2,667,844 | 1.4% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -323,7 +323,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | code 82Axxxxx | game | 1,064 | 50,916 | 4 | 0 | 1,060 | 0.4% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
 | C runtime (CRT) | library | 595 | 41,901 | 29 | 0 | 566 | 4.9% |
-| XDK D3D runtime | library | 553 | 34,977 | 67 | 250 | 236 | 12% |
+| XDK D3D runtime | library | 553 | 34,977 | 90 | 229 | 234 | 16% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
 | XDK audio (XAudio, XMA) | library | 484 | 28,795 | 13 | 0 | 471 | 2.7% |
@@ -335,7 +335,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 3 | 0 | 191 | 1.5% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 481 rewritten functions</summary>
+<details><summary>The 504 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -586,29 +586,52 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826ACD08` | XDK D3D runtime | 32 | `ResourceReleaseOrOriginal` | guest_bindings_base.cpp |
 | `826AED90` | XDK D3D runtime | 92 | `D3dCreateRenderTarget` | single_tile_scene.cpp |
 | `826AF038` | XDK D3D runtime | 94 | `D3dState` | guest_bindings_base.cpp |
+| `826AF8B8` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826AF8D8` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826AF918` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826AF940` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AF950` | XDK D3D runtime | 32 | `D3dState` | guest_bindings_base.cpp |
+| `826AF9D0` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AF9E0` | XDK D3D runtime | 31 | `D3dState` | guest_bindings_base.cpp |
 | `826AFA70` | XDK D3D runtime | 31 | `D3dState` | guest_bindings_base.cpp |
+| `826AFAF0` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AFB00` | XDK D3D runtime | 31 | `D3dState` | guest_bindings_base.cpp |
+| `826AFB80` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AFB90` | XDK D3D runtime | 23 | `D3dState` | guest_bindings_base.cpp |
 | `826AFC00` | XDK D3D runtime | 23 | `D3dState` | guest_bindings_base.cpp |
 | `826AFC70` | XDK D3D runtime | 23 | `D3dState` | guest_bindings_base.cpp |
 | `826AFCE0` | XDK D3D runtime | 33 | `D3dState` | guest_bindings_base.cpp |
+| `826AFDE0` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826AFE00` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826AFE10` | XDK D3D runtime | 39 | `D3dState` | guest_bindings_base.cpp |
+| `826AFEB0` | XDK D3D runtime | 32 | `D3dState` | guest_bindings_base.cpp |
+| `826AFFD8` | XDK D3D runtime | 14 | `D3dState` | guest_bindings_base.cpp |
+| `826B0018` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B0038` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0358` | XDK D3D runtime | 16 | `D3dState` | guest_bindings_base.cpp |
+| `826B03C0` | XDK D3D runtime | 41 | `D3dState` | guest_bindings_base.cpp |
 | `826B0488` | XDK D3D runtime | 38 | `D3dState` | guest_bindings_base.cpp |
 | `826B0AA0` | XDK D3D runtime | 16 | `D3dState` | guest_bindings_base.cpp |
 | `826B1150` | XDK D3D runtime | 2 | `PresentInterval` | frame_pacing.cpp |
 | `826B1180` | XDK D3D runtime | 48 | `D3dState` | guest_bindings_base.cpp |
+| `826B1270` | XDK D3D runtime | 34 | `D3dState` | guest_bindings_base.cpp |
 | `826B1308` | XDK D3D runtime | 48 | `D3dState` | guest_bindings_base.cpp |
+| `826B13F8` | XDK D3D runtime | 33 | `D3dState` | guest_bindings_base.cpp |
+| `826B1580` | XDK D3D runtime | 26 | `D3dState` | guest_bindings_base.cpp |
 | `826B1D30` | XDK D3D runtime | 71 | `D3dState` | guest_bindings_base.cpp |
 | `826B1E50` | XDK D3D runtime | 36 | `D3dState` | guest_bindings_base.cpp |
 | `826B1EE0` | XDK D3D runtime | 205 | `D3dState` | guest_bindings_base.cpp |
 | `826B2218` | XDK D3D runtime | 187 | `D3dState` | guest_bindings_base.cpp |
+| `826B2698` | XDK D3D runtime | 20 | `D3dState` | guest_bindings_base.cpp |
 | `826B2F68` | XDK D3D runtime | 63 | `D3dSetShaderConstants` | crt_native.cpp |
 | `826B3070` | XDK D3D runtime | 63 | `D3dState` | guest_bindings_base.cpp |
 | `826B3178` | XDK D3D runtime | 23 | `D3dState` | guest_bindings_base.cpp |
 | `826B31D8` | XDK D3D runtime | 23 | `D3dState` | guest_bindings_base.cpp |
+| `826B3238` | XDK D3D runtime | 21 | `D3dState` | guest_bindings_base.cpp |
+| `826B3290` | XDK D3D runtime | 21 | `D3dState` | guest_bindings_base.cpp |
 | `826B3458` | XDK D3D runtime | 111 | `D3dState` | guest_bindings_base.cpp |
 | `826B3848` | XDK D3D runtime | 115 | `D3dState` | guest_bindings_base.cpp |
+| `826B3A98` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
 | `826B3C48` | XDK D3D runtime | 115 | `D3dSetShaderGprAllocation` | hle_capture.cpp |
 | `826B91E0` | XDK D3D runtime | 294 | `D3dBeginVertices` | hle_capture.cpp |
 | `826B96D0` | XDK D3D runtime | 333 | `D3dBeginIndexedVertices` | hle_capture.cpp |
