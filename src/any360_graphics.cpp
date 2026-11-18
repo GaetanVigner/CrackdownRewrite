@@ -29,6 +29,9 @@ REXCVAR_DEFINE_INT32(any360_gpu_vblank_hz, 0, "GPU",
 REXCVAR_DEFINE_STRING(any360_gpu_capture, "", "GPU",
                       "Any360: frame capture file for gfx_replay; creating <file>.go records the next kicks (empty: none)");
 REXCVAR_DEFINE_INT32(any360_gpu_capture_kicks, 60, "GPU", "Any360: kicks a frame capture records");
+REXCVAR_DEFINE_STRING(any360_gpu_screenshot, "", "GPU",
+                      "Any360: a PNG file; creating <file>.go writes the next frame into it, as the renderer holds it "
+                      "(read back from the GPU, not the screen) (empty: none)");
 
 // The GPU system calls, overridden in the executable: the runtime's until StartGraphics succeeds, Any360's after.
 ANY360_REXGLUE_GRAPHICS_EXPORTS()
@@ -58,6 +61,7 @@ void StartAny360GraphicsIfAsked() {
 #ifdef ANY360_REXGLUE_CAPTURE
   options.capture_path = REXCVAR_GET(any360_gpu_capture);
   options.capture_kicks = uint32_t(std::max(1, REXCVAR_GET(any360_gpu_capture_kicks)));
+  options.screenshot_path = REXCVAR_GET(any360_gpu_screenshot);
 #endif
   // The launcher's render resolution (the runtime's own setting): host pixels a guest pixel.
   options.resolution_scale =

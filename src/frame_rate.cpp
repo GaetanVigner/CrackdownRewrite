@@ -72,7 +72,9 @@ void UpdateTitle() {
   if (REXCVAR_GET(crackdown_show_fps)) {
     frame_rate = g_shown_frame_rate;
   }
-  const std::string title = ComposeWindowTitle(kWindowTitle, render_resolution, frame_rate);
+  const std::string tag = REXCVAR_GET(crackdown_window_tag);
+  const std::string game = tag.empty() ? std::string(kWindowTitle) : std::string(kWindowTitle) + " [" + tag + "]";
+  const std::string title = ComposeWindowTitle(game, render_resolution, frame_rate);
   if (title != g_shown_title) {
     g_shown_title = title;
     g_window->SetTitle(title);
