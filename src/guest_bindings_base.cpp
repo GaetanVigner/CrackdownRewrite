@@ -197,6 +197,7 @@ namespace {
   rt.resolve = &CRACKDOWN_GUEST_FUNC(826BE578);
   rt.viewport_of = &CRACKDOWN_GUEST_FUNC(826B1C60);
   any360::host::rexglue::xdk::d3d_state::g_surface_viewport = &CRACKDOWN_GUEST_FUNC(826AF2D8);
+  any360::host::rexglue::xdk::d3d_state::g_scissor_packets = &CRACKDOWN_GUEST_FUNC(826AF370);
   rt.scissor_of = &CRACKDOWN_GUEST_FUNC(826B1B60);
   rt.set_viewport = &CRACKDOWN_GUEST_FUNC(826AF650);
   rt.clear = &CRACKDOWN_GUEST_FUNC(826C04A0);
@@ -242,6 +243,13 @@ CRACKDOWN_BIND_D3D(826C05C8, QueryOcclusionOrOriginal)
 CRACKDOWN_BIND_D3D(826BF8C0, ClearTargetOrOriginal)
 // A fence (the scratch value, a wait for the GPU's counter, an interrupt).
 CRACKDOWN_BIND_D3D(826BB5C8, FenceOrOriginal)
+// The viewport and scissor: the window scissor's packets (PM4 or records), the scissor, the viewport on its
+// floats, SetViewport and a surface's viewport (their packets through the first).
+CRACKDOWN_BIND_D3D(826AF370, WindowScissorPacketsOrOriginal)
+CRACKDOWN_BIND_ANY360(826B1B60, D3dState<d3d_state::ApplyScissor>)
+CRACKDOWN_BIND_ANY360(826AF650, D3dState<d3d_state::ViewportFloats>)
+CRACKDOWN_BIND_ANY360(826B1C60, D3dState<d3d_state::Viewport>)
+CRACKDOWN_BIND_ANY360(826AF2D8, D3dState<d3d_state::ViewportOfSurface>)
 // The CPU lock of a resource (its fence, the cache flush of its pages or the device's pending range, its lines).
 CRACKDOWN_BIND_D3D(826AC8F0, ResourceLockOrOriginal)
 // The kick's submit: the segment to the command processor directly, not through the ring (D6).
@@ -742,6 +750,12 @@ ANY360_D3D_CASE(get_blend_factor, "GetRenderState_BlendFactor", CRACKDOWN_GUEST_
 ANY360_D3D_CASE(sampler_aniso, "SetSamplerState anisotropy", CRACKDOWN_GUEST_ORIGINAL(826B1580), State<xs::SamplerAnisotropy, cs::SamplerStates>);
 ANY360_D3D_CASE(sampler_lod1, "SetSamplerState LOD flag 1", CRACKDOWN_GUEST_ORIGINAL(826B1270), State<xs::SamplerLodFlag<1>, cs::SamplerStates>);
 ANY360_D3D_CASE(sampler_lod0, "SetSamplerState LOD flag 0", CRACKDOWN_GUEST_ORIGINAL(826B13F8), State<xs::SamplerLodFlag<0>, cs::SamplerStates>);
+ANY360_D3D_CASE(window_scissor_pm4, "WindowScissorPackets (PM4)", CRACKDOWN_GUEST_ORIGINAL(826AF370), state::WindowScissor<false>);
+ANY360_D3D_CASE(window_scissor_records, "WindowScissorPackets (records)", CRACKDOWN_GUEST_ORIGINAL(826AF370), state::WindowScissor<true>);
+ANY360_D3D_CASE(apply_scissor, "ApplyScissor", CRACKDOWN_GUEST_ORIGINAL(826B1B60), State<xs::ApplyScissor, cs::Viewports<0>>);
+ANY360_D3D_CASE(viewport_floats, "SetViewport (floats)", CRACKDOWN_GUEST_ORIGINAL(826AF650), State<xs::ViewportFloats, cs::Viewports<1>>);
+ANY360_D3D_CASE(set_viewport, "SetViewport", CRACKDOWN_GUEST_ORIGINAL(826B1C60), State<xs::Viewport, cs::Viewports<2>>);
+ANY360_D3D_CASE(viewport_of_surface, "Viewport of a surface", CRACKDOWN_GUEST_ORIGINAL(826AF2D8), State<xs::ViewportOfSurface, cs::Viewports<3>>);
 ANY360_D3D_CASE(resource_addref, "Resource AddRef", CRACKDOWN_GUEST_ORIGINAL(826ACC90), state::ResourceRefCountCase<false>);
 ANY360_D3D_CASE(resource_release, "Resource Release", CRACKDOWN_GUEST_ORIGINAL(826ACD08), state::ResourceRefCountCase<true>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),
