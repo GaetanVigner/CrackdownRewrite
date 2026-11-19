@@ -12,9 +12,9 @@ Generated on 2026-11-19 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 195 | 6,571 | 3.0% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 289 | 6,571 | 4.4% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 40,473 | 2,667,844 | 1.5% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 41,056 | 2,667,844 | 1.5% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -323,7 +323,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | code 82Axxxxx | game | 1,064 | 50,916 | 4 | 0 | 1,060 | 0.4% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
 | C runtime (CRT) | library | 595 | 41,901 | 29 | 0 | 566 | 4.9% |
-| XDK D3D runtime | library | 553 | 34,977 | 100 | 226 | 227 | 18% |
+| XDK D3D runtime | library | 553 | 34,977 | 194 | 132 | 227 | 35% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
 | XDK audio (XAudio, XMA) | library | 484 | 28,795 | 14 | 0 | 470 | 2.9% |
@@ -335,7 +335,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 3 | 0 | 191 | 1.5% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 515 rewritten functions</summary>
+<details><summary>The 609 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -595,16 +595,20 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826AF650` | XDK D3D runtime | 153 | `D3dState` | guest_bindings_base.cpp |
 | `826AF8B8` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
 | `826AF8D8` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826AF8E8` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826AF908` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AF918` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
 | `826AF940` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AF950` | XDK D3D runtime | 32 | `D3dState` | guest_bindings_base.cpp |
 | `826AF9D0` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AF9E0` | XDK D3D runtime | 31 | `D3dState` | guest_bindings_base.cpp |
+| `826AFA60` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AFA70` | XDK D3D runtime | 31 | `D3dState` | guest_bindings_base.cpp |
 | `826AFAF0` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AFB00` | XDK D3D runtime | 31 | `D3dState` | guest_bindings_base.cpp |
 | `826AFB80` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AFB90` | XDK D3D runtime | 23 | `D3dState` | guest_bindings_base.cpp |
+| `826AFBF0` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826AFC00` | XDK D3D runtime | 23 | `D3dState` | guest_bindings_base.cpp |
 | `826AFC70` | XDK D3D runtime | 23 | `D3dState` | guest_bindings_base.cpp |
 | `826AFCE0` | XDK D3D runtime | 33 | `D3dState` | guest_bindings_base.cpp |
@@ -613,18 +617,108 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826AFE10` | XDK D3D runtime | 39 | `D3dState` | guest_bindings_base.cpp |
 | `826AFEB0` | XDK D3D runtime | 32 | `D3dState` | guest_bindings_base.cpp |
 | `826AFFD8` | XDK D3D runtime | 14 | `D3dState` | guest_bindings_base.cpp |
+| `826B0010` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
 | `826B0018` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
 | `826B0038` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0048` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0070` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B00B8` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B00C0` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B00E8` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B00F8` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B0118` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0128` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0150` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0160` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0188` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0198` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B01B8` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B01C8` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B01E8` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B01F8` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0220` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0230` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0258` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0268` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B0288` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0298` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
+| `826B02B8` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
+| `826B02D8` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
+| `826B02F8` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
+| `826B0318` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
+| `826B0338` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
 | `826B0358` | XDK D3D runtime | 16 | `D3dState` | guest_bindings_base.cpp |
+| `826B03B8` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
 | `826B03C0` | XDK D3D runtime | 41 | `D3dState` | guest_bindings_base.cpp |
 | `826B0488` | XDK D3D runtime | 38 | `D3dState` | guest_bindings_base.cpp |
+| `826B0530` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B0550` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B05B8` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B05F8` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B0638` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B0678` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B07A0` | XDK D3D runtime | 8 | `D3dState` | guest_bindings_base.cpp |
+| `826B07C0` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B07E8` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0810` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0838` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0860` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0888` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B08B0` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B08D0` | XDK D3D runtime | 8 | `D3dState` | guest_bindings_base.cpp |
+| `826B08F0` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0918` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0940` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0968` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B0990` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B09B8` | XDK D3D runtime | 9 | `D3dState` | guest_bindings_base.cpp |
+| `826B09E0` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B0A10` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0A20` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0A30` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0A50` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0A70` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
 | `826B0AA0` | XDK D3D runtime | 16 | `D3dState` | guest_bindings_base.cpp |
+| `826B0B98` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B0C48` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B0CF8` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B0DA8` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B0E90` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B0EB0` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0EC0` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B0EE0` | XDK D3D runtime | 2 | `D3dState` | guest_bindings_base.cpp |
+| `826B0EE8` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B0F08` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B0F18` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B10A0` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B10C0` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B10D0` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B10F0` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B1100` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B1120` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B1130` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
 | `826B1150` | XDK D3D runtime | 2 | `PresentInterval` | frame_pacing.cpp |
 | `826B1180` | XDK D3D runtime | 48 | `D3dState` | guest_bindings_base.cpp |
 | `826B1270` | XDK D3D runtime | 34 | `D3dState` | guest_bindings_base.cpp |
 | `826B1308` | XDK D3D runtime | 48 | `D3dState` | guest_bindings_base.cpp |
 | `826B13F8` | XDK D3D runtime | 33 | `D3dState` | guest_bindings_base.cpp |
+| `826B1490` | XDK D3D runtime | 15 | `D3dState` | guest_bindings_base.cpp |
+| `826B14D0` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
 | `826B1580` | XDK D3D runtime | 26 | `D3dState` | guest_bindings_base.cpp |
+| `826B15E8` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B17B0` | XDK D3D runtime | 3 | `D3dState` | guest_bindings_base.cpp |
+| `826B1840` | XDK D3D runtime | 19 | `D3dState` | guest_bindings_base.cpp |
+| `826B1890` | XDK D3D runtime | 7 | `D3dState` | guest_bindings_base.cpp |
+| `826B18B0` | XDK D3D runtime | 14 | `D3dState` | guest_bindings_base.cpp |
+| `826B18E8` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
+| `826B1900` | XDK D3D runtime | 14 | `D3dState` | guest_bindings_base.cpp |
+| `826B1938` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
+| `826B1950` | XDK D3D runtime | 14 | `D3dState` | guest_bindings_base.cpp |
+| `826B1988` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
+| `826B19A0` | XDK D3D runtime | 15 | `D3dState` | guest_bindings_base.cpp |
+| `826B19F8` | XDK D3D runtime | 15 | `D3dState` | guest_bindings_base.cpp |
+| `826B1A50` | XDK D3D runtime | 15 | `D3dState` | guest_bindings_base.cpp |
+| `826B1AA8` | XDK D3D runtime | 15 | `D3dState` | guest_bindings_base.cpp |
 | `826B1B60` | XDK D3D runtime | 63 | `D3dState` | guest_bindings_base.cpp |
 | `826B1C60` | XDK D3D runtime | 31 | `D3dState` | guest_bindings_base.cpp |
 | `826B1D30` | XDK D3D runtime | 71 | `D3dState` | guest_bindings_base.cpp |
@@ -866,7 +960,7 @@ Any360's own steps towards hosting a title without ReXGlue's runtime ([Any360 RE
 | 9 | no call reaching the runtime: every path, the raw hard drive devices, the profile defaults on `any360::sys` | done (Crackdown; the host stays ReXGlue's until step 13) |
 | 10 | a second title (The Simpsons Game) on the full system binding | done (all groups, levels, saves, sound, gamepad) |
 | 11 | third and fourth titles (Test Drive Unlimited, Sonic 06) | partial: Test Drive Unlimited boots to its title screen with all eight groups on `any360::sys` and no call reaching the runtime; gameplay, saves and sound not checked yet; Sonic 06 not started |
-| 12 | paths no title took yet: `XMA*` decoding, STFS packages, several users, guide UIs, Live offline, xbdm | partial: 726 of 2,914 exports native with scenario tests; the reference stubs sorted ([docs/SYS_STUBS.md](https://github.com/GaetanVigner/Any360/blob/main/docs/SYS_STUBS.md)): 2 left to implement (10 content, network, callback and thread look-up calls, 9 language, memory, Xapi, IPTV and LZX decompression calls, 24 cryptography and key calls, 14 Win32 forms, 19 XAM information calls, 11 kernel calls, 16 guide and Kinect calls and 17 profile calls done), 114 answered as stubs, 255 debug only, 1,799 never seen |
+| 12 | paths no title took yet: `XMA*` decoding, STFS packages, several users, guide UIs, Live offline, xbdm | partial: 728 of 2,914 exports native with scenario tests; the reference stubs sorted ([docs/SYS_STUBS.md](https://github.com/GaetanVigner/Any360/blob/main/docs/SYS_STUBS.md)): none left to implement (2 object and module calls, 10 content, network, callback and thread look-up calls, 9 language, memory, Xapi, IPTV and LZX decompression calls, 24 cryptography and key calls, 14 Win32 forms, 19 XAM information calls, 11 kernel calls, 16 guide and Kinect calls and 17 profile calls done), 114 answered as stubs, 255 debug only, 1,799 never seen |
 | 13 | Any360's own host: XEX loader, address space, threads, guest dispatch, MMIO, devices | not started |
 | 14 | the platform layer: window, input, audio, presenter on Windows and Linux (Steam Deck) | partial: SDL3 audio output only |
 | 15 | graphics through `any360::gfx` only, no `rexgpu-xenos` | partial: three titles draw through `any360::gfx`, the GPU session's plan in [docs/GFX.md](https://github.com/GaetanVigner/Any360/blob/main/docs/GFX.md) |

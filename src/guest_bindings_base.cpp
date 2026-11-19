@@ -265,6 +265,101 @@ CRACKDOWN_BIND_ANY360(826B9688, D3dState<d3d_state::DrawVerticesUp>)
 CRACKDOWN_BIND_ANY360(826AD598, D3dState<d3d_state::TextureDimensions>)
 // A texture level's bytes (its sizes aligned to the format's blocks).
 CRACKDOWN_BIND_ANY360(826AD108, D3dState<d3d_state::TextureLevelBytes>)
+// The render and sampler state fields (any360::xdk::d3d_fields).
+CRACKDOWN_BIND_ANY360(826B0E90, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kPrimitiveResetEnable>>)
+CRACKDOWN_BIND_ANY360(826AF8E8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kFillMode>>)
+CRACKDOWN_BIND_ANY360(826B0530, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kMultiSampleAntiAlias>>)
+CRACKDOWN_BIND_ANY360(826B0EB0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetPrimitiveResetEnable>>)
+CRACKDOWN_BIND_ANY360(826AF908, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetFillMode>>)
+CRACKDOWN_BIND_ANY360(826B0550, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetMultiSampleAntiAlias>>)
+CRACKDOWN_BIND_ANY360(826B0EC0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kPrimitiveResetIndex>>)
+CRACKDOWN_BIND_ANY360(826B0EE0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetPrimitiveResetIndex>>)
+CRACKDOWN_BIND_ANY360(826B0048, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kZFunc>>)
+CRACKDOWN_BIND_ANY360(826B00C0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kTwoSidedStencilMode>>)
+CRACKDOWN_BIND_ANY360(826B00F8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kStencilFunc>>)
+CRACKDOWN_BIND_ANY360(826B0128, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kStencilFail>>)
+CRACKDOWN_BIND_ANY360(826B0198, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kStencilPass>>)
+CRACKDOWN_BIND_ANY360(826B0160, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kStencilZFail>>)
+CRACKDOWN_BIND_ANY360(826B01C8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kCcwStencilFunc>>)
+CRACKDOWN_BIND_ANY360(826B01F8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kCcwStencilFail>>)
+CRACKDOWN_BIND_ANY360(826B0268, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kCcwStencilPass>>)
+CRACKDOWN_BIND_ANY360(826B0230, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kCcwStencilZFail>>)
+CRACKDOWN_BIND_ANY360(826B0070, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetZFunc>>)
+CRACKDOWN_BIND_ANY360(826B00E8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetTwoSidedStencilMode>>)
+CRACKDOWN_BIND_ANY360(826B0118, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetStencilFunc>>)
+CRACKDOWN_BIND_ANY360(826B0150, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetStencilFail>>)
+CRACKDOWN_BIND_ANY360(826B01B8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetStencilPass>>)
+CRACKDOWN_BIND_ANY360(826B0188, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetStencilZFail>>)
+CRACKDOWN_BIND_ANY360(826B01E8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetCcwStencilFunc>>)
+CRACKDOWN_BIND_ANY360(826B0220, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetCcwStencilFail>>)
+CRACKDOWN_BIND_ANY360(826B0288, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetCcwStencilPass>>)
+CRACKDOWN_BIND_ANY360(826B0258, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetCcwStencilZFail>>)
+CRACKDOWN_BIND_ANY360(826B0EE8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kAlphaToMaskEnable>>)
+CRACKDOWN_BIND_ANY360(826B0F18, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kAlphaToMaskOffsets>>)
+CRACKDOWN_BIND_ANY360(826B0F08, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetAlphaToMaskEnable>>)
+CRACKDOWN_BIND_ANY360(826B10A0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kHiZControlBit3>>)
+CRACKDOWN_BIND_ANY360(826B10D0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kHiZControlBit2>>)
+CRACKDOWN_BIND_ANY360(826B1100, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kHiZControlBit5>>)
+CRACKDOWN_BIND_ANY360(826B1130, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kHiZControlByte1>>)
+CRACKDOWN_BIND_ANY360(826B10C0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetHiZControlBit3>>)
+CRACKDOWN_BIND_ANY360(826B10F0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetHiZControlBit2>>)
+CRACKDOWN_BIND_ANY360(826B1120, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetHiZControlBit5>>)
+CRACKDOWN_BIND_ANY360(826B0298, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kStencilRef>>)
+CRACKDOWN_BIND_ANY360(826B02B8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kStencilMask>>)
+CRACKDOWN_BIND_ANY360(826B02D8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kStencilWriteMask>>)
+CRACKDOWN_BIND_ANY360(826B02F8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kCcwStencilRef>>)
+CRACKDOWN_BIND_ANY360(826B0318, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kCcwStencilMask>>)
+CRACKDOWN_BIND_ANY360(826B0338, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kCcwStencilWriteMask>>)
+CRACKDOWN_BIND_ANY360(826B0010, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetZEnable>>)
+CRACKDOWN_BIND_ANY360(826B00B8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetStencilEnable>>)
+CRACKDOWN_BIND_ANY360(826B03B8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetScissorTestEnable>>)
+CRACKDOWN_BIND_ANY360(826B05B8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetColorWriteEnable>>)
+CRACKDOWN_BIND_ANY360(826B05F8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetColorWriteEnable1>>)
+CRACKDOWN_BIND_ANY360(826B0638, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetColorWriteEnable2>>)
+CRACKDOWN_BIND_ANY360(826B0678, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetColorWriteEnable3>>)
+CRACKDOWN_BIND_ANY360(826B0B98, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable>>)
+CRACKDOWN_BIND_ANY360(826B0C48, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable1>>)
+CRACKDOWN_BIND_ANY360(826B0CF8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable2>>)
+CRACKDOWN_BIND_ANY360(826B0DA8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable3>>)
+CRACKDOWN_BIND_ANY360(826AFA60, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetBlendOp>>)
+CRACKDOWN_BIND_ANY360(826AFBF0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetBlendOpAlpha>>)
+CRACKDOWN_BIND_ANY360(826B18B0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kAddressU>>)
+CRACKDOWN_BIND_ANY360(826B1900, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kAddressV>>)
+CRACKDOWN_BIND_ANY360(826B1950, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kAddressW>>)
+CRACKDOWN_BIND_ANY360(826B1490, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kMipFilter>>)
+CRACKDOWN_BIND_ANY360(826B19F8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kHGradientExpAdjust>>)
+CRACKDOWN_BIND_ANY360(826B1A50, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kVGradientExpAdjust>>)
+CRACKDOWN_BIND_ANY360(826B1AA8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kForceBorderWToMax>>)
+CRACKDOWN_BIND_ANY360(826B19A0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kTrilinearThreshold>>)
+CRACKDOWN_BIND_ANY360(826B1840, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kBorderColor>>)
+CRACKDOWN_BIND_ANY360(826B18E8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetAddressU>>)
+CRACKDOWN_BIND_ANY360(826B1938, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetAddressV>>)
+CRACKDOWN_BIND_ANY360(826B1988, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetAddressW>>)
+CRACKDOWN_BIND_ANY360(826B14D0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetMipFilter>>)
+CRACKDOWN_BIND_ANY360(826B1890, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetBorderColor>>)
+CRACKDOWN_BIND_ANY360(826B15E8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetMaxAnisotropy>>)
+CRACKDOWN_BIND_ANY360(826B17B0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetMaxMipLevel>>)
+CRACKDOWN_BIND_ANY360(826B07A0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap0>>)
+CRACKDOWN_BIND_ANY360(826B07C0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap1>>)
+CRACKDOWN_BIND_ANY360(826B07E8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap2>>)
+CRACKDOWN_BIND_ANY360(826B0810, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap3>>)
+CRACKDOWN_BIND_ANY360(826B0838, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap4>>)
+CRACKDOWN_BIND_ANY360(826B0860, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap5>>)
+CRACKDOWN_BIND_ANY360(826B0888, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap6>>)
+CRACKDOWN_BIND_ANY360(826B08B0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap7>>)
+CRACKDOWN_BIND_ANY360(826B08D0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap8>>)
+CRACKDOWN_BIND_ANY360(826B08F0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap9>>)
+CRACKDOWN_BIND_ANY360(826B0918, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap10>>)
+CRACKDOWN_BIND_ANY360(826B0940, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap11>>)
+CRACKDOWN_BIND_ANY360(826B0968, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap12>>)
+CRACKDOWN_BIND_ANY360(826B0990, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap13>>)
+CRACKDOWN_BIND_ANY360(826B09B8, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap14>>)
+CRACKDOWN_BIND_ANY360(826B09E0, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kWrap15>>)
+CRACKDOWN_BIND_ANY360(826B0A10, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetWrap1>>)
+CRACKDOWN_BIND_ANY360(826B0A20, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetWrap2>>)
+CRACKDOWN_BIND_ANY360(826B0A30, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetWrap3>>)
+CRACKDOWN_BIND_ANY360(826B0A50, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetWrap5>>)
+CRACKDOWN_BIND_ANY360(826B0A70, D3dState<d3d_state::Field<any360::xdk::d3d_fields::kGetWrap7>>)
 // The CPU lock of a resource (its fence, the cache flush of its pages or the device's pending range, its lines).
 CRACKDOWN_BIND_D3D(826AC8F0, ResourceLockOrOriginal)
 // The kick's submit: the segment to the command processor directly, not through the ring (D6).
@@ -778,6 +873,101 @@ ANY360_D3D_CASE(format_block, "Format block", CRACKDOWN_GUEST_ORIGINAL(826ACFE8)
 ANY360_D3D_CASE(draw_vertices_up, "DrawVerticesUP", CRACKDOWN_GUEST_ORIGINAL(826B9688), State<xs::DrawVerticesUp, cs::DrawUps>);
 ANY360_D3D_CASE(texture_dimensions, "Texture dimensions", CRACKDOWN_GUEST_ORIGINAL(826AD598), State<xs::TextureDimensions, cs::TextureDimensionInputs>);
 ANY360_D3D_CASE(texture_level_bytes, "Texture level bytes", CRACKDOWN_GUEST_ORIGINAL(826AD108), State<xs::TextureLevelBytes, cs::TextureLevelInputs>);
+// The render and sampler state fields (any360::xdk::d3d_fields).
+ANY360_D3D_CASE(field_826B0E90, "Field_SetRenderState_PrimitiveResetEnable", CRACKDOWN_GUEST_ORIGINAL(826B0E90), State<xs::Field<any360::xdk::d3d_fields::kPrimitiveResetEnable>, cs::FieldInputs<any360::xdk::d3d_fields::kPrimitiveResetEnable>>);
+ANY360_D3D_CASE(field_826AF8E8, "Field_SetRenderState_FillMode", CRACKDOWN_GUEST_ORIGINAL(826AF8E8), State<xs::Field<any360::xdk::d3d_fields::kFillMode>, cs::FieldInputs<any360::xdk::d3d_fields::kFillMode>>);
+ANY360_D3D_CASE(field_826B0530, "Field_SetRenderState_MultiSampleAntiAlias", CRACKDOWN_GUEST_ORIGINAL(826B0530), State<xs::Field<any360::xdk::d3d_fields::kMultiSampleAntiAlias>, cs::FieldInputs<any360::xdk::d3d_fields::kMultiSampleAntiAlias>>);
+ANY360_D3D_CASE(field_826B0EB0, "Field_GetRenderState_PrimitiveResetEnable", CRACKDOWN_GUEST_ORIGINAL(826B0EB0), State<xs::Field<any360::xdk::d3d_fields::kGetPrimitiveResetEnable>, cs::FieldInputs<any360::xdk::d3d_fields::kGetPrimitiveResetEnable>>);
+ANY360_D3D_CASE(field_826AF908, "Field_GetRenderState_FillMode", CRACKDOWN_GUEST_ORIGINAL(826AF908), State<xs::Field<any360::xdk::d3d_fields::kGetFillMode>, cs::FieldInputs<any360::xdk::d3d_fields::kGetFillMode>>);
+ANY360_D3D_CASE(field_826B0550, "Field_GetRenderState_MultiSampleAntiAlias", CRACKDOWN_GUEST_ORIGINAL(826B0550), State<xs::Field<any360::xdk::d3d_fields::kGetMultiSampleAntiAlias>, cs::FieldInputs<any360::xdk::d3d_fields::kGetMultiSampleAntiAlias>>);
+ANY360_D3D_CASE(field_826B0EC0, "Field_SetRenderState_PrimitiveResetIndex", CRACKDOWN_GUEST_ORIGINAL(826B0EC0), State<xs::Field<any360::xdk::d3d_fields::kPrimitiveResetIndex>, cs::FieldInputs<any360::xdk::d3d_fields::kPrimitiveResetIndex>>);
+ANY360_D3D_CASE(field_826B0EE0, "Field_GetRenderState_PrimitiveResetIndex", CRACKDOWN_GUEST_ORIGINAL(826B0EE0), State<xs::Field<any360::xdk::d3d_fields::kGetPrimitiveResetIndex>, cs::FieldInputs<any360::xdk::d3d_fields::kGetPrimitiveResetIndex>>);
+ANY360_D3D_CASE(field_826B0048, "Field_SetRenderState_ZFunc", CRACKDOWN_GUEST_ORIGINAL(826B0048), State<xs::Field<any360::xdk::d3d_fields::kZFunc>, cs::FieldInputs<any360::xdk::d3d_fields::kZFunc>>);
+ANY360_D3D_CASE(field_826B00C0, "Field_SetRenderState_TwoSidedStencilMode", CRACKDOWN_GUEST_ORIGINAL(826B00C0), State<xs::Field<any360::xdk::d3d_fields::kTwoSidedStencilMode>, cs::FieldInputs<any360::xdk::d3d_fields::kTwoSidedStencilMode>>);
+ANY360_D3D_CASE(field_826B00F8, "Field_SetRenderState_StencilFunc", CRACKDOWN_GUEST_ORIGINAL(826B00F8), State<xs::Field<any360::xdk::d3d_fields::kStencilFunc>, cs::FieldInputs<any360::xdk::d3d_fields::kStencilFunc>>);
+ANY360_D3D_CASE(field_826B0128, "Field_SetRenderState_StencilFail", CRACKDOWN_GUEST_ORIGINAL(826B0128), State<xs::Field<any360::xdk::d3d_fields::kStencilFail>, cs::FieldInputs<any360::xdk::d3d_fields::kStencilFail>>);
+ANY360_D3D_CASE(field_826B0198, "Field_SetRenderState_StencilPass", CRACKDOWN_GUEST_ORIGINAL(826B0198), State<xs::Field<any360::xdk::d3d_fields::kStencilPass>, cs::FieldInputs<any360::xdk::d3d_fields::kStencilPass>>);
+ANY360_D3D_CASE(field_826B0160, "Field_SetRenderState_StencilZFail", CRACKDOWN_GUEST_ORIGINAL(826B0160), State<xs::Field<any360::xdk::d3d_fields::kStencilZFail>, cs::FieldInputs<any360::xdk::d3d_fields::kStencilZFail>>);
+ANY360_D3D_CASE(field_826B01C8, "Field_SetRenderState_CCW_StencilFunc", CRACKDOWN_GUEST_ORIGINAL(826B01C8), State<xs::Field<any360::xdk::d3d_fields::kCcwStencilFunc>, cs::FieldInputs<any360::xdk::d3d_fields::kCcwStencilFunc>>);
+ANY360_D3D_CASE(field_826B01F8, "Field_SetRenderState_CCW_StencilFail", CRACKDOWN_GUEST_ORIGINAL(826B01F8), State<xs::Field<any360::xdk::d3d_fields::kCcwStencilFail>, cs::FieldInputs<any360::xdk::d3d_fields::kCcwStencilFail>>);
+ANY360_D3D_CASE(field_826B0268, "Field_SetRenderState_CCW_StencilPass", CRACKDOWN_GUEST_ORIGINAL(826B0268), State<xs::Field<any360::xdk::d3d_fields::kCcwStencilPass>, cs::FieldInputs<any360::xdk::d3d_fields::kCcwStencilPass>>);
+ANY360_D3D_CASE(field_826B0230, "Field_SetRenderState_CCW_StencilZFail", CRACKDOWN_GUEST_ORIGINAL(826B0230), State<xs::Field<any360::xdk::d3d_fields::kCcwStencilZFail>, cs::FieldInputs<any360::xdk::d3d_fields::kCcwStencilZFail>>);
+ANY360_D3D_CASE(field_826B0070, "Field_GetRenderState_ZFunc", CRACKDOWN_GUEST_ORIGINAL(826B0070), State<xs::Field<any360::xdk::d3d_fields::kGetZFunc>, cs::FieldInputs<any360::xdk::d3d_fields::kGetZFunc>>);
+ANY360_D3D_CASE(field_826B00E8, "Field_GetRenderState_TwoSidedStencilMode", CRACKDOWN_GUEST_ORIGINAL(826B00E8), State<xs::Field<any360::xdk::d3d_fields::kGetTwoSidedStencilMode>, cs::FieldInputs<any360::xdk::d3d_fields::kGetTwoSidedStencilMode>>);
+ANY360_D3D_CASE(field_826B0118, "Field_GetRenderState_StencilFunc", CRACKDOWN_GUEST_ORIGINAL(826B0118), State<xs::Field<any360::xdk::d3d_fields::kGetStencilFunc>, cs::FieldInputs<any360::xdk::d3d_fields::kGetStencilFunc>>);
+ANY360_D3D_CASE(field_826B0150, "Field_GetRenderState_StencilFail", CRACKDOWN_GUEST_ORIGINAL(826B0150), State<xs::Field<any360::xdk::d3d_fields::kGetStencilFail>, cs::FieldInputs<any360::xdk::d3d_fields::kGetStencilFail>>);
+ANY360_D3D_CASE(field_826B01B8, "Field_GetRenderState_StencilPass", CRACKDOWN_GUEST_ORIGINAL(826B01B8), State<xs::Field<any360::xdk::d3d_fields::kGetStencilPass>, cs::FieldInputs<any360::xdk::d3d_fields::kGetStencilPass>>);
+ANY360_D3D_CASE(field_826B0188, "Field_GetRenderState_StencilZFail", CRACKDOWN_GUEST_ORIGINAL(826B0188), State<xs::Field<any360::xdk::d3d_fields::kGetStencilZFail>, cs::FieldInputs<any360::xdk::d3d_fields::kGetStencilZFail>>);
+ANY360_D3D_CASE(field_826B01E8, "Field_GetRenderState_CCW_StencilFunc", CRACKDOWN_GUEST_ORIGINAL(826B01E8), State<xs::Field<any360::xdk::d3d_fields::kGetCcwStencilFunc>, cs::FieldInputs<any360::xdk::d3d_fields::kGetCcwStencilFunc>>);
+ANY360_D3D_CASE(field_826B0220, "Field_GetRenderState_CCW_StencilFail", CRACKDOWN_GUEST_ORIGINAL(826B0220), State<xs::Field<any360::xdk::d3d_fields::kGetCcwStencilFail>, cs::FieldInputs<any360::xdk::d3d_fields::kGetCcwStencilFail>>);
+ANY360_D3D_CASE(field_826B0288, "Field_GetRenderState_CCW_StencilPass", CRACKDOWN_GUEST_ORIGINAL(826B0288), State<xs::Field<any360::xdk::d3d_fields::kGetCcwStencilPass>, cs::FieldInputs<any360::xdk::d3d_fields::kGetCcwStencilPass>>);
+ANY360_D3D_CASE(field_826B0258, "Field_GetRenderState_CCW_StencilZFail", CRACKDOWN_GUEST_ORIGINAL(826B0258), State<xs::Field<any360::xdk::d3d_fields::kGetCcwStencilZFail>, cs::FieldInputs<any360::xdk::d3d_fields::kGetCcwStencilZFail>>);
+ANY360_D3D_CASE(field_826B0EE8, "Field_SetRenderState_AlphaToMaskEnable", CRACKDOWN_GUEST_ORIGINAL(826B0EE8), State<xs::Field<any360::xdk::d3d_fields::kAlphaToMaskEnable>, cs::FieldInputs<any360::xdk::d3d_fields::kAlphaToMaskEnable>>);
+ANY360_D3D_CASE(field_826B0F18, "Field_SetRenderState_AlphaToMaskOffsets", CRACKDOWN_GUEST_ORIGINAL(826B0F18), State<xs::Field<any360::xdk::d3d_fields::kAlphaToMaskOffsets>, cs::FieldInputs<any360::xdk::d3d_fields::kAlphaToMaskOffsets>>);
+ANY360_D3D_CASE(field_826B0F08, "Field_GetRenderState_AlphaToMaskEnable", CRACKDOWN_GUEST_ORIGINAL(826B0F08), State<xs::Field<any360::xdk::d3d_fields::kGetAlphaToMaskEnable>, cs::FieldInputs<any360::xdk::d3d_fields::kGetAlphaToMaskEnable>>);
+ANY360_D3D_CASE(field_826B10A0, "Field_D3D_SetHiZControlBit3", CRACKDOWN_GUEST_ORIGINAL(826B10A0), State<xs::Field<any360::xdk::d3d_fields::kHiZControlBit3>, cs::FieldInputs<any360::xdk::d3d_fields::kHiZControlBit3>>);
+ANY360_D3D_CASE(field_826B10D0, "Field_D3D_SetHiZControlBit2", CRACKDOWN_GUEST_ORIGINAL(826B10D0), State<xs::Field<any360::xdk::d3d_fields::kHiZControlBit2>, cs::FieldInputs<any360::xdk::d3d_fields::kHiZControlBit2>>);
+ANY360_D3D_CASE(field_826B1100, "Field_D3D_SetHiZControlBit5", CRACKDOWN_GUEST_ORIGINAL(826B1100), State<xs::Field<any360::xdk::d3d_fields::kHiZControlBit5>, cs::FieldInputs<any360::xdk::d3d_fields::kHiZControlBit5>>);
+ANY360_D3D_CASE(field_826B1130, "Field_D3D_SetHiZControlByte1", CRACKDOWN_GUEST_ORIGINAL(826B1130), State<xs::Field<any360::xdk::d3d_fields::kHiZControlByte1>, cs::FieldInputs<any360::xdk::d3d_fields::kHiZControlByte1>>);
+ANY360_D3D_CASE(field_826B10C0, "Field_D3D_GetHiZControlBit3", CRACKDOWN_GUEST_ORIGINAL(826B10C0), State<xs::Field<any360::xdk::d3d_fields::kGetHiZControlBit3>, cs::FieldInputs<any360::xdk::d3d_fields::kGetHiZControlBit3>>);
+ANY360_D3D_CASE(field_826B10F0, "Field_D3D_GetHiZControlBit2", CRACKDOWN_GUEST_ORIGINAL(826B10F0), State<xs::Field<any360::xdk::d3d_fields::kGetHiZControlBit2>, cs::FieldInputs<any360::xdk::d3d_fields::kGetHiZControlBit2>>);
+ANY360_D3D_CASE(field_826B1120, "Field_D3D_GetHiZControlBit5", CRACKDOWN_GUEST_ORIGINAL(826B1120), State<xs::Field<any360::xdk::d3d_fields::kGetHiZControlBit5>, cs::FieldInputs<any360::xdk::d3d_fields::kGetHiZControlBit5>>);
+ANY360_D3D_CASE(field_826B0298, "Field_SetRenderState_StencilRef", CRACKDOWN_GUEST_ORIGINAL(826B0298), State<xs::Field<any360::xdk::d3d_fields::kStencilRef>, cs::FieldInputs<any360::xdk::d3d_fields::kStencilRef>>);
+ANY360_D3D_CASE(field_826B02B8, "Field_SetRenderState_StencilMask", CRACKDOWN_GUEST_ORIGINAL(826B02B8), State<xs::Field<any360::xdk::d3d_fields::kStencilMask>, cs::FieldInputs<any360::xdk::d3d_fields::kStencilMask>>);
+ANY360_D3D_CASE(field_826B02D8, "Field_SetRenderState_StencilWriteMask", CRACKDOWN_GUEST_ORIGINAL(826B02D8), State<xs::Field<any360::xdk::d3d_fields::kStencilWriteMask>, cs::FieldInputs<any360::xdk::d3d_fields::kStencilWriteMask>>);
+ANY360_D3D_CASE(field_826B02F8, "Field_SetRenderState_CCW_StencilRef", CRACKDOWN_GUEST_ORIGINAL(826B02F8), State<xs::Field<any360::xdk::d3d_fields::kCcwStencilRef>, cs::FieldInputs<any360::xdk::d3d_fields::kCcwStencilRef>>);
+ANY360_D3D_CASE(field_826B0318, "Field_SetRenderState_CCW_StencilMask", CRACKDOWN_GUEST_ORIGINAL(826B0318), State<xs::Field<any360::xdk::d3d_fields::kCcwStencilMask>, cs::FieldInputs<any360::xdk::d3d_fields::kCcwStencilMask>>);
+ANY360_D3D_CASE(field_826B0338, "Field_SetRenderState_CCW_StencilWriteMask", CRACKDOWN_GUEST_ORIGINAL(826B0338), State<xs::Field<any360::xdk::d3d_fields::kCcwStencilWriteMask>, cs::FieldInputs<any360::xdk::d3d_fields::kCcwStencilWriteMask>>);
+ANY360_D3D_CASE(field_826B0010, "Field_GetRenderState_ZEnable", CRACKDOWN_GUEST_ORIGINAL(826B0010), State<xs::Field<any360::xdk::d3d_fields::kGetZEnable>, cs::FieldInputs<any360::xdk::d3d_fields::kGetZEnable>>);
+ANY360_D3D_CASE(field_826B00B8, "Field_GetRenderState_StencilEnable", CRACKDOWN_GUEST_ORIGINAL(826B00B8), State<xs::Field<any360::xdk::d3d_fields::kGetStencilEnable>, cs::FieldInputs<any360::xdk::d3d_fields::kGetStencilEnable>>);
+ANY360_D3D_CASE(field_826B03B8, "Field_GetRenderState_ScissorTestEnable", CRACKDOWN_GUEST_ORIGINAL(826B03B8), State<xs::Field<any360::xdk::d3d_fields::kGetScissorTestEnable>, cs::FieldInputs<any360::xdk::d3d_fields::kGetScissorTestEnable>>);
+ANY360_D3D_CASE(field_826B05B8, "Field_GetRenderState_ColorWriteEnable", CRACKDOWN_GUEST_ORIGINAL(826B05B8), State<xs::Field<any360::xdk::d3d_fields::kGetColorWriteEnable>, cs::FieldInputs<any360::xdk::d3d_fields::kGetColorWriteEnable>>);
+ANY360_D3D_CASE(field_826B05F8, "Field_GetRenderState_ColorWriteEnable1", CRACKDOWN_GUEST_ORIGINAL(826B05F8), State<xs::Field<any360::xdk::d3d_fields::kGetColorWriteEnable1>, cs::FieldInputs<any360::xdk::d3d_fields::kGetColorWriteEnable1>>);
+ANY360_D3D_CASE(field_826B0638, "Field_GetRenderState_ColorWriteEnable2", CRACKDOWN_GUEST_ORIGINAL(826B0638), State<xs::Field<any360::xdk::d3d_fields::kGetColorWriteEnable2>, cs::FieldInputs<any360::xdk::d3d_fields::kGetColorWriteEnable2>>);
+ANY360_D3D_CASE(field_826B0678, "Field_GetRenderState_ColorWriteEnable3", CRACKDOWN_GUEST_ORIGINAL(826B0678), State<xs::Field<any360::xdk::d3d_fields::kGetColorWriteEnable3>, cs::FieldInputs<any360::xdk::d3d_fields::kGetColorWriteEnable3>>);
+ANY360_D3D_CASE(field_826B0B98, "Field_GetRenderState_HighPrecisionBlendEnable", CRACKDOWN_GUEST_ORIGINAL(826B0B98), State<xs::Field<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable>, cs::FieldInputs<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable>>);
+ANY360_D3D_CASE(field_826B0C48, "Field_GetRenderState_HighPrecisionBlendEnable1", CRACKDOWN_GUEST_ORIGINAL(826B0C48), State<xs::Field<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable1>, cs::FieldInputs<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable1>>);
+ANY360_D3D_CASE(field_826B0CF8, "Field_GetRenderState_HighPrecisionBlendEnable2", CRACKDOWN_GUEST_ORIGINAL(826B0CF8), State<xs::Field<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable2>, cs::FieldInputs<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable2>>);
+ANY360_D3D_CASE(field_826B0DA8, "Field_GetRenderState_HighPrecisionBlendEnable3", CRACKDOWN_GUEST_ORIGINAL(826B0DA8), State<xs::Field<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable3>, cs::FieldInputs<any360::xdk::d3d_fields::kGetHighPrecisionBlendEnable3>>);
+ANY360_D3D_CASE(field_826AFA60, "Field_GetRenderState_BlendOp", CRACKDOWN_GUEST_ORIGINAL(826AFA60), State<xs::Field<any360::xdk::d3d_fields::kGetBlendOp>, cs::FieldInputs<any360::xdk::d3d_fields::kGetBlendOp>>);
+ANY360_D3D_CASE(field_826AFBF0, "Field_GetRenderState_BlendOpAlpha", CRACKDOWN_GUEST_ORIGINAL(826AFBF0), State<xs::Field<any360::xdk::d3d_fields::kGetBlendOpAlpha>, cs::FieldInputs<any360::xdk::d3d_fields::kGetBlendOpAlpha>>);
+ANY360_D3D_CASE(field_826B18B0, "Field_SetSamplerState_AddressU", CRACKDOWN_GUEST_ORIGINAL(826B18B0), State<xs::Field<any360::xdk::d3d_fields::kAddressU>, cs::FieldInputs<any360::xdk::d3d_fields::kAddressU>>);
+ANY360_D3D_CASE(field_826B1900, "Field_SetSamplerState_AddressV", CRACKDOWN_GUEST_ORIGINAL(826B1900), State<xs::Field<any360::xdk::d3d_fields::kAddressV>, cs::FieldInputs<any360::xdk::d3d_fields::kAddressV>>);
+ANY360_D3D_CASE(field_826B1950, "Field_SetSamplerState_AddressW", CRACKDOWN_GUEST_ORIGINAL(826B1950), State<xs::Field<any360::xdk::d3d_fields::kAddressW>, cs::FieldInputs<any360::xdk::d3d_fields::kAddressW>>);
+ANY360_D3D_CASE(field_826B1490, "Field_SetSamplerState_MipFilter", CRACKDOWN_GUEST_ORIGINAL(826B1490), State<xs::Field<any360::xdk::d3d_fields::kMipFilter>, cs::FieldInputs<any360::xdk::d3d_fields::kMipFilter>>);
+ANY360_D3D_CASE(field_826B19F8, "Field_SetSamplerState_HGradientExpAdjust", CRACKDOWN_GUEST_ORIGINAL(826B19F8), State<xs::Field<any360::xdk::d3d_fields::kHGradientExpAdjust>, cs::FieldInputs<any360::xdk::d3d_fields::kHGradientExpAdjust>>);
+ANY360_D3D_CASE(field_826B1A50, "Field_SetSamplerState_VGradientExpAdjust", CRACKDOWN_GUEST_ORIGINAL(826B1A50), State<xs::Field<any360::xdk::d3d_fields::kVGradientExpAdjust>, cs::FieldInputs<any360::xdk::d3d_fields::kVGradientExpAdjust>>);
+ANY360_D3D_CASE(field_826B1AA8, "Field_D3D_SetSamplerForceBorderWToMax", CRACKDOWN_GUEST_ORIGINAL(826B1AA8), State<xs::Field<any360::xdk::d3d_fields::kForceBorderWToMax>, cs::FieldInputs<any360::xdk::d3d_fields::kForceBorderWToMax>>);
+ANY360_D3D_CASE(field_826B19A0, "Field_SetSamplerState_TrilinearThreshold", CRACKDOWN_GUEST_ORIGINAL(826B19A0), State<xs::Field<any360::xdk::d3d_fields::kTrilinearThreshold>, cs::FieldInputs<any360::xdk::d3d_fields::kTrilinearThreshold>>);
+ANY360_D3D_CASE(field_826B1840, "Field_SetSamplerState_BorderColor", CRACKDOWN_GUEST_ORIGINAL(826B1840), State<xs::Field<any360::xdk::d3d_fields::kBorderColor>, cs::FieldInputs<any360::xdk::d3d_fields::kBorderColor>>);
+ANY360_D3D_CASE(field_826B18E8, "Field_GetSamplerState_AddressU", CRACKDOWN_GUEST_ORIGINAL(826B18E8), State<xs::Field<any360::xdk::d3d_fields::kGetAddressU>, cs::FieldInputs<any360::xdk::d3d_fields::kGetAddressU>>);
+ANY360_D3D_CASE(field_826B1938, "Field_GetSamplerState_AddressV", CRACKDOWN_GUEST_ORIGINAL(826B1938), State<xs::Field<any360::xdk::d3d_fields::kGetAddressV>, cs::FieldInputs<any360::xdk::d3d_fields::kGetAddressV>>);
+ANY360_D3D_CASE(field_826B1988, "Field_GetSamplerState_AddressW", CRACKDOWN_GUEST_ORIGINAL(826B1988), State<xs::Field<any360::xdk::d3d_fields::kGetAddressW>, cs::FieldInputs<any360::xdk::d3d_fields::kGetAddressW>>);
+ANY360_D3D_CASE(field_826B14D0, "Field_GetSamplerState_MipFilter", CRACKDOWN_GUEST_ORIGINAL(826B14D0), State<xs::Field<any360::xdk::d3d_fields::kGetMipFilter>, cs::FieldInputs<any360::xdk::d3d_fields::kGetMipFilter>>);
+ANY360_D3D_CASE(field_826B1890, "Field_GetSamplerState_BorderColor", CRACKDOWN_GUEST_ORIGINAL(826B1890), State<xs::Field<any360::xdk::d3d_fields::kGetBorderColor>, cs::FieldInputs<any360::xdk::d3d_fields::kGetBorderColor>>);
+ANY360_D3D_CASE(field_826B15E8, "Field_GetSamplerState_MaxAnisotropy", CRACKDOWN_GUEST_ORIGINAL(826B15E8), State<xs::Field<any360::xdk::d3d_fields::kGetMaxAnisotropy>, cs::FieldInputs<any360::xdk::d3d_fields::kGetMaxAnisotropy>>);
+ANY360_D3D_CASE(field_826B17B0, "Field_GetSamplerState_MaxMipLevel", CRACKDOWN_GUEST_ORIGINAL(826B17B0), State<xs::Field<any360::xdk::d3d_fields::kGetMaxMipLevel>, cs::FieldInputs<any360::xdk::d3d_fields::kGetMaxMipLevel>>);
+ANY360_D3D_CASE(field_826B07A0, "Field_SetRenderState_Wrap0", CRACKDOWN_GUEST_ORIGINAL(826B07A0), State<xs::Field<any360::xdk::d3d_fields::kWrap0>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap0>>);
+ANY360_D3D_CASE(field_826B07C0, "Field_SetRenderState_Wrap1", CRACKDOWN_GUEST_ORIGINAL(826B07C0), State<xs::Field<any360::xdk::d3d_fields::kWrap1>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap1>>);
+ANY360_D3D_CASE(field_826B07E8, "Field_SetRenderState_Wrap2", CRACKDOWN_GUEST_ORIGINAL(826B07E8), State<xs::Field<any360::xdk::d3d_fields::kWrap2>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap2>>);
+ANY360_D3D_CASE(field_826B0810, "Field_SetRenderState_Wrap3", CRACKDOWN_GUEST_ORIGINAL(826B0810), State<xs::Field<any360::xdk::d3d_fields::kWrap3>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap3>>);
+ANY360_D3D_CASE(field_826B0838, "Field_SetRenderState_Wrap4", CRACKDOWN_GUEST_ORIGINAL(826B0838), State<xs::Field<any360::xdk::d3d_fields::kWrap4>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap4>>);
+ANY360_D3D_CASE(field_826B0860, "Field_SetRenderState_Wrap5", CRACKDOWN_GUEST_ORIGINAL(826B0860), State<xs::Field<any360::xdk::d3d_fields::kWrap5>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap5>>);
+ANY360_D3D_CASE(field_826B0888, "Field_SetRenderState_Wrap6", CRACKDOWN_GUEST_ORIGINAL(826B0888), State<xs::Field<any360::xdk::d3d_fields::kWrap6>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap6>>);
+ANY360_D3D_CASE(field_826B08B0, "Field_SetRenderState_Wrap7", CRACKDOWN_GUEST_ORIGINAL(826B08B0), State<xs::Field<any360::xdk::d3d_fields::kWrap7>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap7>>);
+ANY360_D3D_CASE(field_826B08D0, "Field_SetRenderState_Wrap8", CRACKDOWN_GUEST_ORIGINAL(826B08D0), State<xs::Field<any360::xdk::d3d_fields::kWrap8>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap8>>);
+ANY360_D3D_CASE(field_826B08F0, "Field_SetRenderState_Wrap9", CRACKDOWN_GUEST_ORIGINAL(826B08F0), State<xs::Field<any360::xdk::d3d_fields::kWrap9>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap9>>);
+ANY360_D3D_CASE(field_826B0918, "Field_SetRenderState_Wrap10", CRACKDOWN_GUEST_ORIGINAL(826B0918), State<xs::Field<any360::xdk::d3d_fields::kWrap10>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap10>>);
+ANY360_D3D_CASE(field_826B0940, "Field_SetRenderState_Wrap11", CRACKDOWN_GUEST_ORIGINAL(826B0940), State<xs::Field<any360::xdk::d3d_fields::kWrap11>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap11>>);
+ANY360_D3D_CASE(field_826B0968, "Field_SetRenderState_Wrap12", CRACKDOWN_GUEST_ORIGINAL(826B0968), State<xs::Field<any360::xdk::d3d_fields::kWrap12>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap12>>);
+ANY360_D3D_CASE(field_826B0990, "Field_SetRenderState_Wrap13", CRACKDOWN_GUEST_ORIGINAL(826B0990), State<xs::Field<any360::xdk::d3d_fields::kWrap13>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap13>>);
+ANY360_D3D_CASE(field_826B09B8, "Field_SetRenderState_Wrap14", CRACKDOWN_GUEST_ORIGINAL(826B09B8), State<xs::Field<any360::xdk::d3d_fields::kWrap14>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap14>>);
+ANY360_D3D_CASE(field_826B09E0, "Field_SetRenderState_Wrap15", CRACKDOWN_GUEST_ORIGINAL(826B09E0), State<xs::Field<any360::xdk::d3d_fields::kWrap15>, cs::FieldInputs<any360::xdk::d3d_fields::kWrap15>>);
+ANY360_D3D_CASE(field_826B0A10, "Field_GetRenderState_Wrap1", CRACKDOWN_GUEST_ORIGINAL(826B0A10), State<xs::Field<any360::xdk::d3d_fields::kGetWrap1>, cs::FieldInputs<any360::xdk::d3d_fields::kGetWrap1>>);
+ANY360_D3D_CASE(field_826B0A20, "Field_GetRenderState_Wrap2", CRACKDOWN_GUEST_ORIGINAL(826B0A20), State<xs::Field<any360::xdk::d3d_fields::kGetWrap2>, cs::FieldInputs<any360::xdk::d3d_fields::kGetWrap2>>);
+ANY360_D3D_CASE(field_826B0A30, "Field_GetRenderState_Wrap3", CRACKDOWN_GUEST_ORIGINAL(826B0A30), State<xs::Field<any360::xdk::d3d_fields::kGetWrap3>, cs::FieldInputs<any360::xdk::d3d_fields::kGetWrap3>>);
+ANY360_D3D_CASE(field_826B0A50, "Field_GetRenderState_Wrap5", CRACKDOWN_GUEST_ORIGINAL(826B0A50), State<xs::Field<any360::xdk::d3d_fields::kGetWrap5>, cs::FieldInputs<any360::xdk::d3d_fields::kGetWrap5>>);
+ANY360_D3D_CASE(field_826B0A70, "Field_GetRenderState_Wrap7", CRACKDOWN_GUEST_ORIGINAL(826B0A70), State<xs::Field<any360::xdk::d3d_fields::kGetWrap7>, cs::FieldInputs<any360::xdk::d3d_fields::kGetWrap7>>);
 ANY360_D3D_CASE(resource_addref, "Resource AddRef", CRACKDOWN_GUEST_ORIGINAL(826ACC90), state::ResourceRefCountCase<false>);
 ANY360_D3D_CASE(resource_release, "Resource Release", CRACKDOWN_GUEST_ORIGINAL(826ACD08), state::ResourceRefCountCase<true>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),
