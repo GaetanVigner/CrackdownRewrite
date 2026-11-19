@@ -19929,13 +19929,13 @@ address,module,kind,instructions,state,handler,file
 826ACC90,XDK D3D runtime,library,29,native,ResourceAddRefOrOriginal,guest_bindings_base.cpp
 826ACD08,XDK D3D runtime,library,32,native,ResourceReleaseOrOriginal,guest_bindings_base.cpp
 826ACD88,XDK D3D runtime,library,10,verified,,
-826ACDB0,XDK D3D runtime,library,35,verified,,
+826ACDB0,XDK D3D runtime,library,35,native,D3dState,guest_bindings_base.cpp
 826ACE40,XDK D3D runtime,library,20,library,,
 826ACE90,XDK D3D runtime,library,4,library,,
 826ACEA0,XDK D3D runtime,library,18,library,,
 826ACEE8,XDK D3D runtime,library,3,library,,
 826ACEF8,XDK D3D runtime,library,57,verified,,
-826ACFE8,XDK D3D runtime,library,38,verified,,
+826ACFE8,XDK D3D runtime,library,38,native,D3dState,guest_bindings_base.cpp
 826AD080,XDK D3D runtime,library,33,verified,,
 826AD108,XDK D3D runtime,library,71,library,,
 826AD228,XDK D3D runtime,library,220,library,,
@@ -20295,7 +20295,7 @@ address,module,kind,instructions,state,handler,file
 826B9140,XDK D3D runtime,library,40,library,,
 826B91E0,XDK D3D runtime,library,294,native,D3dBeginVertices,hle_capture.cpp
 826B9678,XDK D3D runtime,library,3,verified,,
-826B9688,XDK D3D runtime,library,18,library,,
+826B9688,XDK D3D runtime,library,18,native,D3dState,guest_bindings_base.cpp
 826B96D0,XDK D3D runtime,library,333,native,D3dBeginIndexedVertices,hle_capture.cpp
 826B9C08,XDK D3D runtime,library,251,native,D3dDrawVertices,hle_capture.cpp
 826B9FF8,XDK D3D runtime,library,279,native,D3dDrawIndexedVertices,hle_capture.cpp

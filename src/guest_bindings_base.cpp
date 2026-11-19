@@ -155,6 +155,8 @@ REX_EXTERN(CRACKDOWN_GUEST_FUNC(826BDFC8));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C3440));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826AC6C8));
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826AF2D8));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826B91E0));
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(82ABDF90));
 namespace {
 [[maybe_unused]] const bool crackdown_d3d_runtime = [] {
   any360::host::rexglue::d3d_draw::Runtime& rt = any360::host::rexglue::d3d_draw::g_runtime;
@@ -199,6 +201,8 @@ namespace {
   any360::host::rexglue::xdk::d3d_state::g_surface_viewport = &CRACKDOWN_GUEST_FUNC(826AF2D8);
   any360::host::rexglue::xdk::d3d_state::g_scissor_packets = &CRACKDOWN_GUEST_FUNC(826AF370);
   any360::host::rexglue::xdk::d3d_state::g_make_room = &CRACKDOWN_GUEST_FUNC(826BB408);
+  any360::host::rexglue::xdk::d3d_state::g_begin_vertices = &CRACKDOWN_GUEST_FUNC(826B91E0);
+  any360::host::rexglue::xdk::d3d_state::g_vertex_copy = &CRACKDOWN_GUEST_FUNC(82ABDF90);
   rt.scissor_of = &CRACKDOWN_GUEST_FUNC(826B1B60);
   rt.set_viewport = &CRACKDOWN_GUEST_FUNC(826AF650);
   rt.clear = &CRACKDOWN_GUEST_FUNC(826C04A0);
@@ -251,6 +255,12 @@ CRACKDOWN_BIND_ANY360(826B1B60, D3dState<d3d_state::ApplyScissor>)
 CRACKDOWN_BIND_ANY360(826AF650, D3dState<d3d_state::ViewportFloats>)
 CRACKDOWN_BIND_ANY360(826B1C60, D3dState<d3d_state::Viewport>)
 CRACKDOWN_BIND_ANY360(826AF2D8, D3dState<d3d_state::ViewportOfSurface>)
+// D3DResource_GetType.
+CRACKDOWN_BIND_ANY360(826ACDB0, D3dState<d3d_state::ResourceType>)
+// The block of a GPU texture format.
+CRACKDOWN_BIND_ANY360(826ACFE8, D3dState<d3d_state::FormatBlock>)
+// DrawPrimitiveUP's body (its BeginVertices and memcpy the title's entries, bound).
+CRACKDOWN_BIND_ANY360(826B9688, D3dState<d3d_state::DrawVerticesUp>)
 // The CPU lock of a resource (its fence, the cache flush of its pages or the device's pending range, its lines).
 CRACKDOWN_BIND_D3D(826AC8F0, ResourceLockOrOriginal)
 // The kick's submit: the segment to the command processor directly, not through the ring (D6).
@@ -759,6 +769,9 @@ ANY360_D3D_CASE(set_viewport, "SetViewport", CRACKDOWN_GUEST_ORIGINAL(826B1C60),
 ANY360_D3D_CASE(viewport_of_surface, "Viewport of a surface", CRACKDOWN_GUEST_ORIGINAL(826AF2D8), State<xs::ViewportOfSurface, cs::Viewports<3>>);
 REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C0D38));  // GetData, not bound: its own code
 ANY360_D3D_CASE(query_get_data, "Query GetData", CRACKDOWN_GUEST_FUNC(826C0D38), State<xs::QueryGetData, cs::Queries>);
+ANY360_D3D_CASE(resource_type, "D3DResource GetType", CRACKDOWN_GUEST_ORIGINAL(826ACDB0), State<xs::ResourceType, cs::ResourceTypes>);
+ANY360_D3D_CASE(format_block, "Format block", CRACKDOWN_GUEST_ORIGINAL(826ACFE8), State<xs::FormatBlock, cs::FormatBlocks>);
+ANY360_D3D_CASE(draw_vertices_up, "DrawVerticesUP", CRACKDOWN_GUEST_ORIGINAL(826B9688), State<xs::DrawVerticesUp, cs::DrawUps>);
 ANY360_D3D_CASE(resource_addref, "Resource AddRef", CRACKDOWN_GUEST_ORIGINAL(826ACC90), state::ResourceRefCountCase<false>);
 ANY360_D3D_CASE(resource_release, "Resource Release", CRACKDOWN_GUEST_ORIGINAL(826ACD08), state::ResourceRefCountCase<true>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),

@@ -12,9 +12,9 @@ Generated on 2026-11-19 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 190 | 6,571 | 2.9% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 193 | 6,571 | 2.9% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 40,273 | 2,667,844 | 1.5% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 40,364 | 2,667,844 | 1.5% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -323,7 +323,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | code 82Axxxxx | game | 1,064 | 50,916 | 4 | 0 | 1,060 | 0.4% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
 | C runtime (CRT) | library | 595 | 41,901 | 29 | 0 | 566 | 4.9% |
-| XDK D3D runtime | library | 553 | 34,977 | 95 | 229 | 229 | 17% |
+| XDK D3D runtime | library | 553 | 34,977 | 98 | 227 | 228 | 18% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
 | XDK audio (XAudio, XMA) | library | 484 | 28,795 | 14 | 0 | 470 | 2.9% |
@@ -335,7 +335,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 3 | 0 | 191 | 1.5% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 510 rewritten functions</summary>
+<details><summary>The 513 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -584,6 +584,8 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826AC8F0` | code 826xxxxx | 164 | `ResourceLockOrOriginal` | guest_bindings_base.cpp |
 | `826ACC90` | XDK D3D runtime | 29 | `ResourceAddRefOrOriginal` | guest_bindings_base.cpp |
 | `826ACD08` | XDK D3D runtime | 32 | `ResourceReleaseOrOriginal` | guest_bindings_base.cpp |
+| `826ACDB0` | XDK D3D runtime | 35 | `D3dState` | guest_bindings_base.cpp |
+| `826ACFE8` | XDK D3D runtime | 38 | `D3dState` | guest_bindings_base.cpp |
 | `826AED90` | XDK D3D runtime | 92 | `D3dCreateRenderTarget` | single_tile_scene.cpp |
 | `826AF038` | XDK D3D runtime | 94 | `D3dState` | guest_bindings_base.cpp |
 | `826AF2D8` | XDK D3D runtime | 38 | `D3dState` | guest_bindings_base.cpp |
@@ -639,6 +641,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826B3A98` | XDK D3D runtime | 5 | `D3dState` | guest_bindings_base.cpp |
 | `826B3C48` | XDK D3D runtime | 115 | `D3dSetShaderGprAllocation` | hle_capture.cpp |
 | `826B91E0` | XDK D3D runtime | 294 | `D3dBeginVertices` | hle_capture.cpp |
+| `826B9688` | XDK D3D runtime | 18 | `D3dState` | guest_bindings_base.cpp |
 | `826B96D0` | XDK D3D runtime | 333 | `D3dBeginIndexedVertices` | hle_capture.cpp |
 | `826B9C08` | XDK D3D runtime | 251 | `D3dDrawVertices` | hle_capture.cpp |
 | `826B9FF8` | XDK D3D runtime | 279 | `D3dDrawIndexedVertices` | hle_capture.cpp |
@@ -861,7 +864,7 @@ Any360's own steps towards hosting a title without ReXGlue's runtime ([Any360 RE
 | 9 | no call reaching the runtime: every path, the raw hard drive devices, the profile defaults on `any360::sys` | done (Crackdown; the host stays ReXGlue's until step 13) |
 | 10 | a second title (The Simpsons Game) on the full system binding | done (all groups, levels, saves, sound, gamepad) |
 | 11 | third and fourth titles (Test Drive Unlimited, Sonic 06) | partial: Test Drive Unlimited boots to its title screen with all eight groups on `any360::sys` and no call reaching the runtime; gameplay, saves and sound not checked yet; Sonic 06 not started |
-| 12 | paths no title took yet: `XMA*` decoding, STFS packages, several users, guide UIs, Live offline, xbdm | partial: 707 of 2,914 exports native with scenario tests; the reference stubs sorted ([docs/SYS_STUBS.md](https://github.com/GaetanVigner/Any360/blob/main/docs/SYS_STUBS.md)): 21 left to implement (24 cryptography and key calls, 14 Win32 forms, 19 XAM information calls, 11 kernel calls, 16 guide and Kinect calls and 17 profile calls done), 114 answered as stubs, 255 debug only, 1,799 never seen |
+| 12 | paths no title took yet: `XMA*` decoding, STFS packages, several users, guide UIs, Live offline, xbdm | partial: 716 of 2,914 exports native with scenario tests; the reference stubs sorted ([docs/SYS_STUBS.md](https://github.com/GaetanVigner/Any360/blob/main/docs/SYS_STUBS.md)): 12 left to implement (9 language, memory, Xapi, IPTV and LZX decompression calls, 24 cryptography and key calls, 14 Win32 forms, 19 XAM information calls, 11 kernel calls, 16 guide and Kinect calls and 17 profile calls done), 114 answered as stubs, 255 debug only, 1,799 never seen |
 | 13 | Any360's own host: XEX loader, address space, threads, guest dispatch, MMIO, devices | not started |
 | 14 | the platform layer: window, input, audio, presenter on Windows and Linux (Steam Deck) | partial: SDL3 audio output only |
 | 15 | graphics through `any360::gfx` only, no `rexgpu-xenos` | partial: three titles draw through `any360::gfx`, the GPU session's plan in [docs/GFX.md](https://github.com/GaetanVigner/Any360/blob/main/docs/GFX.md) |
