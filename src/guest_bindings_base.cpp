@@ -198,6 +198,7 @@ namespace {
   rt.viewport_of = &CRACKDOWN_GUEST_FUNC(826B1C60);
   any360::host::rexglue::xdk::d3d_state::g_surface_viewport = &CRACKDOWN_GUEST_FUNC(826AF2D8);
   any360::host::rexglue::xdk::d3d_state::g_scissor_packets = &CRACKDOWN_GUEST_FUNC(826AF370);
+  any360::host::rexglue::xdk::d3d_state::g_make_room = &CRACKDOWN_GUEST_FUNC(826BB408);
   rt.scissor_of = &CRACKDOWN_GUEST_FUNC(826B1B60);
   rt.set_viewport = &CRACKDOWN_GUEST_FUNC(826AF650);
   rt.clear = &CRACKDOWN_GUEST_FUNC(826C04A0);
@@ -756,6 +757,8 @@ ANY360_D3D_CASE(apply_scissor, "ApplyScissor", CRACKDOWN_GUEST_ORIGINAL(826B1B60
 ANY360_D3D_CASE(viewport_floats, "SetViewport (floats)", CRACKDOWN_GUEST_ORIGINAL(826AF650), State<xs::ViewportFloats, cs::Viewports<1>>);
 ANY360_D3D_CASE(set_viewport, "SetViewport", CRACKDOWN_GUEST_ORIGINAL(826B1C60), State<xs::Viewport, cs::Viewports<2>>);
 ANY360_D3D_CASE(viewport_of_surface, "Viewport of a surface", CRACKDOWN_GUEST_ORIGINAL(826AF2D8), State<xs::ViewportOfSurface, cs::Viewports<3>>);
+REX_EXTERN(CRACKDOWN_GUEST_FUNC(826C0D38));  // GetData, not bound: its own code
+ANY360_D3D_CASE(query_get_data, "Query GetData", CRACKDOWN_GUEST_FUNC(826C0D38), State<xs::QueryGetData, cs::Queries>);
 ANY360_D3D_CASE(resource_addref, "Resource AddRef", CRACKDOWN_GUEST_ORIGINAL(826ACC90), state::ResourceRefCountCase<false>);
 ANY360_D3D_CASE(resource_release, "Resource Release", CRACKDOWN_GUEST_ORIGINAL(826ACD08), state::ResourceRefCountCase<true>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),
