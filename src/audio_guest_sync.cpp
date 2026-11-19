@@ -5,11 +5,6 @@
 #include <bit>
 #include <cstdint>
 #include <cstring>
-#include <thread>
-
-#if defined(_M_X64) || defined(__x86_64__)
-#include <immintrin.h>
-#endif
 
 #include <rex/hook.h>
 #include <rex/ppc.h>
@@ -27,7 +22,6 @@ constexpr uint32_t kEngineActiveOffset = 304;
 constexpr uint32_t kEngineProcessorSlotsOffset = 308;
 constexpr uint32_t kEngineProcessorSlots = 6;
 constexpr uint32_t kPcrProcessorNumberOffset = 268;
-constexpr uint32_t kSpinsBeforeYield = 4096;
 
 // Guest KEVENT: type byte at +0, SignalState at +4; the runtime marks the ones it shadows with "REX\0" at +8.
 constexpr uint32_t kShadowedObjectSignature = 0x52455800;
@@ -41,12 +35,6 @@ uint32_t LoadGuest32(uint8_t* base, uint32_t address) {
 
 uint8_t LoadGuest8(uint8_t* base, uint32_t address) {
   return *rex::memory::GuestPtr<const uint8_t*>(base, address);
-}
-
-void SpinPause() {
-#if defined(_M_X64) || defined(__x86_64__)
-  _mm_pause();
-#endif
 }
 
 // XAudio has one engine with two barrier words that alternate per pass, so a few are enough.
@@ -79,20 +67,6 @@ uint64_t ExpectedProcessors(uint8_t* base, uint32_t engine) {
   return expected;
 }
 
-void WaitForRelease(const crackdown::XAudioBarrier& barrier, uint64_t round) {
-  uint64_t spins = 0;
-  while (barrier.RoundOpen(round)) {
-    if (++spins % kSpinsBeforeYield == 0) {
-      if (crackdown_audio_barrier_escape()) {
-        break;
-      }
-      std::this_thread::yield();
-    } else {
-      SpinPause();
-    }
-  }
-}
-
 }  // namespace
 
 // The XAudio mix workers' rendezvous once per audio pass: (engine, word). The title's version marks its processor's
@@ -111,7 +85,7 @@ void crackdown::hooks::AudioBarrier(PPCContext& ctx, uint8_t* base, GuestFunctio
   }
   const crackdown::XAudioBarrier::Arrival arrival = barrier->Arrive(processor, ExpectedProcessors(base, engine));
   if (!arrival.released_round) {
-    WaitForRelease(*barrier, arrival.round);
+    barrier->Wait(arrival.round, [] { return crackdown_audio_barrier_escape(); });
   }
 }
 
