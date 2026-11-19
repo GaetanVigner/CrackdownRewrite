@@ -261,6 +261,10 @@ CRACKDOWN_BIND_ANY360(826ACDB0, D3dState<d3d_state::ResourceType>)
 CRACKDOWN_BIND_ANY360(826ACFE8, D3dState<d3d_state::FormatBlock>)
 // DrawPrimitiveUP's body (its BeginVertices and memcpy the title's entries, bound).
 CRACKDOWN_BIND_ANY360(826B9688, D3dState<d3d_state::DrawVerticesUp>)
+// A texture's sizes from its fetch constant.
+CRACKDOWN_BIND_ANY360(826AD598, D3dState<d3d_state::TextureDimensions>)
+// A texture level's bytes (its sizes aligned to the format's blocks).
+CRACKDOWN_BIND_ANY360(826AD108, D3dState<d3d_state::TextureLevelBytes>)
 // The CPU lock of a resource (its fence, the cache flush of its pages or the device's pending range, its lines).
 CRACKDOWN_BIND_D3D(826AC8F0, ResourceLockOrOriginal)
 // The kick's submit: the segment to the command processor directly, not through the ring (D6).
@@ -772,6 +776,8 @@ ANY360_D3D_CASE(query_get_data, "Query GetData", CRACKDOWN_GUEST_FUNC(826C0D38),
 ANY360_D3D_CASE(resource_type, "D3DResource GetType", CRACKDOWN_GUEST_ORIGINAL(826ACDB0), State<xs::ResourceType, cs::ResourceTypes>);
 ANY360_D3D_CASE(format_block, "Format block", CRACKDOWN_GUEST_ORIGINAL(826ACFE8), State<xs::FormatBlock, cs::FormatBlocks>);
 ANY360_D3D_CASE(draw_vertices_up, "DrawVerticesUP", CRACKDOWN_GUEST_ORIGINAL(826B9688), State<xs::DrawVerticesUp, cs::DrawUps>);
+ANY360_D3D_CASE(texture_dimensions, "Texture dimensions", CRACKDOWN_GUEST_ORIGINAL(826AD598), State<xs::TextureDimensions, cs::TextureDimensionInputs>);
+ANY360_D3D_CASE(texture_level_bytes, "Texture level bytes", CRACKDOWN_GUEST_ORIGINAL(826AD108), State<xs::TextureLevelBytes, cs::TextureLevelInputs>);
 ANY360_D3D_CASE(resource_addref, "Resource AddRef", CRACKDOWN_GUEST_ORIGINAL(826ACC90), state::ResourceRefCountCase<false>);
 ANY360_D3D_CASE(resource_release, "Resource Release", CRACKDOWN_GUEST_ORIGINAL(826ACD08), state::ResourceRefCountCase<true>);
 ANY360_D3D_CASE(set_stream_source, "SetStreamSource", CRACKDOWN_GUEST_ORIGINAL(826B1D30),

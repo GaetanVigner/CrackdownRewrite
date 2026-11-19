@@ -19937,9 +19937,9 @@ address,module,kind,instructions,state,handler,file
 826ACEF8,XDK D3D runtime,library,57,verified,,
 826ACFE8,XDK D3D runtime,library,38,native,D3dState,guest_bindings_base.cpp
 826AD080,XDK D3D runtime,library,33,verified,,
-826AD108,XDK D3D runtime,library,71,library,,
+826AD108,XDK D3D runtime,library,71,native,D3dState,guest_bindings_base.cpp
 826AD228,XDK D3D runtime,library,220,library,,
-826AD598,XDK D3D runtime,library,38,verified,,
+826AD598,XDK D3D runtime,library,38,native,D3dState,guest_bindings_base.cpp
 826AD630,XDK D3D runtime,library,86,library,,
 826AD788,XDK D3D runtime,library,241,library,,
 826ADB50,XDK D3D runtime,library,64,library,,
