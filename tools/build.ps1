@@ -101,6 +101,10 @@ if ($Tu6Built) {
 }
 
 try { $Toolchain = Get-BuildToolchain } catch { Stop-Build 2 $_.Exception.Message }
+# NASM for FFmpeg's x86 assembly in Any360's XMA decoder (found by CMake in tools\nasm); a build goes on without it.
+if (-not (Get-Command nasm -ErrorAction SilentlyContinue)) {
+    try { & (Join-Path $PSScriptRoot 'get-nasm.ps1') } catch { Write-Warning "NASM: $($_.Exception.Message); the XMA decoder's FFmpeg is built in C" }
+}
 try { Update-RexglueRuntime $Layout $Jobs } catch { Stop-Build 1 $_.Exception.Message }
 
 $SavedEnv = Save-BuildEnvironment

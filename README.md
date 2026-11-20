@@ -65,7 +65,7 @@ crackdown.exe --any360_gpu=true --any360_sys_groups=stateless,files,objects,thre
 
 ## Building
 
-Windows, Visual Studio 2022 with the C++ and Clang tools: `tools\build.ps1` builds `build\crackdown.exe`, as upstream's port does ([docs/LEGACY_README.md](docs/LEGACY_README.md) has upstream's page: installing, the launcher, hotkeys, features, known issues). The build needs an [Any360](https://github.com/GaetanVigner/Any360) checkout next to this repository (`../any360`, or `-DCRACKDOWN_ANY360_DIR=<path>`).
+Windows, Visual Studio 2022 with the C++ and Clang tools: `tools\build.ps1` builds `build\crackdown.exe`, as upstream's port does ([docs/LEGACY_README.md](docs/LEGACY_README.md) has upstream's page: installing, the launcher, hotkeys, features, known issues). The build needs an [Any360](https://github.com/GaetanVigner/Any360) checkout next to this repository (`../any360`, or `-DCRACKDOWN_ANY360_DIR=<path>`). NASM gives the audio decoder's FFmpeg its x86 assembly: `tools\build.ps1` fetches it into `tools\nasm` when it is not on the PATH (`tools\get-nasm.ps1`), Linux takes the `nasm` package (`tools/setup-linux-build-env.sh`); without it the build goes on in C.
 
 ## This fork
 

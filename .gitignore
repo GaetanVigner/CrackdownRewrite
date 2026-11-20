@@ -9,6 +9,9 @@
 # Downloaded ReXGlue SDK
 /tools/rexglue/
 
+# Downloaded NASM (tools/get-nasm.ps1)
+/tools/nasm/
+
 # Player data created when the program runs from a source folder
 user_data/
 

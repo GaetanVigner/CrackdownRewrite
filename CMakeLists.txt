@@ -322,9 +322,13 @@ target_link_libraries(crackdown PRIVATE trg::launcher)
 # (src/any360_graphics.cpp). Any360's layers come from its checkout, built with this toolchain.
 set(CRACKDOWN_ANY360_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../any360" CACHE PATH "Any360 checkout (github.com/GaetanVigner/Any360)")
 set(ANY360_REFERENCE_SDK "${CRACKDOWN_SDK_DIR}" CACHE PATH "ReXGlue SDK install Any360 builds against" FORCE)
-# The XMA decoder (audio group) needs the headers of the FFmpeg the SDK's libavcodec was built from.
+# The XMA decoder (audio group): Any360 builds the SDK's FFmpeg itself (its layer/sys/third_party/ffmpeg), with
+# FFmpeg's x86 assembly when NASM is found (on the PATH, else tools/nasm: tools/get-nasm.ps1; Linux: the nasm
+# package); without it, its C version. ANY360_FFMPEG_INCLUDE is for ANY360_FFMPEG_VENDORED=OFF (the SDK's libraries).
+find_program(ANY360_NASM nasm HINTS "${CMAKE_CURRENT_SOURCE_DIR}/tools/nasm"
+             DOC "NASM, for FFmpeg's x86 assembly in Any360's XMA decoder (absent: its C versions)")
 set(ANY360_FFMPEG_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/../crackdown-xbox360-recompiled/out/rexglue-sdk-src/thirdparty/FFmpeg"
-    CACHE PATH "FFmpeg headers of the ReXGlue SDK (thirdparty/FFmpeg of its source)")
+    CACHE PATH "FFmpeg headers of the ReXGlue SDK (thirdparty/FFmpeg of its source), with ANY360_FFMPEG_VENDORED=OFF")
 add_subdirectory("${CRACKDOWN_ANY360_DIR}/layer/sys" any360 EXCLUDE_FROM_ALL)
 target_link_libraries(crackdown PRIVATE any360_host_rexglue)
 # Line tables for Any360's code (not the recompiled title's) and a PDB, for profiles symbolized with llvm-symbolizer.
