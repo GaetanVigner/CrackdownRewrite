@@ -924,8 +924,6 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
              "The most frames per second the game draws. Game speed stays the same at every rate; 30 is the "
              "console's own timing.",
              "crackdown_frame_rate", "60", frame_rates);
-    ui.Toggle("Frame rate in title", "Shows the game's frame rate in the window title: Crackdown Recompiled | FPS: 60.00",
-              "crackdown_show_fps", true, "Off", "On");
     ui.Toggle("Render resolution in title", "Shows the game's render resolution in the window title",
               "crackdown_show_render_resolution", false, "Off", "On");
     ui.Toggle("Frame counter", "Shows the game's frame rate in the corner. F2 toggles it while playing.",

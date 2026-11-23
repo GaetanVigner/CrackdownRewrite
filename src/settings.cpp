@@ -37,7 +37,6 @@ REXCVAR_DEFINE_BOOL(crackdown_skip_launcher, false, "Crackdown",
 REXCVAR_DEFINE_INT32(crackdown_frame_rate, 60, "Crackdown",
                      "Frame rate: 30 (the console's), 60, 90, 120, 144, 165, 240, or 0 for unlimited; other values "
                      "use 60");
-REXCVAR_DEFINE_BOOL(crackdown_show_fps, true, "Crackdown", "Show the frame rate in the window title");
 REXCVAR_DEFINE_STRING(crackdown_window_tag, "", "Crackdown",
                       "Text shown in brackets in the window title, to tell several running copies apart (not saved)");
 REXCVAR_DEFINE_BOOL(crackdown_show_render_resolution, false, "Crackdown",
@@ -82,7 +81,6 @@ const std::vector<std::string> kGameSettingKeys = [] {
       "crackdown_launcher",
       "crackdown_skip_intro",
       "crackdown_frame_rate",
-      "crackdown_show_fps",
       "crackdown_show_render_resolution",
       "crackdown_show_frame_counter",
       "fullscreen",

@@ -39,7 +39,6 @@ using Clock = std::chrono::steady_clock;
 
 std::atomic<bool> g_active{false};
 rex::ui::Window* g_window = nullptr;
-rex::ui::WindowedAppContext* g_app_context = nullptr;
 
 std::mutex g_sample_mutex;
 std::optional<Clock::time_point> g_sample_start;
@@ -48,7 +47,6 @@ uint64_t g_total_frames = 0;
 GuestFrameStats g_stats;
 
 // UI thread only.
-std::optional<double> g_shown_frame_rate;
 std::string g_shown_title;
 
 // The guest video mode is the picture the game draws; Render resolution multiplies it.
@@ -68,22 +66,13 @@ void UpdateTitle() {
   if (REXCVAR_GET(crackdown_show_render_resolution)) {
     render_resolution = RenderResolution();
   }
-  std::optional<double> frame_rate;
-  if (REXCVAR_GET(crackdown_show_fps)) {
-    frame_rate = g_shown_frame_rate;
-  }
   const std::string tag = REXCVAR_GET(crackdown_window_tag);
   const std::string game = tag.empty() ? std::string(kWindowTitle) : std::string(kWindowTitle) + " [" + tag + "]";
-  const std::string title = ComposeWindowTitle(game, render_resolution, frame_rate);
+  const std::string title = ComposeWindowTitle(game, render_resolution);
   if (title != g_shown_title) {
     g_shown_title = title;
     g_window->SetTitle(title);
   }
-}
-
-void ShowFps(double fps) {
-  g_shown_frame_rate = fps;
-  UpdateTitle();
 }
 
 void CountGuestFrame() {
@@ -106,14 +95,12 @@ void CountGuestFrame() {
   g_stats = {fps, elapsed * 1000.0 / g_sample_frames, g_total_frames};
   g_sample_start = now;
   g_sample_frames = 0;
-  g_app_context->CallInUIThread([fps] { ShowFps(fps); });
 }
 
 }  // namespace
 
 void AttachFrameRate(rex::ui::Window* window, rex::ui::WindowedAppContext& app_context) {
   g_window = window;
-  g_app_context = &app_context;
   g_active.store(true, std::memory_order_relaxed);
   app_context.CallInUIThread(UpdateTitle);
 }

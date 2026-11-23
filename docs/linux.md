@@ -94,7 +94,8 @@ A build run outside an AppImage keeps `game`, `logs` and `user_data` next to the
   FIFO.
 - On a Wayland desktop with display scaling above 100%, window sizes can come out larger than chosen. ReXGlue sizes its
   window this way on Linux.
-- The window title shows the frame rate and render resolution where the window system displays titles.
+- The window title shows the render resolution (when asked) where the window system displays titles; the frame
+  rate is Any360's frame counter (`--any360_fps_overlay=true`), drawn over the picture.
 
 ## Building the AppImage
 

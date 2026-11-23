@@ -205,8 +205,8 @@ void TestPendingAndReset() {
     store.pending[action.key] = action.default_binding;
     store.saved[action.key] = action.default_binding;
   }
-  store.saved["crackdown_show_fps"] = "true";
-  store.pending["crackdown_show_fps"] = "true";
+  store.saved["crackdown_show_render_resolution"] = "true";
+  store.pending["crackdown_show_render_resolution"] = "true";
 
   store.Set("keybind_a", "G");
   CHECK(SavedKeyboardBinding(store, *Find("keybind_a")) == "G");
@@ -219,7 +219,7 @@ void TestPendingAndReset() {
     CHECK(store.Get(action.key) == action.default_binding);
     CHECK(SavedKeyboardBinding(store, action) == action.default_binding);
   }
-  CHECK(store.Get("crackdown_show_fps") == "true");
+  CHECK(store.Get("crackdown_show_render_resolution") == "true");
   CHECK(store.saved["keybind_a"] == "G");
   CHECK(store.Save());
   CHECK(store.saved["keybind_a"] == "Semicolon,Space");
@@ -232,7 +232,7 @@ void TestKeyboardAndMouseReset() {
   store.Set("keybind_a", "G");
   store.Set("mnk_sensitivity", "2.89");
   store.Set("mnk_mode", "false");
-  store.Set("crackdown_show_fps", "false");
+  store.Set("crackdown_show_render_resolution", "false");
   store.Set("resolution_scale", "2");
 
   ResetKeyboardAndMouseDefaults(store);
@@ -242,7 +242,7 @@ void TestKeyboardAndMouseReset() {
   }
   CHECK(store.Get("mnk_sensitivity") == std::to_string(mouse_look::kDefaultSensitivity));
   CHECK(store.Get("mnk_mode") == "false");
-  CHECK(store.Get("crackdown_show_fps") == "false");
+  CHECK(store.Get("crackdown_show_render_resolution") == "false");
   CHECK(store.Get("resolution_scale") == "2");
 }
 
