@@ -37,11 +37,12 @@
 #include "single_tile_scene.h"
 
 REXCVAR_DEFINE_BOOL(crackdown_hle_capture, false, "Crackdown",
-                    "Developer diagnostics (HLE renderer): F8 records the next frames from the D3D device (game side) "
-                    "and the GPU command processor to logs/hle_game_<n>.bin and logs/hle_gpu_<n>.bin");
-REXCVAR_DEFINE_INT32(crackdown_hle_capture_frames, 3, "Crackdown", "Frames an F8 HLE capture records on the GPU side");
+                    "Developer diagnostics (HLE renderer): crackdown_hle_auto_capture records the next frames from the D3D "
+                    "device (game side) and the GPU command processor to logs/hle_game_<n>.bin and "
+                    "logs/hle_gpu_<n>.bin");
+REXCVAR_DEFINE_INT32(crackdown_hle_capture_frames, 3, "Crackdown", "Frames an HLE capture records on the GPU side");
 REXCVAR_DEFINE_INT32(crackdown_hle_auto_capture, 0, "Crackdown",
-                     "Developer diagnostics: captures taken as if by F8 once a busy scene (1,500 D3D calls a frame or "
+                     "Developer diagnostics: HLE captures taken once a busy scene (1,500 D3D calls a frame or "
                      "more) has run for 20 s, then every 30 s while it lasts, up to this many a session");
 
 namespace crackdown {

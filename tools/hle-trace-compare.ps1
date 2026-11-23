@@ -3,7 +3,7 @@
   HLE renderer milestone 1: compares a game-side D3D device capture with the GPU command processor's draw trace.
 
 .DESCRIPTION
-  F8 with crackdown_hle_capture on writes logs\hle_game_<n>.bin (src/hle_capture.cpp: the device shadow after every
+  crackdown_hle_capture with crackdown_hle_auto_capture writes logs\hle_game_<n>.bin (src/hle_capture.cpp: the device shadow after every
   D3D draw call, one record per DRAW packet) and logs\hle_gpu_<n>.bin (gpu_draw_trace, SDK patch 0108: the registers
   the command processor sees for every DRAW it executes). Both are "GDTR" version 2 files with the same records.
 

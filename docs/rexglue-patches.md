@@ -206,8 +206,6 @@ every thread's call stack (symbolized from the PDB) is written to `hang_<n>.txt`
 | Setting | Key | What it writes |
 |---|---|---|
 | `crackdown_physics_telemetry = true` | F9 | the last ~34 s of the player's and driven vehicle's raw state, `telemetry_<n>.bin`, also on the first NaN repair of a kind (one dump per 20 s) |
-| `crackdown_debug_profiler = true` | F6 | a 10 s sampling profile of every thread using 5% of a core or more, `profile_<n>.txt` (self and total time per function) |
-| `crackdown_debug_profiler = true` | F5 | cycles off, `gpu_cached_indirect_buffers` (0109) with `gpu_fetch_constant_caches` (0111), then also `gpu_edram_bookkeeping_memo` (0112), for an A/B/C at one spot; with `gpu_frame_stats` the log gives the time `IssueDraw` takes per draw and per subsection |
-| `crackdown_hle_capture = true` | F8 | the HLE renderer's milestone 1 capture: `hle_game_<n>.bin` (D3D device state after every draw call) and `hle_gpu_<n>.bin` (`gpu_draw_trace`, 0108), compared with `tools/hle-trace-compare.ps1` |
+| `crackdown_hle_capture = true`, `crackdown_hle_auto_capture = <n>` | | the HLE renderer's milestone 1 capture: `hle_game_<n>.bin` (D3D device state after every draw call) and `hle_gpu_<n>.bin` (`gpu_draw_trace`, 0108), compared with `tools/hle-trace-compare.ps1` |
 | `crackdown_debug_frame_dips = <ms>` | | delays frames by up to that many ms (100 at most), sweeping every 6 s with jitter and rare stalls, to test physics under frame rate dips |
 | `gpu_frame_stats = true` | | every 10 s, per frame: draws, resolves, packets, constant registers, shader loads and texture lookups (0107) |

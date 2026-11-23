@@ -11,7 +11,6 @@
 #include "cheat_hooks.h"
 #include "cheat_menu_input.h"
 #include "cheats.h"
-#include "frame_counter.h"
 #include "settings.h"
 
 namespace crackdown {
@@ -118,10 +117,7 @@ void CheatMenuOverlay::DrawPanel(ImGuiIO& io) {
   const float scale = cheats::MenuScale(1.0f, io.DisplaySize.x, base_size);
   const float em = base_size * scale;
   const float margin = em * 0.8f;
-  float top = margin;
-  if (FrameCounterVisible(REXCVAR_GET(crackdown_show_frame_counter), GetGuestFrameStats())) {
-    top += ImGui::GetFontSize() * 2.6f;
-  }
+  const float top = margin;
   ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - margin, top), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
   ImGui::SetNextWindowSize(ImVec2(em * cheats::kMenuWidthEm, 0.0f), ImGuiCond_Always);
   ImGui::SetNextWindowSizeConstraints(ImVec2(0.0f, 0.0f), ImVec2(FLT_MAX, std::max(io.DisplaySize.y - top - margin, em)));

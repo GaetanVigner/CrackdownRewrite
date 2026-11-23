@@ -41,8 +41,6 @@ REXCVAR_DEFINE_STRING(crackdown_window_tag, "", "Crackdown",
                       "Text shown in brackets in the window title, to tell several running copies apart (not saved)");
 REXCVAR_DEFINE_BOOL(crackdown_show_render_resolution, false, "Crackdown",
                     "Show the render resolution in the window title");
-REXCVAR_DEFINE_BOOL(crackdown_show_frame_counter, false, "Crackdown",
-                    "Show the frame rate in the corner (F2 toggles it while playing)");
 REXCVAR_DEFINE_BOOL(crackdown_msaa_compatibility, false, "Crackdown",
                     "Draw the game's 2x MSAA render targets with 4x MSAA, for GPUs or drivers whose native 2x "
                     "MSAA misrenders (sets native_2x_msaa)");
@@ -82,7 +80,6 @@ const std::vector<std::string> kGameSettingKeys = [] {
       "crackdown_skip_intro",
       "crackdown_frame_rate",
       "crackdown_show_render_resolution",
-      "crackdown_show_frame_counter",
       "fullscreen",
       "window_width",
       "window_height",

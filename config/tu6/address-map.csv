@@ -28,7 +28,6 @@ fn,frame timer,823263D8,8235A750,,,328,328,identical code; ratio 1.00
 fn,present interval,826B1150,8273A4E8,,,8,8,stw r4,13220(r3); blr; ratio 1.00
 fn,swap packet,826BC568,82745900,,,416,416,identical code; device +13220; ratio 1.00
 fn,swap callback,826BC3D0,82745768,,,408,408,identical code; ratio 1.00
-fn,swap builder,826BCA98,82745E30,,,1824,1824,identical code; ratio 1.00
 fn,gpu fence,826BB4F0,82744888,,,216,216,identical code; ratio 1.00
 fn,gpu poll,826BBEE0,82745278,,,216,216,identical code; ratio 1.00
 fn,menu popup open,82678768,826F5250,,,72,72,vtable slot with the r11=0 sibling; callees map; ratio 1.00
@@ -86,7 +85,6 @@ site,crackdown_main_menu_quit_use_handler,8267839C,826F4B74,419A001C,419A001C,,,
 site,crackdown_main_menu_quit_handler_attached,826783B4,826F4B8C,48000010,48000010,,,b after the handler attach
 site,crackdown_main_menu_quit_enable,826783B8,826F4B90,38800000,38800000,,,li r4,0 before the set-enabled call
 site,crackdown_main_menu_quit_popup_state,82678778,826F5260,39600000,39600000,,,li r11,0 of the popup opener
-return,repeat_present_return,826CE148,827574F0,7FC3F378,7FC3F378,,,after the swap builder call of the D3D thread
 return,console_language_return,8232293C,82356964,38600000,4806B21D,,,after the console language call
 return,null_audio_return,8225D5F0,82282388,89610050,89610050,,,after the handle release call of the slot teardown
 return,gpu_wait_fence_return,826BB590,82744928,2C030000,2C030000,,,after the poll call

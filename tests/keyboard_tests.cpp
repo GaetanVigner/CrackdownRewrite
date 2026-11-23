@@ -320,11 +320,10 @@ void TestKeyboardToggle() {
 }
 
 void TestHotkeySeparation() {
-  CHECK(Has(ReadSource("frame_counter.cpp"), "RegisterBind(\"bind_crackdown_frame_counter\", \"F2\""));
   CHECK(Has(ReadSource("cheat_menu_key.h"), "VirtualKey::kF10"));
   CHECK(Has(ReadSource("window_host.cpp"), "VirtualKey::kF11"));
   CHECK(Has(ReadSource("crackdown_app.h"), "CreateAchievementsOverlay"));
-  for (const char* file : {"frame_counter.cpp", "cheat_menu_key.h", "achievements_overlay.cpp", "crackdown_app.h"}) {
+  for (const char* file : {"cheat_menu_key.h", "achievements_overlay.cpp", "crackdown_app.h"}) {
     CHECK(!Has(ReadSource(file), "mnk_mode"));
   }
 }

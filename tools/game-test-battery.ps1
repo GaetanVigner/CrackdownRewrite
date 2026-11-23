@@ -28,7 +28,7 @@ $Root = Split-Path $PSScriptRoot -Parent
 # statistics lines are filtered out.
 $Common = [ordered]@{
     crackdown_hle_records = 'false'; crackdown_hle_capture = 'false'; crackdown_hle_auto_capture = '0'
-    crackdown_debug_profiler = 'false'; crackdown_physics_telemetry = 'false'; gpu_draw_trace_resolve_data = 'false'
+    crackdown_physics_telemetry = 'false'; gpu_draw_trace_resolve_data = 'false'
     crackdown_detailed_logging = 'true'; gpu_frame_stats = 'true'
 }
 $Vulkan = [ordered]@{ gpu_backend = '"vulkan"'; vulkan_readback_resolve = 'true' }

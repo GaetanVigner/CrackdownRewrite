@@ -65,7 +65,7 @@ crackdown.exe --any360_gpu=true --any360_sys_groups=stateless,files,objects,thre
 
 `--any360_gpu=true` draws the game through `any360::gfx` (160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti); `--any360_sys_groups` puts the 248 system calls the game imports on `any360::sys`. The library functions run on `any360::xdk` by default (`--any360_xdk_natives=false` runs the game's own; `--any360_xdk_verify=true` runs both on every call and compares them). Left without a frame limit the title screen runs above 1,500 frames a second and does not take the Start button: `--crackdown_frame_rate=60` until that is fixed.
 
-`--any360_fps_overlay=true` draws Any360's frame counter over the top-left corner of the picture (frames per second, frame time and the slowest of the last half second, median and 10% / 1% lows of the last 512 frames, GPU time a frame): the same for every game on `any360::gfx`, off by default and free when off. The Any360Launcher's Video options switch it on.
+`--any360_fps_overlay=true` draws Any360's frame counter over the top-left corner of the picture (frames per second, frame time and the slowest of the last half second, median and 10% / 1% lows of the last 512 frames, GPU time a frame): the same for every game on `any360::gfx`, off by default and free when off. The Any360Launcher's Video options switch it on. In game, Any360's keys: F2 shows or hides it, F5 saves a screenshot, F6 profiles every thread, F8 records a GPU capture (docs/GFX.md in Any360).
 
 ## Building
 

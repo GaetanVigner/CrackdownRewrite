@@ -76,7 +76,6 @@ void FrameTimer(PPCContext&, uint8_t*, GuestFunction original);
 void PresentInterval(PPCContext&, uint8_t*, GuestFunction original);
 void SwapPacket(PPCContext&, uint8_t*, GuestFunction original);
 void SwapCallback(PPCContext&, uint8_t*, GuestFunction original);
-void SwapBuilder(PPCContext&, uint8_t*, GuestFunction original);
 
 void GpuFence(PPCContext&, uint8_t*, GuestFunction original);
 void GpuPoll(PPCContext&, uint8_t*, GuestFunction original);

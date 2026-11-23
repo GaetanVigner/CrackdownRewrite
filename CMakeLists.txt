@@ -223,7 +223,6 @@ set(CRACKDOWN_SOURCES
     src/entity_registry.cpp
     src/font_atlas.cpp
     src/font_rerender.cpp
-    src/frame_counter.cpp
     src/frame_pacing.cpp
     src/frame_rate.cpp
     src/game_files.cpp

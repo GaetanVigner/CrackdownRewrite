@@ -93,7 +93,6 @@ std::map<std::string, Accessor> Accessors() {
   for (size_t i = 0; i < 4; ++i) {
     a["thrown_weapon_vtable_" + std::to_string(i)] = [i](const GuestLayout& l) { return l.thrown_weapon_vtables[i]; };
   }
-  a["repeat_present_return"] = [](const GuestLayout& l) { return l.repeat_present_return; };
   a["console_language_return"] = [](const GuestLayout& l) { return l.console_language_return; };
   a["null_audio_return"] = [](const GuestLayout& l) { return l.null_audio_return; };
   const char* waits[] = {"fence", "ring_space", "ring_progress", "swap_throttle", "resource"};

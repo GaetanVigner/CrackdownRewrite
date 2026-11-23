@@ -926,8 +926,6 @@ class LauncherDialog final : public rex::ui::ImGuiDialog {
              "crackdown_frame_rate", "60", frame_rates);
     ui.Toggle("Render resolution in title", "Shows the game's render resolution in the window title",
               "crackdown_show_render_resolution", false, "Off", "On");
-    ui.Toggle("Frame counter", "Shows the game's frame rate in the corner. F2 toggles it while playing.",
-              "crackdown_show_frame_counter", false, "Hidden", "Shown");
   }
 
   static std::vector<trg::Option> CheatOptions(cheats::Kind kind, std::span<const int> values) {

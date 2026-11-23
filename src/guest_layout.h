@@ -26,7 +26,6 @@ struct GuestLayout {
   uint32_t frontend_singleton;
   std::array<uint32_t, 4> thrown_weapon_vtables;
 
-  uint32_t repeat_present_return;
   uint32_t console_language_return;
   uint32_t null_audio_return;
   // fence, ring space, ring progress, swap throttle, resource
@@ -89,7 +88,6 @@ inline constexpr GuestLayout kLayoutBase = {
     .presentation_flag = 0x82DE450A,
     .frontend_singleton = 0x835D3C70,
     .thrown_weapon_vtables = {0x820991D8, 0x8209C3D0, 0x8209CA90, 0x8209D0D8},
-    .repeat_present_return = 0x826CE148,
     .console_language_return = 0x8232293C,
     .null_audio_return = 0x8225D5F0,
     .gpu_wait_returns = {0x826BB590, 0x826BAD10, 0x826BA6EC, 0x826BD160, 0x826CD9C0},
@@ -136,7 +134,6 @@ inline constexpr GuestLayout kLayoutTitleUpdate6 = {
     .presentation_flag = 0x82E7BA07,
     .frontend_singleton = 0x835FB5A0,
     .thrown_weapon_vtables = {0x820A0530, 0x8209C2B0, 0x8209C988, 0x8209CFE8},
-    .repeat_present_return = 0x827574F0,
     .console_language_return = 0x82356964,
     .null_audio_return = 0x82282388,
     .gpu_wait_returns = {0x82744928, 0x827440A8, 0x82743A84, 0x827464F8, 0x82756D68},
