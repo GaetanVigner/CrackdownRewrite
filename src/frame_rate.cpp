@@ -8,8 +8,19 @@
 #include <mutex>
 #include <optional>
 #include <string>
+#include <vector>
 
+#ifdef _WIN32
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
+#include <psapi.h>
+#endif
+
+#include <any360/gfx/frame_counter.h>
 #include <rex/hook.h>
+#include <rex/logging.h>
 #include <rex/kernel/xboxkrnl/video.h>
 #include <rex/ppc.h>
 #include <rex/ui/window.h>
@@ -65,6 +76,48 @@ void UpdateTitle() {
   }
 }
 
+uint64_t PrivateBytes() {
+#ifdef _WIN32
+  PROCESS_MEMORY_COUNTERS_EX counters{};
+  if (K32GetProcessMemoryInfo(GetCurrentProcess(), reinterpret_cast<PROCESS_MEMORY_COUNTERS*>(&counters),
+                              sizeof(counters))) {
+    return counters.PrivateUsage;
+  }
+#endif
+  return 0;
+}
+
+// The game's swaps over crackdown_frame_log_seconds: one log line with the rate, the median frame time and the
+// 10% / 1% lows (Any360's percentiles), the slowest frame and the private memory. The same counter whatever renderer
+// runs, so a route on ReXGlue's GPU and on Any360's compares line for line (Any360's own report counts the frames it
+// presents, ReXGlue has none: docs/perf/2026-11-26-any360-vs-rexglue). Swap thread only.
+std::vector<float> g_period_ms;
+std::optional<std::chrono::steady_clock::time_point> g_period_start, g_period_last;
+
+void LogFrameTimes() {
+  const int seconds = REXCVAR_GET(crackdown_frame_log_seconds);
+  if (seconds <= 0) return;
+  const auto now = std::chrono::steady_clock::now();
+  if (!g_period_start) {
+    g_period_start = g_period_last = now;
+    g_period_ms.reserve(4096);
+    return;
+  }
+  g_period_ms.push_back(std::chrono::duration<float, std::milli>(now - *g_period_last).count());
+  g_period_last = now;
+  const double elapsed = std::chrono::duration<double>(now - *g_period_start).count();
+  if (elapsed < seconds) return;
+  const double fps = g_period_ms.size() / elapsed;
+  const float slowest = *std::max_element(g_period_ms.begin(), g_period_ms.end());
+  const any360::gfx::FrameTimeSummary f = any360::gfx::SummarizeFrameTimes(g_period_ms);
+  REXLOG_INFO("Crackdown: guest frames: {:.1f} FPS over {:.1f} s; frame times: median {:.2f} ms ({:.1f} FPS), 10% low "
+              "{:.1f} FPS, 1% low {:.1f} FPS; slowest frame {:.1f} ms; {} MB private",
+              fps, elapsed, f.median_ms, 1e3 / f.median_ms, 1e3 / f.p90_ms, 1e3 / f.p99_ms, slowest,
+              PrivateBytes() >> 20);
+  g_period_ms.clear();
+  g_period_start = now;
+}
+
 
 }  // namespace
 
@@ -88,4 +141,5 @@ REX_HOOK_RAW(__imp__VdSwap) {
   } else {
     rex::ppc::HostToGuestFunction<rex::kernel::xboxkrnl::VdSwap_entry>(ctx, base);
   }
+  crackdown::LogFrameTimes();
 }

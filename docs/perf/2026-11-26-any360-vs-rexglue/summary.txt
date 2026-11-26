@@ -1,0 +1,20 @@
+launch log                     variant   periods  steady-mean-FPS  median-ms  p10  p1   dip-p1  private-end
+crackdown_496.log              rexglue     8         272.8          3.60  258.1 214.7  130.3  3377
+crackdown_497.log              any360      8         280.4          3.48  241.6 191.0  136.9  2802
+crackdown_498.log              rexglue     8         269.2          3.65  254.4 212.0  130.7  3326
+crackdown_499.log              any360      8         294.3          3.27  241.5 195.8  139.1  2802
+crackdown_500.log              rexglue     8         269.3          3.65  255.0 215.9  129.3  3478
+crackdown_501.log              any360      8         291.7          3.31  241.6 195.5  135.5  2795
+crackdown_502.log              rexglue     8         268.3          3.67  253.9 216.1  130.9  3411
+crackdown_503.log              any360      8         295.4          3.27  245.5 198.3  138.5  2801
+crackdown_504.log              rexglue     8         269.0          3.66  255.3 216.4  129.9  3501
+crackdown_505.log              any360      8         294.2          3.29  245.9 196.1  135.7  2804
+crackdown_506.log              rexglue     8         267.8          3.67  253.9 209.6  130.7  3448
+crackdown_507.log              any360      8         293.4          3.28  242.3 194.7  141.0  2801
+
+rexglue: 6 launches; avg FPS 269.1 (range 267.8-272.8), median frame 3.66 ms (273.4 FPS), 10% low 254.7, 1% low 215.3, dip 1% low 130.5, private 2748 MB (log), 3430 MB (process at end)
+any360: 6 launches; avg FPS 293.8 (range 280.4-295.4), median frame 3.29 ms (304.2 FPS), 10% low 242.0, 1% low 195.7, dip 1% low 137.7, private 2798 MB (log), 2802 MB (process at end)
+   fps: z = +2.88 against rexglue
+   p10: z = -2.88 against rexglue
+   p1: z = -2.88 against rexglue
+   private: z = +1.92 against rexglue

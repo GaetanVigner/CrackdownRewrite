@@ -1,6 +1,6 @@
 # Crackdown: rewrite progress
 
-Generated on 2026-11-19 by [Any360](https://github.com/GaetanVigner/Any360)'s `tools/title_progress.py`. What is still missing, step by step: [ROADMAP.md](ROADMAP.md). Every function: [functions.csv](functions.csv). Counts: [progress.json](progress.json).
+Generated on 2026-11-26 by [Any360](https://github.com/GaetanVigner/Any360)'s `tools/title_progress.py`. What is still missing, step by step: [ROADMAP.md](ROADMAP.md). Every function: [functions.csv](functions.csv). Counts: [progress.json](progress.json).
 
 ![Progress](progress.svg)
 
@@ -12,9 +12,9 @@ Generated on 2026-11-19 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
 | Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 289 | 6,571 | 4.4% | replaced as units, not decompiled |
+| Library functions (SDK, middleware) replaced | 288 | 6,571 | 4.4% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 41,056 | 2,667,844 | 1.5% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 40,601 | 2,667,844 | 1.5% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -323,7 +323,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | code 82Axxxxx | game | 1,064 | 50,916 | 4 | 0 | 1,060 | 0.4% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
 | C runtime (CRT) | library | 595 | 41,901 | 29 | 0 | 566 | 4.9% |
-| XDK D3D runtime | library | 553 | 34,977 | 194 | 132 | 227 | 35% |
+| XDK D3D runtime | library | 553 | 34,977 | 193 | 132 | 228 | 35% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
 | XDK audio (XAudio, XMA) | library | 484 | 28,795 | 14 | 0 | 470 | 2.9% |
@@ -335,7 +335,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 3 | 0 | 191 | 1.5% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 609 rewritten functions</summary>
+<details><summary>The 608 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -752,7 +752,6 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826BBEE0` | XDK D3D runtime | 45 | `GpuPoll` | gpu_fence_wait.cpp |
 | `826BC3D0` | XDK D3D runtime | 99 | `SwapCallback` | frame_pacing.cpp |
 | `826BC568` | XDK D3D runtime | 103 | `SwapPacket` | frame_pacing.cpp |
-| `826BCA98` | XDK D3D runtime | 455 | `SwapBuilder` | frame_rate.cpp |
 | `826BD300` | XDK D3D runtime | 97 | `D3dSetPredication` | single_tile_scene.cpp |
 | `826BD488` | XDK D3D runtime | 364 | `D3dBeginTiling` | single_tile_scene.cpp |
 | `826BDA38` | XDK D3D runtime | 313 | `D3dEndTiling` | single_tile_scene.cpp |
@@ -960,7 +959,7 @@ Any360's own steps towards hosting a title without ReXGlue's runtime ([Any360 RE
 | 9 | no call reaching the runtime: every path, the raw hard drive devices, the profile defaults on `any360::sys` | done (Crackdown; the host stays ReXGlue's until step 13) |
 | 10 | a second title (The Simpsons Game) on the full system binding | done (all groups, levels, saves, sound, gamepad) |
 | 11 | third and fourth titles (Test Drive Unlimited, Sonic 06) | partial: Test Drive Unlimited boots to its title screen with all eight groups on `any360::sys` and no call reaching the runtime; gameplay, saves and sound not checked yet; Sonic 06 not started |
-| 12 | paths no title took yet: `XMA*` decoding, STFS packages, several users, guide UIs, Live offline, xbdm | partial: 728 of 2,914 exports native with scenario tests; the reference stubs sorted ([docs/SYS_STUBS.md](https://github.com/GaetanVigner/Any360/blob/main/docs/SYS_STUBS.md)): none left to implement (2 object and module calls, 10 content, network, callback and thread look-up calls, 9 language, memory, Xapi, IPTV and LZX decompression calls, 24 cryptography and key calls, 14 Win32 forms, 19 XAM information calls, 11 kernel calls, 16 guide and Kinect calls and 17 profile calls done), 114 answered as stubs, 255 debug only, 1,799 never seen |
+| 12 | paths no title took yet: `XMA*` decoding, STFS packages, several users, guide UIs, Live offline, xbdm | partial: 850 of 2,914 exports native with scenario tests; the reference stubs sorted ([docs/SYS_STUBS.md](https://github.com/GaetanVigner/Any360/blob/main/docs/SYS_STUBS.md)): none left to implement, all 114 Xenia stubs too answered natively (avatars, media, profile and user, content, information, Kinect, settings and others, guide screens, modules, input, network and notifications, the SMC and the last ones) (2 object and module calls, 10 content, network, callback and thread look-up calls, 9 language, memory, Xapi, IPTV and LZX decompression calls, 24 cryptography and key calls, 14 Win32 forms, 19 XAM information calls, 11 kernel calls, 16 guide and Kinect calls and 17 profile calls done), 255 debug only, 1,799 never seen |
 | 13 | Any360's own host: XEX loader, address space, threads, guest dispatch, MMIO, devices | not started |
 | 14 | the platform layer: window, input, audio, presenter on Windows and Linux (Steam Deck) | partial: SDL3 audio output only |
 | 15 | graphics through `any360::gfx` only, no `rexgpu-xenos` | partial: three titles draw through `any360::gfx`, the GPU session's plan in [docs/GFX.md](https://github.com/GaetanVigner/Any360/blob/main/docs/GFX.md) |

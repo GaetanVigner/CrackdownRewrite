@@ -8,6 +8,37 @@
 
 **No game data and no game binaries are here.** Bring your own Crackdown disc.
 
+> [!IMPORTANT]
+> ## Benchmark: Any360 against ReXGlue (2026-11-26)
+>
+> | Same build, same route, uncapped | Average FPS | Median frame | 10% low | 1% low | One-off dip (1% low) | Private memory at the end |
+> |---|---:|---:|---:|---:|---:|---:|
+> | **Any360** (`any360::sys` 8 groups + `any360::gfx` Vulkan + XDK natives) | **293.8** | **3.29 ms** (304 FPS) | 242.0 | 195.7 | 137.7 | **2.80 GB** (flat) |
+> | ReXGlue (runtime kernel, Xenos GPU on D3D12, game's own XDK code) | 269.1 | 3.66 ms (273 FPS) | **254.7** | **215.3** | 130.5 | 3.43 GB (growing) |
+> | Any360 against ReXGlue | **+9.2%** | **-10%** | -5.0% | -9.1% | +5.5% | **-18%** |
+>
+> Any360 draws the city 9% faster on average and uses less memory, but its frame times spread more: its 10% and
+> 1% lows are below ReXGlue's in every launch. Each figure is the median of 6 launches per variant, alternating.
+> The rank test separates the launches completely (z = 2.88, the most 6 against 6 can give) for the average and both
+> lows. The memory figure is the process's private bytes 2 s before the end. ReXGlue's grows through a run
+> (2.4 GB → 3.4 GB); Any360's stays at 2.8 GB.
+>
+> - **Route:** title screen → city by the scripted input (`--any360_input_script=12:start,16:a,…,50:a`), 130 s a
+>   launch. 8 periods of 10 s per launch: the first is dropped as warm-up, and the one with the lowest 1% low is
+>   reported apart as the dip (texture streaming).
+> - **Uncapped:** `--crackdown_frame_rate=0` on both variants, `--any360_gpu_vblank_hz=1000` on Any360, D3D12 tearing
+>   allowed on ReXGlue, 1280×720, no MSAA. Neither variant sits on a cap (the title screen runs at 1,500-2,400 FPS).
+> - **Measured the same way:** the game's own swaps (`Crackdown: guest frames` every 10 s). That is
+>   the same code on both runtimes, with Any360's percentiles (`any360::gfx::SummarizeFrameTimes`).
+> - **ReXGlue variant:** `--any360_gpu=false --any360_sys_groups=input --any360_xdk_natives=false
+>   --any360_d3d_native_draws=false --any360_d3d_native_refcounts=false`. Only the `input` group stays on Any360,
+>   because the scripted route is played through it.
+> - **Build:** Any360 `81b3a4b`, Release, clang (MSVC target). The launches ran on fork `main` e03ff44 with this
+>   change; this commit sits on two later ones (the window-title frame counter and the keys moved to Any360). One check launch
+>   each of the released build gives the same figures (Any360 288 FPS, ReXGlue 266 FPS in the city).
+> - **Machine:** Ryzen 7 7800X3D (the game on logical processors 0-7), RTX 5070 Ti, 32 GB, Windows 11.
+> - Raw results: [docs/perf/2026-11-26-any360-vs-rexglue](docs/perf/2026-11-26-any360-vs-rexglue/).
+
 ## Where the rewrite stands
 
 <!-- progress:begin -->
@@ -20,7 +51,7 @@
 | **Host** | ReXGlue's loader, threads and window; Any360's own host is not started |
 | **Game code** | 279 of 29,347 functions rewritten in C++ (1.0%), 29 more verified against the original |
 
-Updated 2026-11-19. Every system call, module and rewritten function: [PROGRESS.md](docs/progress/PROGRESS.md). What is missing, step by step: [ROADMAP.md](docs/progress/ROADMAP.md). Function by function: [functions.csv](docs/progress/functions.csv).
+Updated 2026-11-26. Every system call, module and rewritten function: [PROGRESS.md](docs/progress/PROGRESS.md). What is missing, step by step: [ROADMAP.md](docs/progress/ROADMAP.md). Function by function: [functions.csv](docs/progress/functions.csv).
 <!-- progress:end -->
 
 ## What this is

@@ -180,6 +180,15 @@ add_subdirectory("${_trg_patched_dir}" trg-launcher)
 set_target_properties(trg_launcher PROPERTIES CXX_STANDARD 17)
 # TRG defines this only for cl.exe; clang++ needs it too for the MSVC CRT.
 target_compile_definitions(trg_launcher PRIVATE _CRT_SECURE_NO_WARNINGS)
+# Windows SDKs before 10.0.22000 lack this power throttling flag (its value there is 0x4); the call ignores it on
+# Windows 10, which does not know it.
+if(WIN32)
+  include(CheckSymbolExists)
+  check_symbol_exists(PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION "windows.h" CRACKDOWN_HAS_PPT_IGNORE_TIMER)
+  if(NOT CRACKDOWN_HAS_PPT_IGNORE_TIMER)
+    target_compile_definitions(trg_launcher PRIVATE PROCESS_POWER_THROTTLING_IGNORE_TIMER_RESOLUTION=0x4)
+  endif()
+endif()
 get_directory_property(CRACKDOWN_TRG_VERSION DIRECTORY "${_trg_patched_dir}" DEFINITION PROJECT_VERSION)
 
 set(CRACKDOWN_SOURCES

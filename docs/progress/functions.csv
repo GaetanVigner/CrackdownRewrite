@@ -20338,7 +20338,7 @@ address,module,kind,instructions,state,handler,file
 826BC7A8,XDK D3D runtime,library,68,library,,
 826BC8B8,XDK D3D runtime,library,118,library,,
 826BCA90,XDK D3D runtime,library,2,library,,
-826BCA98,XDK D3D runtime,library,455,native,SwapBuilder,frame_rate.cpp
+826BCA98,XDK D3D runtime,library,455,library,,
 826BD1B8,XDK D3D runtime,library,82,library,,
 826BD300,XDK D3D runtime,library,97,native,D3dSetPredication,single_tile_scene.cpp
 826BD488,XDK D3D runtime,library,364,native,D3dBeginTiling,single_tile_scene.cpp
