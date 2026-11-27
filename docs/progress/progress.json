@@ -1,6 +1,6 @@
 {
  "title": "Crackdown",
- "date": "2026-11-26",
+ "date": "2026-11-27",
  "system_calls": {
   "total": 248,
   "any360": 248,
@@ -16,23 +16,23 @@
  },
  "functions": {
   "total": 41219,
-  "native": 608,
+  "native": 609,
   "verified": 161,
-  "library": 6151,
+  "library": 6152,
   "middleware": 5260,
-  "recompiled": 29039
+  "recompiled": 29037
  },
  "game_functions": {
-  "total": 29347,
-  "native": 279,
+  "total": 29344,
+  "native": 278,
   "verified": 29
  },
  "instructions": {
   "total": 2667844,
-  "native": 40601,
+  "native": 40606,
   "verified": 3164,
-  "library": 620401,
+  "library": 620600,
   "middleware": 352116,
-  "recompiled": 1651562
+  "recompiled": 1651358
  }
 }

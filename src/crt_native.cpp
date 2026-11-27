@@ -110,11 +110,14 @@ void crackdown::hooks::CrtStricmp(PPCContext& ctx, uint8_t* base, GuestFunction 
 void crackdown::hooks::CrtStrstr(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtStrstr(ctx, base, original);
 }
-// The C runtime's helpers on a double's bits: _isnan, _get_exp, _set_exp. _finite (sub_82AB9C18) and _sptype
-// (sub_82AC44A8) have their replacements in Any360 too and are not bound: no run of the game has called them;
-// _add_exp (sub_82AC4470) neither, and keeps the copy written here before (decomp/leaf_batch4.cpp).
+// The C runtime's helpers on a double's bits: _isnan, _get_exp, _set_exp. _finite (sub_82AB9C18), _sptype
+// (sub_82AC44A8) and _add_exp (sub_82AC4470, the copy in decomp/leaf_batch4.cpp) are not bound: no run of the game
+// has called them, the city route of 2026-11-27 included.
 void crackdown::hooks::CrtIsnan(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtIsnan(ctx, base, original);
+}
+void crackdown::hooks::CrtToupper(PPCContext& ctx, uint8_t* base, GuestFunction original) {
+  any360::host::rexglue::xdk::CrtToupper(ctx, base, original);
 }
 void crackdown::hooks::CrtGetExp(PPCContext& ctx, uint8_t* base, GuestFunction original) {
   any360::host::rexglue::xdk::CrtGetExp(ctx, base, original);

@@ -1,6 +1,6 @@
 # Crackdown: roadmap
 
-Generated on 2026-11-26 with [PROGRESS.md](PROGRESS.md). The rewrite is done when nothing of the Xbox 360 or of ReXGlue's runtime is left under the game: every system call on `any360::sys`, graphics on `any360::gfx`, Any360 as the host, and the game's code as portable C++. Steps are in working order; each lists what it still needs.
+Generated on 2026-11-27 with [PROGRESS.md](PROGRESS.md). The rewrite is done when nothing of the Xbox 360 or of ReXGlue's runtime is left under the game: every system call on `any360::sys`, graphics on `any360::gfx`, Any360 as the host, and the game's code as portable C++. Steps are in working order; each lists what it still needs.
 
 ## 1. System calls on any360::sys
 
@@ -47,8 +47,8 @@ SDK code linked into the executable is not decompiled: Any360 provides the same 
 | Library range | Functions | Instructions | Replaced | Verified in the sandbox | Left |
 |---|---|---|---|---|---|
 | XDK D3DX and XGraphics (shader compiler) | 4,171 | 487,670 | 39 | 0 | 4,132 |
-| C runtime (CRT) | 595 | 41,901 | 29 | 0 | 566 |
-| XDK D3D runtime | 553 | 34,977 | 193 | 132 | 360 |
+| C runtime (CRT) | 595 | 41,901 | 30 | 0 | 565 |
+| XDK D3D runtime | 556 | 35,345 | 194 | 132 | 362 |
 | XDK audio (XAudio, XMA) | 484 | 28,795 | 14 | 0 | 470 |
 | XDK Xbox Live and voice (XOnline, XHV) | 378 | 21,114 | 5 | 0 | 373 |
 | libpng 1.0.5 and zlib 1.1.4 | 194 | 14,367 | 5 | 0 | 189 |
@@ -68,7 +68,7 @@ Third-party middleware the game links (physics, AI, scripting, video and the lik
 
 ## 5. Game code as portable C++
 
-29,068 of 29,347 game functions are still recompiled PowerPC (29 of them already have a sandbox test to check a rewrite against). The list, function by function, is [functions.csv](functions.csv) (state `recompiled` or `verified`). By module, largest first:
+29,066 of 29,344 game functions are still recompiled PowerPC (29 of them already have a sandbox test to check a rewrite against). The list, function by function, is [functions.csv](functions.csv) (state `recompiled` or `verified`). By module, largest first:
 
 | Module | Functions left | Instructions left | Rewritten | Verified |
 |---|---|---|---|---|
@@ -76,7 +76,7 @@ Third-party middleware the game links (physics, AI, scripting, video and the lik
 | code 821xxxxx | 3,830 | 210,006 | 41 | 0 |
 | code 823xxxxx | 3,800 | 255,110 | 52 | 0 |
 | code 825xxxxx | 3,788 | 247,698 | 51 | 0 |
-| code 826xxxxx | 3,341 | 221,054 | 25 | 29 |
+| code 826xxxxx | 3,339 | 220,850 | 24 | 29 |
 | code 824xxxxx | 3,306 | 253,049 | 47 | 0 |
 | code 822xxxxx | 2,407 | 254,870 | 28 | 0 |
 | code 82Axxxxx | 1,060 | 50,848 | 4 | 0 |

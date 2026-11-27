@@ -49,6 +49,7 @@ void CrtWcsncpy(PPCContext&, uint8_t*, GuestFunction original);
 void CrtTolower(PPCContext&, uint8_t*, GuestFunction original);
 void CrtWcscmp(PPCContext&, uint8_t*, GuestFunction original);
 void CrtIsnan(PPCContext&, uint8_t*, GuestFunction original);
+void CrtToupper(PPCContext&, uint8_t*, GuestFunction original);
 void CrtGetExp(PPCContext&, uint8_t*, GuestFunction original);
 void CrtSetExp(PPCContext&, uint8_t*, GuestFunction original);
 void CrtStricmp(PPCContext&, uint8_t*, GuestFunction original);

@@ -36,7 +36,7 @@
 > - **Build:** Any360 `81b3a4b`, Release, clang (MSVC target). The launches ran on fork `main` e03ff44 with this
 >   change; this commit sits on two later ones (the window-title frame counter and the keys moved to Any360). One check launch
 >   each of the released build gives the same figures (Any360 288 FPS, ReXGlue 266 FPS in the city).
-> - **Machine:** Ryzen 7 7800X3D (the game on logical processors 0-7), RTX 5070 Ti, 32 GB, Windows 11.
+> - **Machine:** Ryzen 7 7800X3D (all 16 logical processors, on both variants: the launch script set 0-7, but ReXGlue's runtime resets the process affinity at startup), RTX 5070 Ti, 32 GB, Windows 11.
 > - Raw results: [docs/perf/2026-11-26-any360-vs-rexglue](docs/perf/2026-11-26-any360-vs-rexglue/).
 
 ## Where the rewrite stands
@@ -49,9 +49,9 @@
 | **System calls** | 248 of 248 on `any360::sys` (opt-in) |
 | **Graphics** | `any360::gfx`, a Vulkan renderer handling 283 of 323 Xbox 360 GPU features (opt-in) |
 | **Host** | ReXGlue's loader, threads and window; Any360's own host is not started |
-| **Game code** | 279 of 29,347 functions rewritten in C++ (1.0%), 29 more verified against the original |
+| **Game code** | 278 of 29,344 functions rewritten in C++ (0.9%), 29 more verified against the original |
 
-Updated 2026-11-26. Every system call, module and rewritten function: [PROGRESS.md](docs/progress/PROGRESS.md). What is missing, step by step: [ROADMAP.md](docs/progress/ROADMAP.md). Function by function: [functions.csv](docs/progress/functions.csv).
+Updated 2026-11-27. Every system call, module and rewritten function: [PROGRESS.md](docs/progress/PROGRESS.md). What is missing, step by step: [ROADMAP.md](docs/progress/ROADMAP.md). Function by function: [functions.csv](docs/progress/functions.csv).
 <!-- progress:end -->
 
 ## What this is

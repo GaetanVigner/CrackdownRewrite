@@ -1,6 +1,6 @@
 # Crackdown: rewrite progress
 
-Generated on 2026-11-26 by [Any360](https://github.com/GaetanVigner/Any360)'s `tools/title_progress.py`. What is still missing, step by step: [ROADMAP.md](ROADMAP.md). Every function: [functions.csv](functions.csv). Counts: [progress.json](progress.json).
+Generated on 2026-11-27 by [Any360](https://github.com/GaetanVigner/Any360)'s `tools/title_progress.py`. What is still missing, step by step: [ROADMAP.md](ROADMAP.md). Every function: [functions.csv](functions.csv). Counts: [progress.json](progress.json).
 
 ![Progress](progress.svg)
 
@@ -11,10 +11,10 @@ Generated on 2026-11-26 by [Any360](https://github.com/GaetanVigner/Any360)'s `t
 | System calls on `any360::sys` | 248 | 248 | 100% | all eight groups, opt-in on `main`: `--any360_sys_groups=stateless,files,objects,threads,memory,xam,input,audio`; no call reaches ReXGlue's kernel then |
 | Graphics on `any360::gfx` (GPU features Any360 handles) | 283 | 323 | 88% | opt-in on `main`: `--any360_gpu=true` (resolution scale, host MSAA, pipeline cache); 160-220 FPS at 1440p with 4x MSAA in the city on an RTX 5070 Ti |
 | Host (XEX loader, address space, threads, window, input, audio output) | 0 | 2 | 0% | ReXGlue's host runs the title; Any360 steps 13 and 14 |
-| Game functions rewritten in C++ | 279 | 29,347 | 1.0% | 29 more verified against the original in the sandbox |
-| Library functions (SDK, middleware) replaced | 288 | 6,571 | 4.4% | replaced as units, not decompiled |
+| Game functions rewritten in C++ | 278 | 29,344 | 0.9% | 29 more verified against the original in the sandbox |
+| Library functions (SDK, middleware) replaced | 290 | 6,574 | 4.4% | replaced as units, not decompiled |
 | Middleware functions (third-party physics, AI, scripting, video) | - | 5,301 | - | kept recompiled or relinked from the vendor's library, not rewritten |
-| Instructions of rewritten functions | 40,601 | 2,667,844 | 1.5% | PowerPC instructions of the original |
+| Instructions of rewritten functions | 40,606 | 2,667,844 | 1.5% | PowerPC instructions of the original |
 
 ## System calls
 
@@ -315,15 +315,15 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | code 823xxxxx | game | 3,852 | 257,976 | 52 | 0 | 3,800 | 1.3% |
 | code 824xxxxx | game | 3,353 | 257,848 | 47 | 0 | 3,306 | 1.4% |
 | code 822xxxxx | game | 2,435 | 256,713 | 28 | 0 | 2,407 | 1.1% |
-| code 826xxxxx | game | 3,366 | 223,024 | 25 | 29 | 3,312 | 0.7% |
+| code 826xxxxx | game | 3,363 | 222,656 | 24 | 29 | 3,310 | 0.7% |
 | code 821xxxxx | game | 3,871 | 210,799 | 41 | 0 | 3,830 | 1.1% |
 | Havok Physics | middleware | 2,699 | 191,551 | 25 | 0 | 2,674 | 0.9% |
 | code 82Bxxxxx | game | 6,519 | 101,666 | 24 | 0 | 6,495 | 0.4% |
 | Kynapse (AI) | middleware | 947 | 56,021 | 3 | 0 | 944 | 0.3% |
 | code 82Axxxxx | game | 1,064 | 50,916 | 4 | 0 | 1,060 | 0.4% |
 | SpeedTree | middleware | 560 | 42,091 | 10 | 0 | 550 | 1.8% |
-| C runtime (CRT) | library | 595 | 41,901 | 29 | 0 | 566 | 4.9% |
-| XDK D3D runtime | library | 553 | 34,977 | 193 | 132 | 228 | 35% |
+| C runtime (CRT) | library | 595 | 41,901 | 30 | 0 | 565 | 5.0% |
+| XDK D3D runtime | library | 556 | 35,345 | 194 | 132 | 230 | 35% |
 | code 829xxxxx | game | 682 | 33,443 | 5 | 0 | 677 | 0.7% |
 | Lua | middleware | 600 | 30,433 | 2 | 0 | 598 | 0.3% |
 | XDK audio (XAudio, XMA) | library | 484 | 28,795 | 14 | 0 | 470 | 2.9% |
@@ -335,7 +335,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | XAPI (Win32 layer over the kernel and XAM) | library | 194 | 9,291 | 3 | 0 | 191 | 1.5% |
 | kernel import thunks | library | 2 | 6 | 0 | 0 | 2 | 0% |
 
-<details><summary>The 608 rewritten functions</summary>
+<details><summary>The 609 rewritten functions</summary>
 
 | Address | Module | Instructions | Handler | File |
 |---|---|---|---|---|
@@ -581,7 +581,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `826A6B50` | code 826xxxxx | 70 | `SimulationUpdate` | frame_pacing.cpp |
 | `826A7698` | code 826xxxxx | 172 | `FrameLoop` | frame_pacing.cpp |
 | `826A8940` | code 826xxxxx | 71 | `EngineMovie` | skip_intro.cpp |
-| `826AC8F0` | code 826xxxxx | 164 | `ResourceLockOrOriginal` | guest_bindings_base.cpp |
+| `826AC8F0` | XDK D3D runtime | 164 | `ResourceLockOrOriginal` | guest_bindings_base.cpp |
 | `826ACC90` | XDK D3D runtime | 29 | `ResourceAddRefOrOriginal` | guest_bindings_base.cpp |
 | `826ACD08` | XDK D3D runtime | 32 | `ResourceReleaseOrOriginal` | guest_bindings_base.cpp |
 | `826ACDB0` | XDK D3D runtime | 35 | `D3dState` | guest_bindings_base.cpp |
@@ -902,6 +902,7 @@ Every function of the executable by module (named address ranges; the rest by 1 
 | `82AB64C0` | C runtime (CRT) | 214 | `MathAtan2` | crt_native.cpp |
 | `82AB66E8` | C runtime (CRT) | 63 | `MathAsin` | crt_native.cpp |
 | `82AB6918` | C runtime (CRT) | 23 | `CrtStrncpy` | crt_native.cpp |
+| `82AB6A08` | C runtime (CRT) | 5 | `CrtToupper` | crt_native.cpp |
 | `82AB9380` | C runtime (CRT) | 15 | `CrtStrchr` | crt_native.cpp |
 | `82AB93C0` | C runtime (CRT) | 51 | `CrtStrstr` | crt_native.cpp |
 | `82AB9440` | C runtime (CRT) | 19 | `CrtStrncmp` | crt_native.cpp |

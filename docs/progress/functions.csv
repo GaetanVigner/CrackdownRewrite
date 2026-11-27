@@ -19923,9 +19923,9 @@ address,module,kind,instructions,state,handler,file
 826AC160,code 826xxxxx,game,2,recompiled,,
 826AC168,code 826xxxxx,game,2,recompiled,,
 826AC170,code 826xxxxx,game,342,recompiled,,
-826AC6C8,code 826xxxxx,game,137,recompiled,,
-826AC8F0,code 826xxxxx,game,164,native,ResourceLockOrOriginal,guest_bindings_base.cpp
-826ACB80,code 826xxxxx,game,67,recompiled,,
+826AC6C8,XDK D3D runtime,library,137,library,,
+826AC8F0,XDK D3D runtime,library,164,native,ResourceLockOrOriginal,guest_bindings_base.cpp
+826ACB80,XDK D3D runtime,library,67,library,,
 826ACC90,XDK D3D runtime,library,29,native,ResourceAddRefOrOriginal,guest_bindings_base.cpp
 826ACD08,XDK D3D runtime,library,32,native,ResourceReleaseOrOriginal,guest_bindings_base.cpp
 826ACD88,XDK D3D runtime,library,10,verified,,
@@ -33050,7 +33050,7 @@ address,module,kind,instructions,state,handler,file
 82AB68D0,C runtime (CRT),library,18,library,,
 82AB6918,C runtime (CRT),library,23,native,CrtStrncpy,crt_native.cpp
 82AB6978,C runtime (CRT),library,36,library,,
-82AB6A08,C runtime (CRT),library,5,library,,
+82AB6A08,C runtime (CRT),library,5,native,CrtToupper,crt_native.cpp
 82AB6A20,C runtime (CRT),library,242,library,,
 82AB6DF0,C runtime (CRT),library,77,library,,
 82AB6F28,C runtime (CRT),library,16,library,,
